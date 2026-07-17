@@ -11,7 +11,6 @@ import {
   saveOrganizationSettings,
   type OrganizationSettings,
   type PaymentMethodId,
-  type PaymentMethodDetails,
 } from "@/lib/organization-settings";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -643,22 +642,6 @@ export function OrganizationSettingsView() {
     });
   }
 
-  function setPaymentMethodDetail(
-    id: PaymentMethodId,
-    key: keyof PaymentMethodDetails,
-    value: string,
-  ) {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === id ? { ...method, [key]: value } : method,
-        ),
-      };
-    });
-  }
-
   function togglePaymentPreference(option: string) {
     setDraft((prev) => {
       if (!prev) return prev;
@@ -1099,8 +1082,8 @@ export function OrganizationSettingsView() {
                 >
                   <p className="type-body-muted">
                     Activate the payment methods your business accepts.
-                    Bank-linked methods require a deposit destination. Cost
-                    details show on invoices wherever this method appears.
+                    Bank-linked methods require a deposit destination. Cost and
+                    limit notes are shared reference copy shown on invoices.
                   </p>
                   <div className="flex flex-col gap-6">
                     {CORE_PAYMENT_METHODS.map((method) => {
@@ -1110,10 +1093,6 @@ export function OrganizationSettingsView() {
                         id: method.id,
                         enabled: false,
                         accountLabel: "",
-                        costToYou: "",
-                        costToCustomer: "",
-                        limits: "",
-                        note: "",
                       };
 
                       return (
@@ -1156,45 +1135,22 @@ export function OrganizationSettingsView() {
                                   />
                                 </div>
                               ) : null}
-                              {method.detailFields.map((field) => (
-                                <div key={field.key}>
-                                  <FieldLabel
-                                    htmlFor={`${method.id}-${field.key}`}
-                                  >
-                                    {field.label}
-                                  </FieldLabel>
-                                  {field.key === "note" ||
-                                  field.key === "limits" ? (
-                                    <textarea
-                                      id={`${method.id}-${field.key}`}
-                                      className={`${inputClass} min-h-[72px] resize-y ${
-                                        field.italic ? "italic" : ""
-                                      }`}
-                                      value={config[field.key]}
-                                      onChange={(event) =>
-                                        setPaymentMethodDetail(
-                                          method.id,
-                                          field.key,
-                                          event.target.value,
-                                        )
+                              <ul className="list-disc space-y-1 pl-5 text-sm text-black/70">
+                                {method.details.map((detail) => (
+                                  <li key={`${detail.label}-${detail.text}`}>
+                                    <span
+                                      className={
+                                        detail.italic ? "italic" : undefined
                                       }
-                                    />
-                                  ) : (
-                                    <input
-                                      id={`${method.id}-${field.key}`}
-                                      className={inputClass}
-                                      value={config[field.key]}
-                                      onChange={(event) =>
-                                        setPaymentMethodDetail(
-                                          method.id,
-                                          field.key,
-                                          event.target.value,
-                                        )
-                                      }
-                                    />
-                                  )}
-                                </div>
-                              ))}
+                                    >
+                                      <span className="font-bold text-black">
+                                        {detail.label}:
+                                      </span>{" "}
+                                      {detail.text}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
                           ) : null}
                         </div>
@@ -1266,24 +1222,20 @@ export function OrganizationSettingsView() {
                             ) : null}
                             {meta ? (
                               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                                {meta.detailFields.map((field) => {
-                                  const text = method[field.key]?.trim();
-                                  if (!text) return null;
-                                  return (
-                                    <li key={field.key}>
-                                      <span
-                                        className={
-                                          field.italic ? "italic" : undefined
-                                        }
-                                      >
-                                        <span className="font-bold">
-                                          {field.label}:
-                                        </span>{" "}
-                                        {text}
-                                      </span>
-                                    </li>
-                                  );
-                                })}
+                                {meta.details.map((detail) => (
+                                  <li key={`${detail.label}-${detail.text}`}>
+                                    <span
+                                      className={
+                                        detail.italic ? "italic" : undefined
+                                      }
+                                    >
+                                      <span className="font-bold">
+                                        {detail.label}:
+                                      </span>{" "}
+                                      {detail.text}
+                                    </span>
+                                  </li>
+                                ))}
                               </ul>
                             ) : null}
                           </li>
