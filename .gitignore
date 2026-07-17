@@ -1,0 +1,14 @@
+# Dependencies / build artifacts inside versioned apps
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/.turbo/
+
+# Env / OS / editor
+.env*
+!.env.example
+.DS_Store
+*.log
+.vscode/
+.idea/
