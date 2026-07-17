@@ -98,7 +98,7 @@ export const draftInvoice = {
     address: "115-31st Ave SE Calgary, AB T3Z 1R0",
     phone: "1-403-257-0099",
     email: "invoicing@horlicks.com",
-    color: "#F4A21E",
+    color: "#FF7F30",
   },
   details: [
     { label: "Invoice Number", value: "3001", hasCaret: false },
@@ -137,72 +137,9 @@ export const draftInvoice = {
     taxPst: 499.98,
     total: 3555.99,
   },
-  paymentOptions: [
-    {
-      id: "etransfer",
-      label: "Interac e-Transfer Request",
-      checked: true,
-      details: [
-        { label: "Cost to you", text: "$1.50 per request" },
-        { label: "Cost to client", text: "Free" },
-        {
-          label: "Limits",
-          text: "Typically capped at $3,000 per day (dependent on client's personal bank plan)",
-        },
-      ],
-    },
-    {
-      id: "eft",
-      label: "EFT (Direct Deposit)",
-      checked: false,
-      details: [
-        {
-          label: "Cost to you",
-          text: "Up to $1.50 per EFT deposit; check your specific account terms.",
-        },
-        { label: "Cost to client", text: "Typically free" },
-        {
-          label: "Limits",
-          text: "$3,000 to $10,000 per day (dependent on client's personal bank security limits)",
-        },
-        {
-          label: "Note",
-          text: "Selecting this will display your bank deposit info on the invoice. You can turn this payment mechanism for specific clients later.",
-          italic: true,
-        },
-      ],
-    },
-    {
-      id: "cheque",
-      label: "Cheque",
-      checked: false,
-      details: [
-        {
-          label: "Cost to you",
-          text: "Up to $1.00 per cheque; check your specific account terms.",
-        },
-        {
-          label: "Cost to client",
-          text: "Up to $2.00 per cheque written",
-        },
-      ],
-    },
-    {
-      id: "cash",
-      label: "Cash",
-      checked: false,
-      details: [
-        {
-          label: "Cost to you",
-          text: "Up to $2.50 per $1,000 cash; check your specific account terms.",
-        },
-        {
-          label: "Cost to client",
-          text: "Free at their own bank's ATM, or up to $2.00 if using an out-of-network machine.",
-        },
-      ],
-    },
-  ] as PaymentOption[],
+  paymentOptions: [] as PaymentOption[],
+  // Payment options (cost copy, enabled methods) live in organization settings
+  // and are loaded via getInvoicePaymentOptions() on draft invoices.
   customerNotes: [
     {
       id: "note-thanks",

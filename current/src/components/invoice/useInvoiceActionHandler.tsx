@@ -53,12 +53,12 @@ function ConfirmModal({
         >
           <CloseIcon />
         </button>
-        <h2 className="pr-8 text-lg font-semibold">{title}</h2>
+        <h2 className="pr-8 type-section-title">{title}</h2>
         <p className="mt-3 text-sm leading-5 text-black/70">{body}</p>
         <div className="mt-6 flex justify-end gap-2.5">
           <button
             type="button"
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold"
+            className="ui-btn-secondary"
             onClick={onClose}
           >
             Cancel
@@ -66,7 +66,7 @@ function ConfirmModal({
           <button
             type="button"
             className={`h-11 rounded px-5 text-sm font-semibold text-white ${
-              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-[#0063d1]"
+              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-prime-blue-hover"
             }`}
             onClick={onConfirm}
           >
@@ -169,7 +169,7 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
         aria-labelledby="uncollectible-title"
         className="w-full max-w-md rounded-[10px] bg-white p-6 text-black shadow-xl"
       >
-        <h2 id="uncollectible-title" className="text-lg font-semibold">
+        <h2 id="uncollectible-title" className="type-section-title">
           Mark as Uncollectible
         </h2>
         {(status === "overdue_under_90" ||
@@ -214,7 +214,7 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
         <div className="mt-6 flex justify-end gap-2.5">
           <button
             type="button"
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold"
+            className="ui-btn-secondary"
             onClick={() => setShowUncollectible(false)}
           >
             Cancel

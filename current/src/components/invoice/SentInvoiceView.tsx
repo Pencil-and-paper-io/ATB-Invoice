@@ -80,7 +80,7 @@ export function SentInvoiceView({
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-3">
             <ModeBackButton label="Back to preview" fallbackHref="/preview" />
-            <h1 className="font-display text-[42px] font-bold leading-none tracking-tight">
+            <h1 className="type-page-title">
               {meta.title}
             </h1>
           </div>
@@ -90,7 +90,7 @@ export function SentInvoiceView({
               <button
                 type="button"
                 onClick={() => setShowPayment(true)}
-                className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+                className="ui-btn-primary"
               >
                 Record Payment
               </button>
@@ -105,7 +105,7 @@ export function SentInvoiceView({
                 {meta.amountLabel}
               </h2>
               <div className="flex flex-wrap items-center gap-2.5">
-                <p className="text-2xl font-bold text-black">
+                <p className="type-amount">
                   {formatMoney(previewMeta.amount)}
                 </p>
                 <span

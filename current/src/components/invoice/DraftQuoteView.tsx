@@ -73,7 +73,7 @@ export function DraftQuoteView() {
 
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="font-display text-[42px] font-bold leading-none tracking-tight">
+          <h1 className="type-page-title">
             Draft Quote
           </h1>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -81,9 +81,9 @@ export function DraftQuoteView() {
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
             <Link
               href="/quote/preview"
-              className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="ui-btn-primary"
             >
-              Preview
+              Save and Preview
             </Link>
           </div>
         </div>

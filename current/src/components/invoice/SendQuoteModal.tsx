@@ -88,7 +88,7 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
 
         <h2
           id="send-quote-title"
-          className="pr-10 font-display text-2xl font-bold text-black"
+          className="pr-10 type-modal-title"
         >
           Send quote
         </h2>
@@ -169,7 +169,7 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold text-midnight-ink transition hover:bg-black/5"
+            className="ui-btn-secondary"
           >
             Cancel
           </button>
@@ -177,7 +177,7 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={!selected || sending}
             onClick={() => void handleConfirm()}
-            className="inline-flex h-11 items-center gap-2 rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 items-center gap-2 rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {selected ? <SendButtonIcon method={selected} /> : null}
             {confirmLabel}

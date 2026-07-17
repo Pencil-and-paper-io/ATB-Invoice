@@ -269,6 +269,46 @@ export function QuickLinks() {
             for what is in vs deferred.
           </div>
 
+          <div className="mb-3">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40">
+              Setup
+            </p>
+            <div className="space-y-2">
+              <Link
+                href="/organization"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/organization"
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  Manage Organization
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  Business, brand, and cascading defaults
+                </span>
+              </Link>
+              <Link
+                href="/customers/new"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/customers/new"
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  Customer Details
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  Create or edit a customer profile
+                </span>
+              </Link>
+            </div>
+          </div>
+
           <ul className="space-y-3">
             {FLOW_ROOTS.map((node) => (
               <FlowBranch

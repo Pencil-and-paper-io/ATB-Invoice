@@ -65,7 +65,7 @@ function SaveTemplateModal({
 
         <h2
           id="save-template-title"
-          className="pr-8 font-display text-xl font-bold text-black"
+          className="pr-8 type-modal-title text-black"
         >
           Save as Template
         </h2>
@@ -99,7 +99,7 @@ function SaveTemplateModal({
             type="button"
             onClick={submit}
             disabled={!name.trim()}
-            className="h-11 rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1] disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn-primary"
           >
             Save Template
           </button>
@@ -313,7 +313,7 @@ export function TemplatePicker() {
                   <button
                     type="button"
                     onClick={saveManaging}
-                    className="rounded bg-prime-blue px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+                    className="rounded bg-prime-blue px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover"
                   >
                     Save
                   </button>

@@ -238,7 +238,7 @@ function NoteForm({
           Save for future invoices
         </label>
 
-        <div className="border-t border-dashed border-black/15 pt-5">
+        <div className="mt-6 border-t border-dashed border-black/15 pt-6">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -250,7 +250,7 @@ function NoteForm({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-6 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="ui-btn-primary"
             >
               {isNew ? "Save" : "Update"}
             </button>

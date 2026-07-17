@@ -14,7 +14,7 @@ import {
 import type { InvoiceDetailsState } from "./InvoiceDetailsPanel";
 
 function DashedDivider() {
-  return <div className="h-px w-full border-t-2 border-dashed border-[#F4A21E]" />;
+  return <div className="h-px w-full border-t-2 border-dashed border-brand-orange" />;
 }
 
 function PhoneIcon() {
@@ -141,10 +141,12 @@ export function CustomerInvoiceCard({
   shadow = "preview",
   documentKind = "invoice",
   showDraftWatermark = false,
+  isExpired = false,
 }: {
   shadow?: "preview" | "sent";
   documentKind?: "invoice" | "quote";
   showDraftWatermark?: boolean;
+  isExpired?: boolean;
 }) {
   const [quoteDetails, setQuoteDetails] = useState<InvoiceDetailsState | null>(
     null,
@@ -167,13 +169,24 @@ export function CustomerInvoiceCard({
       : previewMeta.invoiceNumber;
   const showPayment = documentKind === "invoice";
 
-  const quoteDates: { label: string; value: string }[] =
+  const validUntilValue = quoteDetails?.validUntil
+    ? formatQuoteDate(quoteDetails.validUntil)
+    : isExpired
+      ? "June 30, 2026"
+      : null;
+
+  const quoteDates: {
+    label: string;
+    value: string;
+    expired?: boolean;
+  }[] =
     documentKind === "quote"
       ? [
-          quoteDetails?.validUntil
+          validUntilValue
             ? {
                 label: "Valid until",
-                value: formatQuoteDate(quoteDetails.validUntil),
+                value: validUntilValue,
+                expired: isExpired,
               }
             : null,
           quoteDetails?.serviceStart
@@ -188,14 +201,17 @@ export function CustomerInvoiceCard({
                 value: formatQuoteDate(quoteDetails.serviceEnd),
               }
             : null,
-        ].filter((entry): entry is { label: string; value: string } =>
-          Boolean(entry),
+        ].filter(
+          (
+            entry,
+          ): entry is { label: string; value: string; expired?: boolean } =>
+            Boolean(entry),
         )
       : [];
 
   return (
     <div
-      className={`relative flex flex-col gap-5 overflow-hidden border-y-8 border-[#F4A21E] bg-white px-6 py-[50px] sm:px-10 ${shadowClass}`}
+      className={`relative flex flex-col gap-5 overflow-hidden border-y-8 border-brand-orange bg-white px-6 py-[50px] sm:px-10 ${shadowClass}`}
     >
       {showDraftWatermark ? (
         <div
@@ -216,12 +232,12 @@ export function CustomerInvoiceCard({
             height={100}
             className="h-[100px] w-[160px] rounded object-cover"
           />
-          <p className="font-display text-3xl font-bold text-black">
+          <p className="type-doc-id">
             {documentNumber}
           </p>
         </div>
-        <div className="flex w-full flex-col gap-2.5 rounded-md border-2 border-[#F4A21E]/50 p-10 sm:w-[312px]">
-          <p className="text-2xl font-bold text-black">
+        <div className="flex w-full flex-col gap-2.5 rounded-md border-2 border-brand-orange/50 p-10 sm:w-[312px]">
+          <p className="type-amount">
             {formatMoney(previewMeta.amount)}
           </p>
           <div>
@@ -233,11 +249,25 @@ export function CustomerInvoiceCard({
                     ? formatQuoteDate(quoteDetails.issueDate)
                     : "July 5, 2028"}
                 </p>
-                {quoteDates.map((entry) => (
-                  <p key={entry.label} className="text-sm text-black">
-                    {entry.label}: {entry.value}
-                  </p>
-                ))}
+                {quoteDates.map((entry) =>
+                  entry.expired ? (
+                    <div
+                      key={entry.label}
+                      className="mt-1 flex flex-wrap items-center gap-2"
+                    >
+                      <p className="text-sm font-semibold text-delete-red">
+                        {entry.label}: {entry.value}
+                      </p>
+                      <span className="inline-flex items-center rounded border border-[#F5C2C0] bg-[#FDECEC] px-1.5 py-0.5 text-xs font-semibold text-[#C62828]">
+                        Expired
+                      </span>
+                    </div>
+                  ) : (
+                    <p key={entry.label} className="text-sm text-black">
+                      {entry.label}: {entry.value}
+                    </p>
+                  ),
+                )}
               </>
             ) : (
               <>
@@ -278,7 +308,7 @@ export function CustomerInvoiceCard({
           <p className="text-base font-bold text-black">Total</p>
           <p className="text-sm text-black/40">(Tax exclusive)</p>
         </div>
-        <p className="w-[180px] text-right text-2xl font-bold text-black">
+        <p className="w-[180px] text-right type-amount">
           {formatMoney(previewMeta.amount)}
         </p>
       </div>
@@ -292,7 +322,7 @@ export function CustomerInvoiceCard({
             <span className="text-sm text-black">Pay by e-transfer</span>
             <button
               type="button"
-              className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="ui-btn-primary"
             >
               E-Transfer
             </button>

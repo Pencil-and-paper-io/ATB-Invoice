@@ -1,3 +1,42 @@
+"use client";
+
+import { useId, useState } from "react";
+
+export function InfoTooltip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/25 text-[10px] font-semibold leading-none text-black/50 transition hover:border-prime-blue hover:text-prime-blue"
+        aria-label="More information"
+        aria-describedby={open ? id : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        i
+      </button>
+      {open ? (
+        <span
+          id={id}
+          role="tooltip"
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-md bg-midnight-ink px-3 py-2 text-xs leading-4 text-white shadow-lg"
+        >
+          {text}
+          <span
+            className="absolute left-1/2 top-full -translate-x-1/2 border-[6px] border-transparent border-t-midnight-ink"
+            aria-hidden
+          />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function PencilIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -43,7 +82,7 @@ export function EditCloseButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="absolute right-3 top-3 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
+      className="absolute right-4 top-4 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
       aria-label="Close editor"
     >
       <CloseIcon />
@@ -93,9 +132,9 @@ export function SectionCard({
 }) {
   return (
     <section
-      className={`flex flex-col gap-5 rounded-[10px] bg-white p-[30px] ${className}`}
+      className={`flex flex-col gap-[10px] rounded-[10px] bg-white p-[30px] ${className}`}
     >
-      <h2 className="text-lg font-semibold text-black">{title}</h2>
+      <h2 className="type-headline-5">{title}</h2>
       {children}
     </section>
   );
@@ -106,37 +145,57 @@ export function ContactBlock({
   address,
   phone,
   email,
+  emailNote,
 }: {
   name: string;
-  address: string;
-  phone: string;
-  email: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  emailNote?: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
       <div>
-        <p className="text-base font-bold text-black">{name}</p>
-        <p className="text-sm text-black">{address}</p>
+        <p className="type-emphasis">{name}</p>
+        {address ? <p className="type-body">{address}</p> : null}
       </div>
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-center gap-2.5 text-sm text-black">
-          <PhoneIcon />
-          <span>{phone}</span>
+      {phone || email ? (
+        <div className="flex flex-col gap-2.5">
+          {phone ? (
+            <div className="flex items-center gap-2.5 type-body">
+              <PhoneIcon />
+              <span>{phone}</span>
+            </div>
+          ) : null}
+          {email ? (
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2.5 type-body">
+                <MailIcon />
+                <span>{email}</span>
+              </div>
+              {emailNote ? (
+                <p className="type-body-muted pl-[26px]">{emailNote}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        <div className="flex items-center gap-2.5 text-sm text-black">
-          <MailIcon />
-          <span>{email}</span>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
-export function TextLink({ children }: { children: React.ReactNode }) {
+export function TextLink({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
   return (
     <button
       type="button"
-      className="w-fit text-sm text-prime-blue underline underline-offset-2 transition hover:opacity-80"
+      onClick={onClick}
+      className="w-fit type-link transition hover:opacity-80"
     >
       {children}
     </button>
@@ -154,7 +213,7 @@ export function TertiaryButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2.5 self-start text-sm font-semibold text-midnight-ink transition hover:text-prime-blue"
+      className="inline-flex items-center gap-2.5 self-start type-button text-midnight-ink transition hover:text-prime-blue"
     >
       <PlusIcon />
       {children}
@@ -172,8 +231,8 @@ export function EditableNote({
   return (
     <div className="relative rounded-[10px] border border-black/10 p-[30px]">
       <div className="pr-6">
-        <p className="text-base font-bold text-black">{title}</p>
-        <p className="mt-2.5 text-sm leading-5 text-black">{body}</p>
+        <p className="type-emphasis">{title}</p>
+        <p className="type-body mt-2.5 leading-5">{body}</p>
       </div>
       <button
         type="button"

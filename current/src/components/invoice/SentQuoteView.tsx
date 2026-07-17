@@ -70,7 +70,7 @@ const VARIANT_META: Record<
     title: "Quote Expired",
     badge: {
       label: "Expired",
-      className: "border-[#CCCCCC] bg-[#EEEEEE] text-[#666666]",
+      className: "border-[#F5C2C0] bg-[#FDECEC] text-[#C62828]",
     },
     showDecision: false,
     showEdit: true,
@@ -227,7 +227,7 @@ function RecordDecisionModal({
 
         <h2
           id="record-decision-title"
-          className="pr-8 font-display text-xl font-bold text-black"
+          className="pr-8 type-modal-title text-black"
         >
           Record decision
         </h2>
@@ -266,7 +266,7 @@ function RecordDecisionModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold text-midnight-ink transition hover:bg-black/5"
+            className="ui-btn-secondary"
           >
             Cancel
           </button>
@@ -305,14 +305,14 @@ export function SentQuoteView({
 
       <main className="mx-auto max-w-[1440px] px-4 pb-24 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="font-display text-[42px] font-bold leading-none tracking-tight">
+          <h1 className="type-page-title">
             {meta.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2.5">
             {meta.showEdit ? (
               <Link
                 href="/quote"
-                className="inline-flex h-11 items-center justify-center rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold text-midnight-ink transition hover:bg-black/5"
+                className="ui-btn-secondary"
               >
                 Edit
               </Link>
@@ -322,7 +322,7 @@ export function SentQuoteView({
               <button
                 type="button"
                 onClick={() => setShowDecision(true)}
-                className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+                className="ui-btn-primary"
               >
                 Record Decision
               </button>
@@ -352,7 +352,11 @@ export function SentQuoteView({
             </section>
           </aside>
 
-          <CustomerInvoiceCard shadow="sent" documentKind="quote" />
+          <CustomerInvoiceCard
+            shadow="sent"
+            documentKind="quote"
+            isExpired={variant === "expired"}
+          />
         </div>
       </main>
 

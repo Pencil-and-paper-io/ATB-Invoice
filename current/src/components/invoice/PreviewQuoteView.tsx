@@ -25,7 +25,7 @@ function ActionButton({
     "inline-flex h-11 items-center justify-center rounded px-5 text-sm font-semibold transition";
   const styles =
     variant === "primary"
-      ? "bg-prime-blue text-white hover:bg-[#0063d1]"
+      ? "bg-prime-blue text-white hover:bg-prime-blue-hover"
       : "border border-midnight-ink text-midnight-ink hover:bg-black/5 rounded-[5px]";
 
   if (href) {
@@ -54,7 +54,7 @@ export function PreviewQuoteView() {
 
       <main className="mx-auto max-w-[1440px] px-4 pb-24 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="font-display text-[42px] font-bold leading-none tracking-tight">
+          <h1 className="type-page-title">
             Preview Quote
           </h1>
           <div className="flex flex-wrap items-center gap-2.5">

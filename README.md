@@ -17,14 +17,15 @@ Use this repo as a catalog of snapshots. Each entry under `versions/` is a compl
 |---|---|---|---|
 | v001 | `versions/v001-baseline` | 2026-07-16 | Placeholder slot before first app scaffold. |
 | v002 | `versions/v002-draft-preview-send` | 2026-07-16 | Full draft editor (line items, notes, templates, details), preview, send modal (email / text / link), and sent view. Browser back works across modes for iteration. |
-| — | `current/` | 2026-07-16 | Active working copy — continue from v002. |
+| v003 | `versions/v003-quote-invoice-flows` | 2026-07-17 | Quote + invoice status surfaces, send accordion with message previews, draft PDF watermark, refined More Actions, accept quote → draft invoice, Record Payment / Decision, expired quote highlighting, Save and Preview. |
+| — | `current/` | 2026-07-17 | Active working copy — continue from v003. |
 
 ## Active build
 
 - Path: `current/`
 - Source of truth for the latest working UI
 - Based on Figma: [ATB-Q3-Invoice](https://www.figma.com/design/b8HeibpBaWOr2m4fjhzas2/ATB-Q3-Invoice)
-- Last snapshot: `versions/v002-draft-preview-send`
+- Last snapshot: `versions/v003-quote-invoice-flows`
 - **Progress tracker:** [`STATUS.md`](STATUS.md) — what’s done, deferred, and locked decisions
 
 ## Product scope (locked so far)

@@ -26,7 +26,7 @@ export function TopNav() {
           className="h-9 w-auto"
           priority
         />
-        <span className="font-display text-xl font-bold tracking-tight">
+        <span className="type-headline-5 text-white-snow">
           Invoicing
         </span>
       </div>

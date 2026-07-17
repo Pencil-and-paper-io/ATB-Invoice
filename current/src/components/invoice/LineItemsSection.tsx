@@ -289,7 +289,7 @@ function InvoiceAddonModal({
 
         <h2
           id={`addon-modal-${kind}`}
-          className="pr-8 font-display text-xl font-bold text-black"
+          className="pr-8 type-modal-title text-black"
         >
           {title}
         </h2>
@@ -449,7 +449,7 @@ function InvoiceAddonModal({
             type="button"
             onClick={handleSave}
             disabled={!canSave}
-            className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1] disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn-primary"
           >
             {initial ? "Update" : "Save"}
           </button>
@@ -634,7 +634,7 @@ function LineItemsTotals({
             {taxMode === "inclusive" ? "(Tax inclusive)" : "(Tax exclusive)"}
           </p>
         </div>
-        <p className="w-[180px] text-right text-2xl font-bold text-black">
+        <p className="w-[180px] text-right type-amount">
           {formatMoney(totals.total)}
         </p>
         <span className="w-4 shrink-0" aria-hidden />
@@ -688,7 +688,7 @@ function LineItemCard({
               {chips.map((chip) => (
                 <span
                   key={chip.label}
-                  className="rounded bg-[#9A60DB]/10 px-1.5 text-sm font-semibold text-[#9A60DB]"
+                  className="rounded bg-badge-purple/10 px-1.5 text-sm font-semibold text-badge-purple"
                 >
                   {chip.label}
                 </span>
@@ -838,6 +838,10 @@ function TaxField({
               className="absolute bottom-full left-1/2 z-40 mb-2 w-72 -translate-x-1/2 rounded-lg bg-midnight-ink px-3 py-2 text-left text-xs font-normal leading-4 text-white shadow-lg"
             >
               {ALBERTA_TAX_TOOLTIP}
+              <span
+                className="absolute left-1/2 top-full -translate-x-1/2 border-[6px] border-transparent border-t-midnight-ink"
+                aria-hidden
+              />
             </span>
           ) : null}
         </button>
@@ -1287,7 +1291,7 @@ function LineItemForm({
           Save for future invoices
         </label>
 
-        <div className="border-t border-dashed border-black/15 pt-5">
+        <div className="mt-6 border-t border-dashed border-black/15 pt-6">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -1299,7 +1303,7 @@ function LineItemForm({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-6 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="ui-btn-primary"
             >
               Update
             </button>

@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { draftInvoice } from "@/lib/invoice-demo-data";
 import {
-  draftInvoice,
-  type PaymentOption,
-} from "@/lib/invoice-demo-data";
+  getInvoicePaymentOptions,
+  loadOrganizationSettings,
+  type InvoicePaymentOption,
+} from "@/lib/organization-settings";
 import { getActionsForStatus } from "@/lib/invoice-actions";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
 import { CustomerNotesSection } from "./CustomerNotesSection";
@@ -27,8 +29,8 @@ function PaymentOptionRow({
   option,
   onToggle,
 }: {
-  option: PaymentOption;
-  onToggle: (id: string) => void;
+  option: InvoicePaymentOption;
+  onToggle: (id: InvoicePaymentOption["id"]) => void;
 }) {
   return (
     <div className="flex gap-2.5">
@@ -81,9 +83,8 @@ function PaymentOptionRow({
 }
 
 export function DraftInvoiceView() {
-  const [payments, setPayments] = useState<PaymentOption[]>(
-    draftInvoice.paymentOptions,
-  );
+  const router = useRouter();
+  const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
   const [details, setDetails] = useState<InvoiceDetailsState>({
     invoiceNumber: "3001",
     issueDate: "Send right away",
@@ -94,6 +95,13 @@ export function DraftInvoiceView() {
     serviceStart: "",
     serviceEnd: "",
   });
+
+  useEffect(() => {
+    window.setTimeout(() => {
+      setPayments(getInvoicePaymentOptions(loadOrganizationSettings()));
+    }, 0);
+  }, []);
+
   const {
     handleAction,
     feedbackBanner,
@@ -105,7 +113,7 @@ export function DraftInvoiceView() {
   const searchParams = useSearchParams();
   const fromQuote = searchParams.get("from") === "quote";
 
-  function togglePayment(id: string) {
+  function togglePayment(id: InvoicePaymentOption["id"]) {
     setPayments((prev) =>
       prev.map((option) =>
         option.id === id ? { ...option, checked: !option.checked } : option,
@@ -125,7 +133,7 @@ export function DraftInvoiceView() {
           </div>
         ) : null}
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="font-display text-[42px] font-bold leading-none tracking-tight">
+          <h1 className="type-page-title">
             Draft Invoice
           </h1>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -133,9 +141,9 @@ export function DraftInvoiceView() {
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
             <Link
               href="/preview"
-              className="inline-flex h-11 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="ui-btn-primary"
             >
-              Preview
+              Save and Preview
             </Link>
           </div>
         </div>
@@ -160,7 +168,13 @@ export function DraftInvoiceView() {
                     onToggle={togglePayment}
                   />
                 ))}
-                <TertiaryButton>Add more payment options</TertiaryButton>
+                <TertiaryButton
+                  onClick={() =>
+                    router.push("/organization#payment-options")
+                  }
+                >
+                  Add more payment options
+                </TertiaryButton>
               </div>
             </SectionCard>
 

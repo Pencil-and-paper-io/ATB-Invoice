@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import { QuickLinks } from "@/components/invoice/QuickLinks";
+import { DesignSystemPanel } from "@/components/invoice/DesignSystemPanel";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="min-h-full font-sans">
         {children}
         <QuickLinks />
+        <DesignSystemPanel />
       </body>
     </html>
   );

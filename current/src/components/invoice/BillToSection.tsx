@@ -110,7 +110,7 @@ export function BillToSection({
           />
           <div className="mt-2.5">
             <Link
-              href={CREATE_CUSTOMER_HREF}
+              href={`${CREATE_CUSTOMER_HREF}?id=${customer.id}`}
               className="w-fit text-sm text-prime-blue underline underline-offset-2 transition hover:opacity-80"
             >
               Edit Customer Details

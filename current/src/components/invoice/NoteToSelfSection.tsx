@@ -73,7 +73,7 @@ function SelfNoteForm({
           autoFocus
         />
 
-        <div className="border-t border-dashed border-black/15 pt-4">
+        <div className="mt-6 border-t border-dashed border-black/15 pt-6">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -85,7 +85,7 @@ function SelfNoteForm({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-9 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1]"
+              className="inline-flex h-9 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover"
             >
               {isNew ? "Save" : "Update"}
             </button>

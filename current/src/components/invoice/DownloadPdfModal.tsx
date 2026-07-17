@@ -39,7 +39,7 @@ export function DownloadPdfModal({
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2
             id="download-pdf-title"
-            className="font-display text-xl font-bold text-white"
+            className="type-modal-title text-white"
           >
             {title}
             {isDraft ? (

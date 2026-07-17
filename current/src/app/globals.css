@@ -1,30 +1,53 @@
 @import "tailwindcss";
 
+/*
+  ATB Library source of truth
+  https://www.figma.com/design/OqPEqFxVANuTJDUarkml5D/Library?node-id=1-44
+  Edit tokens here — type classes do not hardcode ink color so they can sit on any surface.
+*/
+
 :root {
   --background: #f3f4f6;
   --foreground: #000000;
-  --prime-blue: #0072f0;
-  --midnight-ink: #0e162a;
+  /* Library colors */
   --sunshine-yellow: #fcdc3e;
+  --melon-orange: #ff7f30;
+  --sky-blue: #9de3ff;
+  --prime-blue: #0072f0;
+  --prime-blue-hover: #0063d1;
+  --midnight-ink: #0e162a;
+  --white-snow: #ffffff;
   --cloud-grey: #f3f5f7;
+  /* Prototype extras */
   --input-grey: #f8f9fb;
   --page-grey: #f3f4f6;
   --delete-red: #c3004e;
-  --white-snow: #ffffff;
+  --brand-orange: var(--melon-orange);
+  --status-info: #3c6cff;
+  --status-danger: #c62828;
+  --badge-purple: #9a60db;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-prime-blue: var(--prime-blue);
-  --color-midnight-ink: var(--midnight-ink);
   --color-sunshine-yellow: var(--sunshine-yellow);
+  --color-melon-orange: var(--melon-orange);
+  --color-sky-blue: var(--sky-blue);
+  --color-prime-blue: var(--prime-blue);
+  --color-prime-blue-hover: var(--prime-blue-hover);
+  --color-midnight-ink: var(--midnight-ink);
+  --color-white-snow: var(--white-snow);
   --color-cloud-grey: var(--cloud-grey);
   --color-input-grey: var(--input-grey);
   --color-page-grey: var(--page-grey);
   --color-delete-red: var(--delete-red);
-  --color-white-snow: var(--white-snow);
+  --color-brand-orange: var(--brand-orange);
+  --color-status-info: var(--status-info);
+  --color-status-danger: var(--status-danger);
+  --color-badge-purple: var(--badge-purple);
   --font-sans: var(--font-inter);
+  /* ATB TT Norms stand-in until licensed font is available */
   --font-display: var(--font-montserrat);
 }
 
@@ -36,4 +59,239 @@ body {
 
 .font-display {
   font-family: var(--font-montserrat), Helvetica, sans-serif;
+}
+
+/* ——— Library type scale (no ink color — inherit from context) ——— */
+
+/* Headline 1 — ATB TT Norms Bold 50 */
+.type-headline-1 {
+  font-family: var(--font-montserrat), Helvetica, sans-serif;
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Headline 2 — ATB TT Norms Bold 42 */
+.type-headline-2,
+.type-page-title {
+  font-family: var(--font-montserrat), Helvetica, sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+/* Headline 3 — ATB TT Norms Bold 30 */
+.type-headline-3,
+.type-doc-id {
+  font-family: var(--font-montserrat), Helvetica, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+/* Headline 4 — Inter Bold 24 */
+.type-headline-4,
+.type-amount,
+.type-modal-title {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* Headline 5 — Inter Semi Bold 18 */
+.type-headline-5,
+.type-card-title {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* Headline 6 — Inter Semi Bold 16 */
+.type-headline-6,
+.type-section-title {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* Subtitle 1 — Inter Semi Bold 14 */
+.type-subtitle-1,
+.type-button {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* Subtitle 2 — Inter Semi Bold 12 */
+.type-subtitle-2 {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.type-caption {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: rgb(0 0 0 / 0.45);
+}
+
+/* Hero Paragraph — Inter Regular 18 */
+.type-hero-paragraph {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Paragraph 1 — Inter Regular 16 */
+.type-paragraph-1,
+.type-emphasis {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.type-emphasis {
+  font-weight: 700;
+}
+
+/* Paragraph 2 — Inter Regular 14 */
+.type-paragraph-2,
+.type-body,
+.type-label {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.type-body-muted {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: rgb(0 0 0 / 0.55);
+}
+
+.type-link {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--prime-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.type-danger {
+  font-family: var(--font-inter), Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--delete-red);
+}
+
+/* ——— Shared UI primitives ——— */
+
+.ui-input {
+  width: 100%;
+  border-radius: 0.25rem;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  background: var(--input-grey);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--midnight-ink);
+  outline: none;
+  transition:
+    border-color 150ms,
+    background-color 150ms;
+}
+
+.ui-input:hover {
+  border-color: var(--prime-blue);
+}
+
+.ui-input:focus {
+  border-color: var(--prime-blue);
+  background: var(--input-grey);
+}
+
+.ui-btn-primary {
+  display: inline-flex;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  background: var(--prime-blue);
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--white-snow);
+  transition: background-color 150ms;
+}
+
+.ui-btn-primary:hover {
+  background: var(--prime-blue-hover);
+}
+
+.ui-btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.ui-btn-secondary {
+  display: inline-flex;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.3125rem;
+  border: 1px solid var(--midnight-ink);
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--midnight-ink);
+  transition: background-color 150ms;
+}
+
+.ui-btn-secondary:hover {
+  background: rgb(0 0 0 / 0.05);
+}
+
+.ui-section-shell {
+  display: flex;
+  flex-direction: column;
+  /* Component rule: children of white boxes are 10px apart */
+  gap: 10px;
+  border-radius: 0.625rem;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  background: var(--white-snow);
+  padding: 1.75rem 1.75rem 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .ui-section-shell {
+    padding: 2rem 2rem 1.5rem;
+  }
+}
+
+.ui-hover-card {
+  border-radius: 0.625rem;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.ui-hover-card:hover {
+  border-color: var(--prime-blue);
+  box-shadow: 0 0 0 1px var(--prime-blue);
 }

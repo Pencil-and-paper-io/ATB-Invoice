@@ -57,7 +57,7 @@ export function RecordPaymentModal({ onClose }: { onClose: () => void }) {
 
         <h2
           id="record-payment-title"
-          className="pr-8 font-display text-xl font-bold text-black"
+          className="pr-8 type-modal-title text-black"
         >
           Record payment
         </h2>
@@ -115,7 +115,7 @@ export function RecordPaymentModal({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold"
+            className="ui-btn-secondary"
           >
             Cancel
           </button>
@@ -123,7 +123,7 @@ export function RecordPaymentModal({ onClose }: { onClose: () => void }) {
             type="button"
             disabled={!canSave}
             onClick={handleSave}
-            className="h-11 rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-[#0063d1] disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn-primary"
           >
             Save payment
           </button>

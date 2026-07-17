@@ -50,12 +50,12 @@ function ConfirmModal({
         >
           <CloseIcon />
         </button>
-        <h2 className="pr-8 text-lg font-semibold">{title}</h2>
+        <h2 className="pr-8 type-section-title">{title}</h2>
         <p className="mt-3 text-sm leading-5 text-black/70">{body}</p>
         <div className="mt-6 flex justify-end gap-2.5">
           <button
             type="button"
-            className="h-11 rounded-[5px] border border-midnight-ink px-5 text-sm font-semibold"
+            className="ui-btn-secondary"
             onClick={onClose}
           >
             Cancel
@@ -63,7 +63,7 @@ function ConfirmModal({
           <button
             type="button"
             className={`h-11 rounded px-5 text-sm font-semibold text-white ${
-              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-[#0063d1]"
+              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-prime-blue-hover"
             }`}
             onClick={onConfirm}
           >
