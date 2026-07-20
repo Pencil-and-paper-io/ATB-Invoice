@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
+import { Suspense } from "react";
 import { QuickLinks } from "@/components/invoice/QuickLinks";
 import { DesignSystemPanel } from "@/components/invoice/DesignSystemPanel";
 import "./globals.css";
@@ -32,7 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full font-sans">
         {children}
-        <QuickLinks />
+        <Suspense fallback={null}>
+          <QuickLinks />
+        </Suspense>
         <DesignSystemPanel />
       </body>
     </html>

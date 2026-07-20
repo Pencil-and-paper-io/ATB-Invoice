@@ -8,13 +8,23 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { customers } from "@/lib/invoice-demo-data";
+import {
+  customers,
+  formatMoney,
+  getCustomerAccountSummary,
+  getCustomerInvoices,
+} from "@/lib/invoice-demo-data";
 import { UI_CLASS } from "@/lib/design-tokens";
-import { getCustomerCascadeDefaults, getEnabledPaymentMethodLabels, loadOrganizationSettings } from "@/lib/organization-settings";
+import {
+  CORE_PAYMENT_METHODS,
+  getCustomerCascadeDefaults,
+  getEnabledPaymentMethodLabels,
+  loadOrganizationSettings,
+} from "@/lib/organization-settings";
 import { ORGANIZATION_DEFAULTS } from "@/lib/org-defaults";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, PencilIcon, TertiaryButton, ContactBlock } from "./ui";
+import { EditCloseButton, InfoTooltip, PencilIcon, TertiaryButton } from "./ui";
 
 const CURRENCIES = [
   { code: "CAD", name: "Canadian Dollar" },
@@ -28,8 +38,30 @@ const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
+/** Single source for edit FieldLabel + view ViewField copy. */
+const FIELD = {
+  businessLegalName: "Business Legal Name",
+  businessEmail: "Business Email",
+  phoneNumber: "Phone Number",
+  billingAddress: "Billing Address",
+  shippingAddress: "Shipping Address",
+  shippingSame: "Shipping address is the same",
+  firstName: "First Name",
+  lastName: "Last Name",
+  contactEmail: "Contact Email",
+  currency: "Currency",
+  taxSetting: "Tax Setting",
+  quoteExpiry: "Quote Expiry",
+  paymentTerms: "Payment Terms",
+  autoSend: "Auto-send",
+  reminders: "Reminders",
+  receipts: "Receipts",
+  internalNotes: "Internal Notes",
+} as const;
+
 type SectionKey =
   | "business"
+  | "address"
   | "contact"
   | "settings"
   | "paymentPreferences"
@@ -317,7 +349,7 @@ function BoxTitle({
   return (
     <div className="mb-5 pr-8">
       <h3
-        className={`type-subtitle-1 ${
+        className={`type-headline-6 ${
           tone === "edit" ? "text-black" : "text-black/45"
         }`}
       >
@@ -325,6 +357,26 @@ function BoxTitle({
       </h3>
     </div>
   );
+}
+
+/** Stacked label + value pairs for view-mode cards. */
+function ViewField({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="type-subtitle-1 text-black">{label}</p>
+      <div className="type-body">{value}</div>
+    </div>
+  );
+}
+
+function ViewFieldList({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-4">{children}</div>;
 }
 
 function ViewCard({
@@ -490,6 +542,21 @@ function formFromCustomerId(id: string | null): CustomerFormState {
   };
 }
 
+function SortHeader({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <svg width="8" height="10" viewBox="0 0 8 10" fill="none" aria-hidden>
+        <path d="M4 1 7 4H1L4 1Z" fill="currentColor" opacity="0.45" />
+        <path d="M4 9 1 6h6L4 9Z" fill="currentColor" opacity="0.45" />
+      </svg>
+    </span>
+  );
+}
+
+const CUSTOMER_TABS = ["Account Summary", "About Customer"] as const;
+type CustomerTab = (typeof CUSTOMER_TABS)[number];
+
 function CustomerFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -499,13 +566,24 @@ function CustomerFormInner() {
   const [saved, setSaved] = useState<CustomerFormState>(() =>
     formFromCustomerId(customerId),
   );
-  const [editing, setEditing] = useState<SectionKey | null>(() =>
-    customerId ? null : "business",
-  );
+  const [editing, setEditing] = useState<SectionKey | null>(null);
   const [draft, setDraft] = useState<CustomerFormState>(saved);
   const [availablePaymentOptions, setAvailablePaymentOptions] = useState<
     string[]
   >(() => [...ORGANIZATION_DEFAULTS.paymentPreferences]);
+  const [customerCreated, setCustomerCreated] = useState(() =>
+    Boolean(customerId),
+  );
+  const [tab, setTab] = useState<CustomerTab>(() =>
+    customerId ? "Account Summary" : "About Customer",
+  );
+  const [createDraft, setCreateDraft] = useState({
+    businessName: "",
+    email: "",
+    phone: "",
+  });
+
+  const showCreateModal = !isEdit && !customerCreated;
 
   useEffect(() => {
     const next = formFromCustomerId(customerId);
@@ -514,7 +592,10 @@ function CustomerFormInner() {
       setAvailablePaymentOptions(getEnabledPaymentMethodLabels(org));
       setSaved(next);
       setDraft(next);
-      setEditing(customerId ? null : "business");
+      setEditing(null);
+      setCustomerCreated(Boolean(customerId));
+      setTab(customerId ? "Account Summary" : "About Customer");
+      setCreateDraft({ businessName: "", email: "", phone: "" });
     }, 0);
   }, [customerId]);
 
@@ -549,42 +630,49 @@ function CustomerFormInner() {
     });
   }
 
-  function goBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push("/");
+  function saveCreateModal() {
+    const name = createDraft.businessName.trim();
+    if (!name) return;
+    const next: CustomerFormState = {
+      ...saved,
+      businessName: name,
+      email: createDraft.email.trim(),
+      phone: createDraft.phone.trim(),
+    };
+    setSaved(next);
+    setDraft(next);
+    setCustomerCreated(true);
+    setTab("About Customer");
+    setEditing(null);
   }
 
-  function handleSaveCustomer() {
-    if (editing) {
-      setSaved(draft);
-      setEditing(null);
-    }
-    goBack();
-  }
+  const createNameValid = createDraft.businessName.trim().length > 0;
 
   const businessEmpty =
-    !saved.businessName &&
-    !saved.email &&
-    !saved.phone &&
+    !saved.businessName && !saved.email && !saved.phone;
+  const addressEmpty =
     !saved.addressLine1 &&
     !saved.addressLine2 &&
     !saved.city &&
     !saved.province &&
-    !saved.postalCode;
+    !saved.postalCode &&
+    (saved.shippingSame ||
+      (!saved.shippingAddressLine1 &&
+        !saved.shippingAddressLine2 &&
+        !saved.shippingCity &&
+        !saved.shippingProvince &&
+        !saved.shippingPostalCode));
   const contactEmpty =
     !saved.firstName && !saved.lastName && !saved.contactEmail;
   const notesEmpty = !saved.internalNotes.trim();
 
-  const billingAddress = formatAddress({
+  const billingLines = formatAddress({
     line1: saved.addressLine1,
     line2: saved.addressLine2,
     city: saved.city,
     province: saved.province,
     postalCode: saved.postalCode,
-  })?.join(", ");
+  });
   const shippingLines = formatAddress({
     line1: saved.shippingAddressLine1,
     line2: saved.shippingAddressLine2,
@@ -593,41 +681,142 @@ function CustomerFormInner() {
     postalCode: saved.shippingPostalCode,
   });
 
-  const enabledAutomations = [
-    saved.autoSend ? "Auto-send invoices" : null,
-    saved.reminders
-      ? `Reminders (${saved.reminderDays || "—"} days before)`
-      : null,
-    saved.receipts ? "Auto-send receipts" : null,
-  ].filter(Boolean);
+  const clientDisplayName =
+    saved.businessName.trim() || (isEdit ? "this customer" : "New Customer");
+  const invoices = getCustomerInvoices(customerId);
+  const accountSummary = getCustomerAccountSummary(customerId);
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
 
-      <main className="mx-auto max-w-[900px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <main
+        className={`mx-auto max-w-[900px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16 ${
+          showCreateModal ? "pointer-events-none select-none opacity-40" : ""
+        }`}
+      >
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="type-page-title">
-            {isEdit ? "Edit Customer" : "New Customer"}
+            {saved.businessName.trim()
+              ? saved.businessName.trim()
+              : isEdit
+                ? "Edit Customer"
+                : "New Customer"}
           </h1>
-          <div className="flex flex-wrap items-center gap-2.5">
+          {!showCreateModal ? (
             <button
               type="button"
-              onClick={goBack}
-              className={UI_CLASS.btnSecondary}
+              onClick={() => router.push("/")}
+              className={`${UI_CLASS.btnPrimary} h-11 shrink-0 px-5`}
             >
-              Cancel
+              Create Invoice for {clientDisplayName}
             </button>
-            <button
-              type="button"
-              onClick={handleSaveCustomer}
-              className={UI_CLASS.btnPrimary}
-            >
-              Save
-            </button>
+          ) : null}
+        </div>
+
+        <div className="mb-6 border-b border-black/15">
+          <div className="flex flex-wrap gap-1">
+            {CUSTOMER_TABS.map((id) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={`rounded-t-md px-4 py-2.5 text-sm font-semibold transition ${
+                    active
+                      ? "bg-midnight-ink text-white"
+                      : "bg-transparent text-black hover:bg-black/[0.04]"
+                  }`}
+                >
+                  {id}
+                </button>
+              );
+            })}
           </div>
         </div>
 
+        {tab === "Account Summary" ? (
+          <section className={sectionShellClass}>
+            <div className={`px-7 pb-6 pt-7 ${hoverCardClass}`}>
+              <h2 className="type-headline-6 text-black">Account summary</h2>
+              <p className="type-body-muted mt-1">
+                Read-only totals from invoicing.
+              </p>
+              <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                    Invoices
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-black">
+                    {accountSummary.invoiceCount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                    Total invoiced
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-black">
+                    {formatMoney(accountSummary.totalInvoiced)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                    Paid
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-[#1B7A4E]">
+                    {formatMoney(accountSummary.paid)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                    Outstanding
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-status-danger">
+                    {formatMoney(accountSummary.outstanding)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+              <div className="grid grid-cols-[1fr_1.2fr_0.9fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
+                <SortHeader label="Invoice" />
+                <SortHeader label="Client" />
+                <SortHeader label="Status" />
+                <SortHeader label="Due Date" />
+                <SortHeader label="Amount" />
+              </div>
+
+              {invoices.length > 0 ? (
+                <ul>
+                  {invoices.map((invoice, index) => (
+                    <li
+                      key={invoice.id}
+                      className={`grid grid-cols-[1fr_1.2fr_0.9fr_1fr_0.9fr] gap-3 px-5 py-3.5 text-sm text-black ${
+                        index < invoices.length - 1
+                          ? "border-b border-black/10"
+                          : ""
+                      }`}
+                    >
+                      <span className="font-medium">{invoice.number}</span>
+                      <span className="truncate">{invoice.client}</span>
+                      <span>{invoice.status}</span>
+                      <span>{invoice.dueDate}</span>
+                      <span className="font-medium">
+                        {formatMoney(invoice.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="px-5 py-12 text-center type-body-muted">
+                  No invoices yet for this customer.
+                </div>
+              )}
+            </div>
+          </section>
+        ) : (
         <div className="flex flex-col gap-5">
           {/* Customer Details */}
           <section className={sectionShellClass}>
@@ -643,7 +832,7 @@ function CustomerFormInner() {
                     htmlFor="business-name"
                     tip="The official name of this customer’s business—the one they use on government paperwork and contracts."
                   >
-                    Business Legal Name
+                    {FIELD.businessLegalName}
                   </FieldLabel>
                   <input
                     id="business-name"
@@ -655,7 +844,7 @@ function CustomerFormInner() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="email">Business Email</FieldLabel>
+                  <FieldLabel htmlFor="email">{FIELD.businessEmail}</FieldLabel>
                   <input
                     id="email"
                     type="email"
@@ -667,7 +856,7 @@ function CustomerFormInner() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="phone">Phone Number</FieldLabel>
+                  <FieldLabel htmlFor="phone">{FIELD.phoneNumber}</FieldLabel>
                   <input
                     id="phone"
                     type="tel"
@@ -677,64 +866,6 @@ function CustomerFormInner() {
                       patchDraft({ phone: event.target.value })
                     }
                   />
-                </div>
-
-                <div className={sectionDividerClass}>
-                  <p className="type-subtitle-1">Billing Address</p>
-                  <p className="type-body-muted mt-1 mb-4">
-                    Some loan applications ask for this address. Add it if you
-                    have it.
-                  </p>
-                  <AddressFields
-                    idPrefix="billing"
-                    values={{
-                      addressLine1: draft.addressLine1,
-                      addressLine2: draft.addressLine2,
-                      city: draft.city,
-                      province: draft.province,
-                      postalCode: draft.postalCode,
-                    }}
-                    onChange={(patch) => patchDraft(patch)}
-                  />
-                  <div className="mt-4">
-                    <CheckboxRow
-                      checked={draft.shippingSame}
-                      onChange={(checked) =>
-                        patchDraft({ shippingSame: checked })
-                      }
-                      label="Shipping address is the same"
-                    />
-                  </div>
-                  {!draft.shippingSame ? (
-                    <div
-                      className={`flex flex-col gap-4 ${sectionDividerClass}`}
-                    >
-                      <h4 className="type-subtitle-1">Shipping Address</h4>
-                      <AddressFields
-                        idPrefix="shipping"
-                        values={{
-                          addressLine1: draft.shippingAddressLine1,
-                          addressLine2: draft.shippingAddressLine2,
-                          city: draft.shippingCity,
-                          province: draft.shippingProvince,
-                          postalCode: draft.shippingPostalCode,
-                        }}
-                        onChange={(patch) =>
-                          patchDraft({
-                            shippingAddressLine1:
-                              patch.addressLine1 ?? draft.shippingAddressLine1,
-                            shippingAddressLine2:
-                              patch.addressLine2 ?? draft.shippingAddressLine2,
-                            shippingCity: patch.city ?? draft.shippingCity,
-                            shippingProvince:
-                              patch.province ?? draft.shippingProvince,
-                            shippingPostalCode:
-                              patch.postalCode ?? draft.shippingPostalCode,
-                          })
-                        }
-                      />
-                    </div>
-                  ) : null}
                 </div>
               </SectionEditor>
             ) : businessEmpty ? (
@@ -746,29 +877,112 @@ function CustomerFormInner() {
                 title="Business Details"
                 onEdit={() => startEdit("business")}
               >
-                <ContactBlock
-                  name={saved.businessName || "Untitled business"}
-                  address={billingAddress}
-                  phone={saved.phone || undefined}
-                  email={saved.email || undefined}
-                  emailNote={
-                    saved.useContactEmailForComms
-                      ? "Communications will not be sent here and are sent to the contact address"
-                      : undefined
-                  }
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.businessLegalName}
+                    value={saved.businessName || "—"}
+                  />
+                  <ViewField
+                    label={FIELD.businessEmail}
+                    value={
+                      <>
+                        {saved.email || "—"}
+                        {saved.useContactEmailForComms ? (
+                          <span className="type-body-muted">
+                            {" "}
+                            · Communications go to contact email
+                          </span>
+                        ) : null}
+                      </>
+                    }
+                  />
+                  <ViewField
+                    label={FIELD.phoneNumber}
+                    value={saved.phone || "—"}
+                  />
+                </ViewFieldList>
+              </ViewCard>
+            )}
+
+            {editing === "address" ? (
+              <SectionEditor
+                title="Address"
+                onClose={closeEdit}
+                onSave={saveSection}
+              >
+                <p className="type-body-muted -mt-2">
+                  Some loan applications ask for this address. Add it if you
+                  have it.
+                </p>
+                <AddressFields
+                  idPrefix="billing"
+                  values={{
+                    addressLine1: draft.addressLine1,
+                    addressLine2: draft.addressLine2,
+                    city: draft.city,
+                    province: draft.province,
+                    postalCode: draft.postalCode,
+                  }}
+                  onChange={(patch) => patchDraft(patch)}
                 />
-                {!saved.shippingSame ? (
-                  <div className="mt-3">
-                    <p className="type-caption mb-1 uppercase tracking-wide">
-                      Shipping
-                    </p>
-                    {shippingLines?.map((line) => (
-                      <p key={line} className="type-body">
-                        {line}
-                      </p>
-                    )) ?? <p className="type-body-muted">Not set</p>}
+                <div>
+                  <CheckboxRow
+                    checked={draft.shippingSame}
+                    onChange={(checked) =>
+                      patchDraft({ shippingSame: checked })
+                    }
+                    label={FIELD.shippingSame}
+                  />
+                </div>
+                {!draft.shippingSame ? (
+                  <div className={`flex flex-col gap-4 ${sectionDividerClass}`}>
+                    <h4 className="type-subtitle-1">{FIELD.shippingAddress}</h4>
+                    <AddressFields
+                      idPrefix="shipping"
+                      values={{
+                        addressLine1: draft.shippingAddressLine1,
+                        addressLine2: draft.shippingAddressLine2,
+                        city: draft.shippingCity,
+                        province: draft.shippingProvince,
+                        postalCode: draft.shippingPostalCode,
+                      }}
+                      onChange={(patch) =>
+                        patchDraft({
+                          shippingAddressLine1:
+                            patch.addressLine1 ?? draft.shippingAddressLine1,
+                          shippingAddressLine2:
+                            patch.addressLine2 ?? draft.shippingAddressLine2,
+                          shippingCity: patch.city ?? draft.shippingCity,
+                          shippingProvince:
+                            patch.province ?? draft.shippingProvince,
+                          shippingPostalCode:
+                            patch.postalCode ?? draft.shippingPostalCode,
+                        })
+                      }
+                    />
                   </div>
                 ) : null}
+              </SectionEditor>
+            ) : addressEmpty ? (
+              <TertiaryButton onClick={() => startEdit("address")}>
+                Add Address
+              </TertiaryButton>
+            ) : (
+              <ViewCard title="Address" onEdit={() => startEdit("address")}>
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.billingAddress}
+                    value={billingLines?.join(", ") || "—"}
+                  />
+                  <ViewField
+                    label={FIELD.shippingAddress}
+                    value={
+                      saved.shippingSame
+                        ? "Same as billing"
+                        : shippingLines?.join(", ") || "—"
+                    }
+                  />
+                </ViewFieldList>
               </ViewCard>
             )}
 
@@ -784,7 +998,9 @@ function CustomerFormInner() {
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <FieldLabel htmlFor="first-name">First Name</FieldLabel>
+                    <FieldLabel htmlFor="first-name">
+                      {FIELD.firstName}
+                    </FieldLabel>
                     <input
                       id="first-name"
                       className={inputClass}
@@ -795,7 +1011,9 @@ function CustomerFormInner() {
                     />
                   </div>
                   <div>
-                    <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
+                    <FieldLabel htmlFor="last-name">
+                      {FIELD.lastName}
+                    </FieldLabel>
                     <input
                       id="last-name"
                       className={inputClass}
@@ -807,7 +1025,9 @@ function CustomerFormInner() {
                   </div>
                 </div>
                 <div>
-                  <FieldLabel htmlFor="contact-email">Contact Email</FieldLabel>
+                  <FieldLabel htmlFor="contact-email">
+                    {FIELD.contactEmail}
+                  </FieldLabel>
                   <input
                     id="contact-email"
                     type="email"
@@ -843,24 +1063,30 @@ function CustomerFormInner() {
                 title="Contact Info"
                 onEdit={() => startEdit("contact")}
               >
-                <div className="flex flex-col gap-1.5">
-                  <p className="type-emphasis">
-                    {[saved.firstName, saved.lastName]
-                      .filter(Boolean)
-                      .join(" ") || "Contact"}
-                  </p>
-                  {saved.contactEmail ? (
-                    <div>
-                      <p className="type-body">{saved.contactEmail}</p>
-                      {saved.useContactEmailForComms ? (
-                        <p className="type-body-muted mt-0.5">
-                          Communication is sent to this address based on your
-                          preferences.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.firstName}
+                    value={saved.firstName || "—"}
+                  />
+                  <ViewField
+                    label={FIELD.lastName}
+                    value={saved.lastName || "—"}
+                  />
+                  <ViewField
+                    label={FIELD.contactEmail}
+                    value={
+                      <>
+                        {saved.contactEmail || "—"}
+                        {saved.useContactEmailForComms ? (
+                          <p className="type-body-muted mt-0.5">
+                            Communication is sent to this address based on your
+                            preferences.
+                          </p>
+                        ) : null}
+                      </>
+                    }
+                  />
+                </ViewFieldList>
               </ViewCard>
             )}
           </section>
@@ -881,10 +1107,10 @@ function CustomerFormInner() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <FieldLabel tip="The money type used on this customer’s quotes and invoices (for example, Canadian dollars).">
-                      Currency
+                      {FIELD.currency}
                     </FieldLabel>
                     <SelectField
-                      ariaLabel="Currency"
+                      ariaLabel={FIELD.currency}
                       value={draft.currency}
                       options={CURRENCIES}
                       onChange={(value) => patchDraft({ currency: value })}
@@ -892,10 +1118,10 @@ function CustomerFormInner() {
                   </div>
                   <div>
                     <FieldLabel tip="Whether you usually charge sales tax for this customer.">
-                      Tax Setting
+                      {FIELD.taxSetting}
                     </FieldLabel>
                     <SelectField
-                      ariaLabel="Tax status"
+                      ariaLabel={FIELD.taxSetting}
                       value={draft.taxStatus}
                       options={TAX_OPTIONS}
                       onChange={(value) =>
@@ -913,7 +1139,7 @@ function CustomerFormInner() {
                       htmlFor="quote-expiry"
                       tip="How long a quote stays open for this customer before it expires."
                     >
-                      Quote Expiry
+                      {FIELD.quoteExpiry}
                     </FieldLabel>
                     <div className="relative">
                       <input
@@ -937,10 +1163,10 @@ function CustomerFormInner() {
                   </div>
                   <div>
                     <FieldLabel tip="How soon this customer is usually expected to pay after you send an invoice (for example, within 30 days).">
-                      Payment Terms
+                      {FIELD.paymentTerms}
                     </FieldLabel>
                     <SelectField
-                      ariaLabel="Payment terms"
+                      ariaLabel={FIELD.paymentTerms}
                       value={draft.paymentTerms}
                       options={PAYMENT_TERMS_OPTIONS}
                       onChange={(value) =>
@@ -952,24 +1178,24 @@ function CustomerFormInner() {
               </SectionEditor>
             ) : (
               <ViewCard title="Settings" onEdit={() => startEdit("settings")}>
-                <div className="flex flex-col gap-2 type-body">
-                  <p>
-                    <span className="text-black/45">Currency: </span>
-                    {currencyLabel(saved.currency)}
-                  </p>
-                  <p>
-                    <span className="text-black/45">Tax: </span>
-                    {saved.taxStatus}
-                  </p>
-                  <p>
-                    <span className="text-black/45">Quote expiry: </span>
-                    {saved.quoteExpiryDays || "—"} days
-                  </p>
-                  <p>
-                    <span className="text-black/45">Payment terms: </span>
-                    {saved.paymentTerms}
-                  </p>
-                </div>
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.currency}
+                    value={currencyLabel(saved.currency)}
+                  />
+                  <ViewField
+                    label={FIELD.taxSetting}
+                    value={saved.taxStatus}
+                  />
+                  <ViewField
+                    label={FIELD.quoteExpiry}
+                    value={`${saved.quoteExpiryDays || "—"} days`}
+                  />
+                  <ViewField
+                    label={FIELD.paymentTerms}
+                    value={saved.paymentTerms}
+                  />
+                </ViewFieldList>
               </ViewCard>
             )}
 
@@ -989,14 +1215,38 @@ function CustomerFormInner() {
                       No payment methods are set up for your business yet.
                     </p>
                   ) : (
-                    availablePaymentOptions.map((option) => (
-                      <CheckboxRow
-                        key={option}
-                        checked={draft.paymentPreferences.includes(option)}
-                        onChange={() => togglePaymentPreference(option)}
-                        label={option}
-                      />
-                    ))
+                    availablePaymentOptions.map((option) => {
+                      const method = CORE_PAYMENT_METHODS.find(
+                        (entry) => entry.label === option,
+                      );
+                      return (
+                        <CheckboxRow
+                          key={option}
+                          checked={draft.paymentPreferences.includes(option)}
+                          onChange={() => togglePaymentPreference(option)}
+                          label={option}
+                        >
+                          {method?.details.length ? (
+                            <ul className="list-disc space-y-1 pl-5 text-sm text-black">
+                              {method.details.map((detail) => (
+                                <li key={`${detail.label}-${detail.text}`}>
+                                  <span
+                                    className={
+                                      detail.italic ? "italic" : undefined
+                                    }
+                                  >
+                                    <span className="font-bold">
+                                      {detail.label}:
+                                    </span>{" "}
+                                    {detail.text}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </CheckboxRow>
+                      );
+                    })
                   )}
                 </div>
                 <div>
@@ -1014,11 +1264,30 @@ function CustomerFormInner() {
                 title="Payment Preferences"
                 onEdit={() => startEdit("paymentPreferences")}
               >
-                <p className="type-body">
-                  {saved.paymentPreferences.length
-                    ? saved.paymentPreferences.join(", ")
-                    : "None selected"}
-                </p>
+                <ViewFieldList>
+                  {saved.paymentPreferences.length ? (
+                    saved.paymentPreferences.map((option) => {
+                      const method = CORE_PAYMENT_METHODS.find(
+                        (entry) => entry.label === option,
+                      );
+                      const costSummary = method?.details
+                        .filter((detail) =>
+                          detail.label.startsWith("Cost to"),
+                        )
+                        .map((detail) => `${detail.label}: ${detail.text}`)
+                        .join(" · ");
+                      return (
+                        <ViewField
+                          key={option}
+                          label={option}
+                          value={costSummary || "Accepted"}
+                        />
+                      );
+                    })
+                  ) : (
+                    <ViewField label="Selected" value="None selected" />
+                  )}
+                </ViewFieldList>
               </ViewCard>
             )}
 
@@ -1036,12 +1305,12 @@ function CustomerFormInner() {
                   <CheckboxRow
                     checked={draft.autoSend}
                     onChange={(checked) => patchDraft({ autoSend: checked })}
-                    label="Auto-send: Send invoices automatically on their issuance date."
+                    label={`${FIELD.autoSend}: Send invoices automatically on their issuance date.`}
                   />
                   <CheckboxRow
                     checked={draft.reminders}
                     onChange={(checked) => patchDraft({ reminders: checked })}
-                    label="Reminders: Send a reminder before a quote expires or an invoice is due."
+                    label={`${FIELD.reminders}: Send a reminder before a quote expires or an invoice is due.`}
                   >
                     <div className="relative max-w-[220px]">
                       <input
@@ -1066,7 +1335,7 @@ function CustomerFormInner() {
                   <CheckboxRow
                     checked={draft.receipts}
                     onChange={(checked) => patchDraft({ receipts: checked })}
-                    label="Receipts: Automatically email a receipt when you mark a payment as received."
+                    label={`${FIELD.receipts}: Automatically email a receipt when you mark a payment as received.`}
                   />
                 </div>
               </SectionEditor>
@@ -1075,11 +1344,24 @@ function CustomerFormInner() {
                 title="Default Automations"
                 onEdit={() => startEdit("automations")}
               >
-                <p className="type-body">
-                  {enabledAutomations.length
-                    ? enabledAutomations.join(" · ")
-                    : "None enabled"}
-                </p>
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.autoSend}
+                    value={saved.autoSend ? "On" : "Off"}
+                  />
+                  <ViewField
+                    label={FIELD.reminders}
+                    value={
+                      saved.reminders
+                        ? `On · ${saved.reminderDays || "—"} days before`
+                        : "Off"
+                    }
+                  />
+                  <ViewField
+                    label={FIELD.receipts}
+                    value={saved.receipts ? "On" : "Off"}
+                  />
+                </ViewFieldList>
               </ViewCard>
             )}
           </section>
@@ -1106,7 +1388,7 @@ function CustomerFormInner() {
                         internalNotes: event.target.value.slice(0, 1000),
                       })
                     }
-                    aria-label="Internal notes"
+                    aria-label={FIELD.internalNotes}
                   />
                   <p className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-black/40">
                     {draft.internalNotes.length}/1000
@@ -1122,14 +1404,108 @@ function CustomerFormInner() {
                 title="Internal Notes"
                 onEdit={() => startEdit("notes")}
               >
-                <p className="type-body whitespace-pre-wrap leading-5">
-                  {saved.internalNotes}
-                </p>
+                <ViewFieldList>
+                  <ViewField
+                    label={FIELD.internalNotes}
+                    value={
+                      <p className="whitespace-pre-wrap leading-5">
+                        {saved.internalNotes}
+                      </p>
+                    }
+                  />
+                </ViewFieldList>
               </ViewCard>
             )}
           </section>
         </div>
+        )}
       </main>
+
+      {showCreateModal ? (
+        <div
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/35 px-4 py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-customer-title"
+        >
+          <div className="w-full max-w-md rounded-xl border border-black/15 bg-white p-6 shadow-2xl">
+            <h2 id="create-customer-title" className="type-headline-6">
+              Business Details
+            </h2>
+            <p className="type-body-muted mt-2">
+              Add the basics to create this customer. Business Legal Name is
+              required.
+            </p>
+            <div className="mt-5 flex flex-col gap-4">
+              <div>
+                <FieldLabel
+                  htmlFor="create-business-name"
+                  tip="The official name of this customer’s business—the one they use on government paperwork and contracts."
+                >
+                  {FIELD.businessLegalName}{" "}
+                  <span className="type-danger">*</span>
+                </FieldLabel>
+                <input
+                  id="create-business-name"
+                  className={inputClass}
+                  value={createDraft.businessName}
+                  onChange={(event) =>
+                    setCreateDraft((prev) => ({
+                      ...prev,
+                      businessName: event.target.value,
+                    }))
+                  }
+                  autoFocus
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="create-email">
+                  {FIELD.businessEmail}
+                </FieldLabel>
+                <input
+                  id="create-email"
+                  type="email"
+                  className={inputClass}
+                  value={createDraft.email}
+                  onChange={(event) =>
+                    setCreateDraft((prev) => ({
+                      ...prev,
+                      email: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="create-phone">
+                  {FIELD.phoneNumber}
+                </FieldLabel>
+                <input
+                  id="create-phone"
+                  type="tel"
+                  className={inputClass}
+                  value={createDraft.phone}
+                  onChange={(event) =>
+                    setCreateDraft((prev) => ({
+                      ...prev,
+                      phone: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={saveCreateModal}
+                disabled={!createNameValid}
+                className="ui-btn-primary h-9 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { CloseIcon } from "./ui";
 
@@ -203,6 +203,8 @@ function FlowBranch({
 export function QuickLinks() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const customerIdParam = searchParams.get("id");
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -291,19 +293,35 @@ export function QuickLinks() {
                 </span>
               </Link>
               <Link
-                href="/customers/new"
+                href="/customers/new?id=acme"
                 onClick={() => setOpen(false)}
                 className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/customers/new"
+                  pathname === "/customers/new" && customerIdParam === "acme"
                     ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
                     : "border-black/10 bg-white hover:border-black/25"
                 }`}
               >
                 <span className="text-sm font-semibold text-black">
-                  Customer Details
+                  Edit Customer
                 </span>
                 <span className="mt-0.5 block text-xs text-black/55">
-                  Create or edit a customer profile
+                  Existing customer profile (Acme)
+                </span>
+              </Link>
+              <Link
+                href="/customers/new"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/customers/new" && !customerIdParam
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  New Customer
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  Create a customer from scratch
                 </span>
               </Link>
             </div>

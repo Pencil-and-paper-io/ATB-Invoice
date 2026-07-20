@@ -14,18 +14,18 @@ import {
 } from "@/lib/organization-settings";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import {
-  ContactBlock,
-  EditCloseButton,
-  InfoTooltip,
-  PencilIcon,
-  TertiaryButton,
-} from "./ui";
+import { EditCloseButton, InfoTooltip, PencilIcon, TertiaryButton, CloseIcon } from "./ui";
 
 const TABS = ["Business Details", "Permissions", "Sub Users"] as const;
 type TabId = (typeof TABS)[number];
 
-type SectionKey = "business" | "brand" | "payments" | "settings" | "automations";
+type SectionKey =
+  | "business"
+  | "address"
+  | "brand"
+  | "payments"
+  | "settings"
+  | "automations";
 
 const SECTION_IDS = {
   organizationDetails: "organization-details",
@@ -121,6 +121,29 @@ const CURRENCIES = [
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
+/** Single source for edit FieldLabel + view ViewField copy. */
+const FIELD = {
+  businessName: "Business Name",
+  gstHstNumber: "GST/HST Number",
+  email: "Email",
+  phoneNumber: "Phone Number",
+  businessAddress: "Business Address",
+  addressLine1: "Address Line 1",
+  addressLine2: "Address Line 2",
+  city: "City",
+  province: "Province",
+  postalCode: "Postal Code",
+  brandColor: "Brand Color",
+  brandLogo: "Brand Logo",
+  currency: "Currency",
+  taxSetting: "Tax Setting",
+  quoteExpiry: "Quote Expiry",
+  paymentTerms: "Payment Terms",
+  autoSend: "Auto-send",
+  reminders: "Reminders",
+  receipts: "Receipts",
+} as const;
+
 const inputClass = UI_CLASS.input;
 const hoverCardClass = UI_CLASS.hoverCard;
 const sectionShellClass = UI_CLASS.sectionShell;
@@ -196,7 +219,7 @@ function BoxTitle({
   return (
     <div className="mb-5 flex items-center gap-1.5 pr-8">
       <h3
-        className={`type-subtitle-1 ${
+        className={`type-headline-6 ${
           tone === "edit" ? "text-black" : "text-black/45"
         }`}
       >
@@ -205,6 +228,26 @@ function BoxTitle({
       {tip ? <InfoTooltip text={tip} /> : null}
     </div>
   );
+}
+
+/** Stacked label + value pairs for view-mode cards. */
+function ViewField({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="type-subtitle-1 text-black">{label}</p>
+      <div className="type-body">{value}</div>
+    </div>
+  );
+}
+
+function ViewFieldList({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-4">{children}</div>;
 }
 
 function ViewCard({
@@ -242,15 +285,17 @@ function SectionEditor({
   onClose,
   onSave,
   children,
+  outsideDismissEnabled = true,
 }: {
   title: string;
   tip?: string;
   onClose: () => void;
   onSave: () => void;
   children: ReactNode;
+  outsideDismissEnabled?: boolean;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
-  useDismissOnOutsideClick(formRef, onClose);
+  useDismissOnOutsideClick(formRef, onClose, outsideDismissEnabled);
 
   return (
     <div ref={formRef} className={`relative px-7 pb-5 pt-7 ${hoverCardClass}`}>
@@ -327,6 +372,273 @@ function CheckMark() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function DefaultCheckIcon() {
+  return (
+    <svg width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden>
+      <path
+        d="M1 5.2 4.8 8.8 13 1.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="8"
+      viewBox="0 0 12 8"
+      fill="none"
+      aria-hidden
+      className={`transition ${open ? "rotate-180" : ""}`}
+    >
+      <path
+        d="M1 1.5 6 6.5 11 1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PaymentOptionEditCard({
+  label,
+  details,
+  isDefault,
+  expanded,
+  onToggleExpand,
+  onToggleDefault,
+  onRemove,
+}: {
+  label: string;
+  details: readonly { label: string; text: string; italic?: boolean }[];
+  isDefault: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onToggleDefault: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="group flex items-start gap-2">
+      <div className="min-w-0 flex-1 rounded-[10px] border border-black/10 bg-white transition hover:bg-black/[0.04]">
+        <div className="flex items-center gap-2 px-4 py-3.5">
+          <button
+            type="button"
+            onClick={onToggleDefault}
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border ${
+              isDefault
+                ? "border-prime-blue bg-prime-blue text-white"
+                : "border-black/25 bg-white"
+            }`}
+            aria-pressed={isDefault}
+            aria-label={
+              isDefault ? "Disable by default" : "Enable by default"
+            }
+          >
+            {isDefault ? <CheckMark /> : null}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            aria-expanded={expanded}
+          >
+            <span className="min-w-0 flex-1">
+              <span className="type-subtitle-1">{label}</span>
+              {isDefault ? (
+                <span className="type-body-muted ml-2">Enabled by default</span>
+              ) : null}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="shrink-0 text-black/40 transition hover:text-black/60"
+            aria-label={expanded ? "Collapse" : "Expand"}
+            aria-expanded={expanded}
+          >
+            <ChevronIcon open={expanded} />
+          </button>
+        </div>
+        {expanded && details.length ? (
+          <div className="border-t border-black/10 px-4 py-3 pl-[2.75rem]">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-black">
+              {details.map((detail) => (
+                <li key={`${detail.label}-${detail.text}`}>
+                  <span className={detail.italic ? "italic" : undefined}>
+                    <span className="font-bold">{detail.label}:</span>{" "}
+                    {detail.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="type-danger mt-3.5 shrink-0 whitespace-nowrap px-1 opacity-0 transition hover:underline group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
+type AddPaymentStep = "pick" | "costs" | "verify";
+
+function AddPaymentOptionModal({
+  available,
+  step,
+  selectedId,
+  onClose,
+  onSelect,
+  onBack,
+  onNext,
+  onComplete,
+}: {
+  available: typeof CORE_PAYMENT_METHODS;
+  step: AddPaymentStep;
+  selectedId: PaymentMethodId | null;
+  onClose: () => void;
+  onSelect: (id: PaymentMethodId) => void;
+  onBack: () => void;
+  onNext: () => void;
+  onComplete: () => void;
+}) {
+  const selected = CORE_PAYMENT_METHODS.find(
+    (method) => method.id === selectedId,
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/35 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-payment-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="relative w-full max-w-md rounded-xl border border-black/15 bg-white p-6 shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 text-black/35 transition hover:text-black/60"
+          aria-label="Close"
+        >
+          <CloseIcon />
+        </button>
+
+        {step === "pick" ? (
+          <>
+            <h2 id="add-payment-title" className="type-headline-6 pr-8">
+              Add payment option
+            </h2>
+            <p className="type-body-muted mt-2">
+              Choose a payment method to set up for your business.
+            </p>
+            <ul className="mt-5 flex flex-col gap-2">
+              {available.map((method) => (
+                <li key={method.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(method.id)}
+                    className="flex w-full items-center justify-between rounded-[10px] border border-black/10 px-4 py-3 text-left transition hover:border-prime-blue/40 hover:bg-black/[0.02]"
+                  >
+                    <span className="type-subtitle-1">{method.label}</span>
+                    <span className="text-black/35">
+                      <ChevronIcon open={false} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+
+        {step === "costs" && selected ? (
+          <>
+            <h2 id="add-payment-title" className="type-headline-6 pr-8">
+              {selected.label}
+            </h2>
+            <p className="type-body-muted mt-2">
+              Review the cost implications before continuing setup.
+            </p>
+            <ul className="mt-5 list-disc space-y-2 pl-5 text-sm text-black">
+              {selected.details.map((detail) => (
+                <li key={`${detail.label}-${detail.text}`}>
+                  <span className={detail.italic ? "italic" : undefined}>
+                    <span className="font-bold">{detail.label}:</span>{" "}
+                    {detail.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={onBack}
+                className="type-danger transition hover:opacity-80"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={onNext}
+                className="ui-btn-primary h-9"
+              >
+                Next
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {step === "verify" && selected ? (
+          <>
+            <h2 id="add-payment-title" className="type-headline-6 pr-8">
+              Verify {selected.label}
+            </h2>
+            <p className="type-body-muted mt-2">
+              Additional verification steps will appear here.
+            </p>
+            <div className="mt-5 rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center">
+              <p className="type-subtitle-1">Verification flow placeholder</p>
+              <p className="type-body-muted mt-2">
+                Bank linking, identity checks, or other setup steps for{" "}
+                {selected.label} will go here.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={onBack}
+                className="type-danger transition hover:opacity-80"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={onComplete}
+                className="ui-btn-primary h-9"
+              >
+                Complete setup
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -483,6 +795,13 @@ export function OrganizationSettingsView() {
   const [draft, setDraft] = useState<OrganizationSettings | null>(null);
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [discardWarning, setDiscardWarning] = useState(false);
+  const [expandedPaymentIds, setExpandedPaymentIds] = useState<
+    Set<PaymentMethodId>
+  >(() => new Set());
+  const [addPaymentOpen, setAddPaymentOpen] = useState(false);
+  const [addPaymentStep, setAddPaymentStep] = useState<AddPaymentStep>("pick");
+  const [addPaymentMethodId, setAddPaymentMethodId] =
+    useState<PaymentMethodId | null>(null);
   const pendingActionRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [subUserPermissions, setSubUserPermissions] = useState<
@@ -607,52 +926,66 @@ export function OrganizationSettingsView() {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
-  function togglePaymentMethod(id: PaymentMethodId, enabled: boolean) {
+  function removePaymentMethod(id: PaymentMethodId) {
     setDraft((prev) => {
       if (!prev) return prev;
-      const paymentMethods = prev.paymentMethods.map((method) =>
-        method.id === id ? { ...method, enabled } : method,
-      );
-      const enabledLabels: string[] = paymentMethods
-        .filter((method) => method.enabled)
-        .map((method) => paymentMethodLabel(method.id));
-      const paymentPreferences = prev.paymentPreferences.filter((label) =>
-        enabledLabels.includes(label),
-      );
+      const label = paymentMethodLabel(id);
       return {
         ...prev,
-        paymentMethods,
-        paymentPreferences:
-          paymentPreferences.length > 0
-            ? paymentPreferences
-            : enabledLabels.slice(0, 1),
+        paymentMethods: prev.paymentMethods.map((method) =>
+          method.id === id ? { ...method, enabled: false } : method,
+        ),
+        paymentPreferences: prev.paymentPreferences.filter(
+          (item) => item !== label,
+        ),
+      };
+    });
+    setExpandedPaymentIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function togglePaymentDefault(id: PaymentMethodId) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const label = paymentMethodLabel(id);
+      const isDefault = prev.paymentPreferences.includes(label);
+      return {
+        ...prev,
+        paymentPreferences: isDefault
+          ? prev.paymentPreferences.filter((item) => item !== label)
+          : [...prev.paymentPreferences, label],
       };
     });
   }
 
-  function setPaymentMethodAccount(id: PaymentMethodId, accountLabel: string) {
+  function openAddPaymentModal() {
+    setAddPaymentMethodId(null);
+    setAddPaymentStep("pick");
+    setAddPaymentOpen(true);
+  }
+
+  function closeAddPaymentModal() {
+    setAddPaymentOpen(false);
+    setAddPaymentMethodId(null);
+    setAddPaymentStep("pick");
+  }
+
+  function completeAddPayment() {
+    if (!addPaymentMethodId) return;
+    const id = addPaymentMethodId;
     setDraft((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === id ? { ...method, accountLabel } : method,
+          method.id === id ? { ...method, enabled: true } : method,
         ),
       };
     });
-  }
-
-  function togglePaymentPreference(option: string) {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const exists = prev.paymentPreferences.includes(option);
-      return {
-        ...prev,
-        paymentPreferences: exists
-          ? prev.paymentPreferences.filter((item) => item !== option)
-          : [...prev.paymentPreferences, option],
-      };
-    });
+    closeAddPaymentModal();
   }
 
   function handleLogoReplace(file: File | null) {
@@ -711,7 +1044,17 @@ export function OrganizationSettingsView() {
     province: saved.province,
     postalCode: saved.postalCode,
   });
+  const addressEmpty = !businessAddress;
   const enabledPaymentLabels = getEnabledPaymentMethodLabels(saved);
+  const draftEnabledMethods = draft.paymentMethods.filter(
+    (method) => method.enabled,
+  );
+  const availableToAdd = CORE_PAYMENT_METHODS.filter(
+    (method) =>
+      !draft.paymentMethods.some(
+        (entry) => entry.id === method.id && entry.enabled,
+      ),
+  );
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -774,7 +1117,7 @@ export function OrganizationSettingsView() {
                       htmlFor="org-business-name"
                       tip="The official name of your business—the one you use on government paperwork and contracts."
                     >
-                      Business Name
+                      {FIELD.businessName}
                     </FieldLabel>
                     <input
                       id="org-business-name"
@@ -790,7 +1133,7 @@ export function OrganizationSettingsView() {
                       htmlFor="org-gst"
                       tip="Your tax number, if you collect sales tax. It can show on your invoices."
                     >
-                      GST/HST Number
+                      {FIELD.gstHstNumber}
                     </FieldLabel>
                     <input
                       id="org-gst"
@@ -801,107 +1144,39 @@ export function OrganizationSettingsView() {
                       }
                     />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <FieldLabel
-                        htmlFor="org-email"
-                        tip="The email customers use to reach you about quotes and invoices."
-                      >
-                        Email
-                      </FieldLabel>
-                      <input
-                        id="org-email"
-                        type="email"
-                        className={inputClass}
-                        value={draft.email}
-                        onChange={(event) =>
-                          patchDraft({ email: event.target.value })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel
-                        htmlFor="org-phone"
-                        tip="Your business phone number, shown on quotes and invoices."
-                      >
-                        Phone Number
-                      </FieldLabel>
-                      <input
-                        id="org-phone"
-                        type="tel"
-                        className={inputClass}
-                        value={draft.phone}
-                        onChange={(event) =>
-                          patchDraft({ phone: event.target.value })
-                        }
-                      />
-                    </div>
+                  <div>
+                    <FieldLabel
+                      htmlFor="org-email"
+                      tip="The email customers use to reach you about quotes and invoices."
+                    >
+                      {FIELD.email}
+                    </FieldLabel>
+                    <input
+                      id="org-email"
+                      type="email"
+                      className={inputClass}
+                      value={draft.email}
+                      onChange={(event) =>
+                        patchDraft({ email: event.target.value })
+                      }
+                    />
                   </div>
-                  <div className={sectionDividerClass}>
-                    <p className="type-subtitle-1 mb-4">Business Address</p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <FieldLabel htmlFor="org-line1">
-                          Address Line 1
-                        </FieldLabel>
-                        <input
-                          id="org-line1"
-                          className={inputClass}
-                          value={draft.addressLine1}
-                          onChange={(event) =>
-                            patchDraft({ addressLine1: event.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel htmlFor="org-line2">
-                          Address Line 2
-                        </FieldLabel>
-                        <input
-                          id="org-line2"
-                          className={inputClass}
-                          value={draft.addressLine2}
-                          onChange={(event) =>
-                            patchDraft({ addressLine2: event.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel htmlFor="org-city">City</FieldLabel>
-                        <input
-                          id="org-city"
-                          className={inputClass}
-                          value={draft.city}
-                          onChange={(event) =>
-                            patchDraft({ city: event.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel htmlFor="org-province">Province</FieldLabel>
-                        <input
-                          id="org-province"
-                          className={inputClass}
-                          value={draft.province}
-                          onChange={(event) =>
-                            patchDraft({ province: event.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel htmlFor="org-postal">
-                          Postal Code
-                        </FieldLabel>
-                        <input
-                          id="org-postal"
-                          className={inputClass}
-                          value={draft.postalCode}
-                          onChange={(event) =>
-                            patchDraft({ postalCode: event.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
+                  <div>
+                    <FieldLabel
+                      htmlFor="org-phone"
+                      tip="Your business phone number, shown on quotes and invoices."
+                    >
+                      {FIELD.phoneNumber}
+                    </FieldLabel>
+                    <input
+                      id="org-phone"
+                      type="tel"
+                      className={inputClass}
+                      value={draft.phone}
+                      onChange={(event) =>
+                        patchDraft({ phone: event.target.value })
+                      }
+                    />
                   </div>
                 </SectionEditor>
               ) : (
@@ -909,18 +1184,114 @@ export function OrganizationSettingsView() {
                   title="Business Details"
                   onEdit={() => startEdit("business")}
                 >
-                  <ContactBlock
-                    name={saved.businessName || "Untitled business"}
-                    address={businessAddress}
-                    phone={saved.phone || undefined}
-                    email={saved.email || undefined}
-                  />
-                  {saved.gstHstNumber ? (
-                    <p className="type-body mt-3">
-                      <span className="text-black/45">GST/HST: </span>
-                      {saved.gstHstNumber}
-                    </p>
-                  ) : null}
+                  <ViewFieldList>
+                    <ViewField
+                      label={FIELD.businessName}
+                      value={saved.businessName || "—"}
+                    />
+                    <ViewField
+                      label={FIELD.gstHstNumber}
+                      value={saved.gstHstNumber || "—"}
+                    />
+                    <ViewField
+                      label={FIELD.email}
+                      value={saved.email || "—"}
+                    />
+                    <ViewField
+                      label={FIELD.phoneNumber}
+                      value={saved.phone || "—"}
+                    />
+                  </ViewFieldList>
+                </ViewCard>
+              )}
+
+              {editing === "address" ? (
+                <SectionEditor
+                  title="Business Address"
+                  onClose={closeEdit}
+                  onSave={saveSection}
+                >
+                  <div>
+                    <FieldLabel htmlFor="org-line1">
+                      {FIELD.addressLine1}
+                    </FieldLabel>
+                    <input
+                      id="org-line1"
+                      className={inputClass}
+                      value={draft.addressLine1}
+                      onChange={(event) =>
+                        patchDraft({ addressLine1: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel htmlFor="org-line2">
+                      {FIELD.addressLine2}
+                    </FieldLabel>
+                    <input
+                      id="org-line2"
+                      className={inputClass}
+                      value={draft.addressLine2}
+                      onChange={(event) =>
+                        patchDraft({ addressLine2: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <FieldLabel htmlFor="org-city">{FIELD.city}</FieldLabel>
+                      <input
+                        id="org-city"
+                        className={inputClass}
+                        value={draft.city}
+                        onChange={(event) =>
+                          patchDraft({ city: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel htmlFor="org-province">
+                        {FIELD.province}
+                      </FieldLabel>
+                      <input
+                        id="org-province"
+                        className={inputClass}
+                        value={draft.province}
+                        onChange={(event) =>
+                          patchDraft({ province: event.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel htmlFor="org-postal">
+                      {FIELD.postalCode}
+                    </FieldLabel>
+                    <input
+                      id="org-postal"
+                      className={inputClass}
+                      value={draft.postalCode}
+                      onChange={(event) =>
+                        patchDraft({ postalCode: event.target.value })
+                      }
+                    />
+                  </div>
+                </SectionEditor>
+              ) : addressEmpty ? (
+                <TertiaryButton onClick={() => startEdit("address")}>
+                  Add Business Address
+                </TertiaryButton>
+              ) : (
+                <ViewCard
+                  title="Business Address"
+                  onEdit={() => startEdit("address")}
+                >
+                  <ViewFieldList>
+                    <ViewField
+                      label={FIELD.businessAddress}
+                      value={businessAddress || "—"}
+                    />
+                  </ViewFieldList>
                 </ViewCard>
               )}
 
@@ -932,7 +1303,7 @@ export function OrganizationSettingsView() {
                   onSave={saveSection}
                 >
                   <div>
-                    <p className="type-subtitle-1">Brand Color</p>
+                    <p className="type-subtitle-1">{FIELD.brandColor}</p>
                     <p className="type-body-muted mt-1 mb-3">
                       This color will be shown at the top and bottom of your
                       invoice, and will not appear on or behind any text.
@@ -949,7 +1320,7 @@ export function OrganizationSettingsView() {
                         onChange={(event) =>
                           patchDraft({ brandColor: event.target.value })
                         }
-                        aria-label="Brand color hex"
+                        aria-label={FIELD.brandColor}
                       />
                       <input
                         type="color"
@@ -969,7 +1340,7 @@ export function OrganizationSettingsView() {
                     </div>
                   </div>
                   <div className={sectionDividerClass}>
-                    <p className="type-subtitle-1">Brand Logo</p>
+                    <p className="type-subtitle-1">{FIELD.brandLogo}</p>
                     <p className="type-body-muted mt-1 mb-4">
                       Aim for at least 200x200 or larger for best quality. Tip:
                       Square or horizontal logos work best. Files may be up to
@@ -1025,41 +1396,41 @@ export function OrganizationSettingsView() {
                   tip="These styles apply to new invoices. Sent invoices keep the look they had when they were sent."
                   onEdit={() => startEdit("brand")}
                 >
-                  <div className="flex flex-wrap items-center gap-5">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-8 w-8 rounded-full border border-black/10"
-                        style={{ background: saved.brandColor }}
-                        aria-hidden
-                      />
-                      <div>
-                        <p className="type-caption text-black/45">
-                          Brand color
-                        </p>
-                        <p className="type-body">{saved.brandColor}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md bg-cloud-grey text-black/35">
-                        {saved.logoDataUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={saved.logoDataUrl}
-                            alt="Brand logo"
-                            className="h-full w-full object-contain"
+                  <ViewFieldList>
+                    <ViewField
+                      label={FIELD.brandColor}
+                      value={
+                        <span className="flex items-center gap-3">
+                          <span
+                            className="h-8 w-8 shrink-0 rounded-full border border-black/10"
+                            style={{ background: saved.brandColor }}
+                            aria-hidden
                           />
-                        ) : (
-                          <ImagePlaceholderIcon />
-                        )}
-                      </div>
-                      <div>
-                        <p className="type-caption text-black/45">Logo</p>
-                        <p className="type-body">
+                          {saved.brandColor}
+                        </span>
+                      }
+                    />
+                    <ViewField
+                      label={FIELD.brandLogo}
+                      value={
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md bg-cloud-grey text-black/35">
+                            {saved.logoDataUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={saved.logoDataUrl}
+                                alt="Brand logo"
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <ImagePlaceholderIcon />
+                            )}
+                          </span>
                           {saved.logoDataUrl ? "Uploaded" : "No logo yet"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                        </span>
+                      }
+                    />
+                  </ViewFieldList>
                 </ViewCard>
               )}
             </section>
@@ -1076,111 +1447,59 @@ export function OrganizationSettingsView() {
               {editing === "payments" ? (
                 <SectionEditor
                   title="Payment Options"
-                  tip="Ways customers can pay you, and which ones are accepted by default on new customers and invoices."
+                  tip="Default payment options for new customers and invoices. You can still change them on a customer or invoice later."
                   onClose={closeEdit}
                   onSave={saveSection}
+                  outsideDismissEnabled={!addPaymentOpen}
                 >
                   <p className="type-body-muted">
-                    Activate the payment methods your business accepts.
-                    Bank-linked methods require a deposit destination. Cost and
-                    limit notes are shared reference copy shown on invoices.
+                    Choose which payment options are available for your
+                    business. Enable by default to use them on new customers and
+                    invoices—you can still change this per customer or invoice
+                    later.
                   </p>
-                  <div className="flex flex-col gap-6">
-                    {CORE_PAYMENT_METHODS.map((method) => {
-                      const config = draft.paymentMethods.find(
-                        (entry) => entry.id === method.id,
-                      ) ?? {
-                        id: method.id,
-                        enabled: false,
-                        accountLabel: "",
-                      };
-
-                      return (
-                        <div
-                          key={method.id}
-                          className="rounded-[10px] border border-black/10 p-5"
-                        >
-                          <CheckboxRow
-                            checked={config.enabled}
-                            onChange={(checked) =>
-                              togglePaymentMethod(method.id, checked)
-                            }
-                            label={
-                              <span className="type-subtitle-1">
-                                {method.label}
-                              </span>
-                            }
-                          />
-                          {config.enabled ? (
-                            <div className="mt-4 flex flex-col gap-4 pl-7">
-                              {method.needsAccount ? (
-                                <div>
-                                  <FieldLabel
-                                    htmlFor={`account-${method.id}`}
-                                    tip="Deposit destination for this payment method."
-                                  >
-                                    Linked bank account / nickname
-                                  </FieldLabel>
-                                  <input
-                                    id={`account-${method.id}`}
-                                    className={inputClass}
-                                    placeholder="e.g. Operating account •••• 4421"
-                                    value={config.accountLabel}
-                                    onChange={(event) =>
-                                      setPaymentMethodAccount(
-                                        method.id,
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </div>
-                              ) : null}
-                              <ul className="list-disc space-y-1 pl-5 text-sm text-black/70">
-                                {method.details.map((detail) => (
-                                  <li key={`${detail.label}-${detail.text}`}>
-                                    <span
-                                      className={
-                                        detail.italic ? "italic" : undefined
-                                      }
-                                    >
-                                      <span className="font-bold text-black">
-                                        {detail.label}:
-                                      </span>{" "}
-                                      {detail.text}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className={sectionDividerClass}>
-                    <p className="type-subtitle-1">Accepted by default</p>
-                    <p className="type-body-muted mt-1 mb-4">
-                      Choose which enabled options are accepted by default on
-                      new customers and invoices. You can still change this per
-                      customer or invoice later.
-                    </p>
-                    {getEnabledPaymentMethodLabels(draft).length === 0 ? (
+                  <div className="flex flex-col gap-2.5">
+                    {draftEnabledMethods.length === 0 ? (
                       <p className="type-body-muted">
-                        Enable at least one payment method above first.
+                        No payment options set up yet.
                       </p>
                     ) : (
-                      <div className="flex flex-col gap-2.5">
-                        {getEnabledPaymentMethodLabels(draft).map((option) => (
-                          <CheckboxRow
-                            key={option}
-                            checked={draft.paymentPreferences.includes(option)}
-                            onChange={() => togglePaymentPreference(option)}
-                            label={option}
+                      draftEnabledMethods.map((method) => {
+                        const meta = CORE_PAYMENT_METHODS.find(
+                          (entry) => entry.id === method.id,
+                        );
+                        if (!meta) return null;
+                        const label = paymentMethodLabel(method.id);
+                        return (
+                          <PaymentOptionEditCard
+                            key={method.id}
+                            label={label}
+                            details={meta.details}
+                            isDefault={draft.paymentPreferences.includes(
+                              label,
+                            )}
+                            expanded={expandedPaymentIds.has(method.id)}
+                            onToggleExpand={() =>
+                              setExpandedPaymentIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(method.id)) next.delete(method.id);
+                                else next.add(method.id);
+                                return next;
+                              })
+                            }
+                            onToggleDefault={() =>
+                              togglePaymentDefault(method.id)
+                            }
+                            onRemove={() => removePaymentMethod(method.id)}
                           />
-                        ))}
-                      </div>
+                        );
+                      })
                     )}
+                    {availableToAdd.length > 0 ? (
+                      <TertiaryButton onClick={openAddPaymentModal}>
+                        Add payment option
+                      </TertiaryButton>
+                    ) : null}
                   </div>
                 </SectionEditor>
               ) : enabledPaymentLabels.length === 0 ? (
@@ -1191,10 +1510,10 @@ export function OrganizationSettingsView() {
                 <ViewCard
                   id={SECTION_IDS.paymentOptions}
                   title="Payment Options"
-                  tip="Ways customers can pay you, and which ones are accepted by default on new customers and invoices."
+                  tip="Default payment options for new customers and invoices. You can still change them on a customer or invoice later."
                   onEdit={() => startEdit("payments")}
                 >
-                  <ul className="flex flex-col gap-4">
+                  <ViewFieldList>
                     {saved.paymentMethods
                       .filter((method) => method.enabled)
                       .map((method) => {
@@ -1202,46 +1521,39 @@ export function OrganizationSettingsView() {
                           (entry) => entry.id === method.id,
                         );
                         const label = paymentMethodLabel(method.id);
-                        const isAccepted =
+                        const isDefault =
                           saved.paymentPreferences.includes(label);
+                        const costSummary = meta?.details
+                          .filter((detail) =>
+                            detail.label.startsWith("Cost to"),
+                          )
+                          .map(
+                            (detail) => `${detail.label}: ${detail.text}`,
+                          )
+                          .join(" · ");
                         return (
-                          <li key={method.id} className="type-body">
-                            <p className="type-emphasis">
-                              {label}
-                              {isAccepted ? (
-                                <span className="font-normal text-black/45">
-                                  {" "}
-                                  · Accepted by default
-                                </span>
-                              ) : null}
-                            </p>
-                            {method.accountLabel ? (
-                              <p className="mt-1 text-black/55">
-                                {method.accountLabel}
+                          <div
+                            key={method.id}
+                            className="flex items-start gap-2"
+                          >
+                            <span
+                              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
+                              aria-hidden
+                            >
+                              {isDefault ? <DefaultCheckIcon /> : null}
+                            </span>
+                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                              <p className="type-subtitle-1 text-black">
+                                {label}
                               </p>
-                            ) : null}
-                            {meta ? (
-                              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                                {meta.details.map((detail) => (
-                                  <li key={`${detail.label}-${detail.text}`}>
-                                    <span
-                                      className={
-                                        detail.italic ? "italic" : undefined
-                                      }
-                                    >
-                                      <span className="font-bold">
-                                        {detail.label}:
-                                      </span>{" "}
-                                      {detail.text}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </li>
+                              <div className="type-body">
+                                {costSummary || "Available"}
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
-                  </ul>
+                  </ViewFieldList>
                 </ViewCard>
               )}
 
@@ -1253,18 +1565,18 @@ export function OrganizationSettingsView() {
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <FieldLabel>Currency</FieldLabel>
+                      <FieldLabel>{FIELD.currency}</FieldLabel>
                       <SelectField
-                        ariaLabel="Currency"
+                        ariaLabel={FIELD.currency}
                         value={draft.currency}
                         options={CURRENCIES}
                         onChange={(value) => patchDraft({ currency: value })}
                       />
                     </div>
                     <div>
-                      <FieldLabel>Tax Setting</FieldLabel>
+                      <FieldLabel>{FIELD.taxSetting}</FieldLabel>
                       <SelectField
-                        ariaLabel="Tax status"
+                        ariaLabel={FIELD.taxSetting}
                         value={draft.taxStatus}
                         options={TAX_OPTIONS}
                         onChange={(value) =>
@@ -1280,7 +1592,7 @@ export function OrganizationSettingsView() {
                         htmlFor="org-quote-expiry"
                         tip="How long new quotes stay open before they expire."
                       >
-                        Quote Expiry
+                        {FIELD.quoteExpiry}
                       </FieldLabel>
                       <div className="relative">
                         <input
@@ -1304,10 +1616,10 @@ export function OrganizationSettingsView() {
                     </div>
                     <div>
                       <FieldLabel tip="How soon customers are usually expected to pay after you send an invoice.">
-                        Payment Terms
+                        {FIELD.paymentTerms}
                       </FieldLabel>
                       <SelectField
-                        ariaLabel="Payment terms"
+                        ariaLabel={FIELD.paymentTerms}
                         value={draft.paymentTerms}
                         options={PAYMENT_TERMS_OPTIONS}
                         onChange={(value) =>
@@ -1322,24 +1634,24 @@ export function OrganizationSettingsView() {
                   title="Settings"
                   onEdit={() => startEdit("settings")}
                 >
-                  <div className="flex flex-col gap-2 type-body">
-                    <p>
-                      <span className="text-black/45">Currency: </span>
-                      {currencyLabel(saved.currency)}
-                    </p>
-                    <p>
-                      <span className="text-black/45">Tax: </span>
-                      {saved.taxStatus}
-                    </p>
-                    <p>
-                      <span className="text-black/45">Quote expiry: </span>
-                      {saved.quoteExpiryDays || "—"} days
-                    </p>
-                    <p>
-                      <span className="text-black/45">Payment terms: </span>
-                      {saved.paymentTerms}
-                    </p>
-                  </div>
+                  <ViewFieldList>
+                    <ViewField
+                      label={FIELD.currency}
+                      value={currencyLabel(saved.currency)}
+                    />
+                    <ViewField
+                      label={FIELD.taxSetting}
+                      value={saved.taxStatus}
+                    />
+                    <ViewField
+                      label={FIELD.quoteExpiry}
+                      value={`${saved.quoteExpiryDays || "—"} days`}
+                    />
+                    <ViewField
+                      label={FIELD.paymentTerms}
+                      value={saved.paymentTerms}
+                    />
+                  </ViewFieldList>
                 </ViewCard>
               )}
 
@@ -1359,14 +1671,14 @@ export function OrganizationSettingsView() {
                       onChange={(checked) =>
                         patchDraft({ autoSend: checked })
                       }
-                      label="Auto-send: Send invoices automatically on their issuance date."
+                      label={`${FIELD.autoSend}: Send invoices automatically on their issuance date.`}
                     />
                     <CheckboxRow
                       checked={draft.reminders}
                       onChange={(checked) =>
                         patchDraft({ reminders: checked })
                       }
-                      label="Reminders: Send quote and invoice reminders before expiry or due date."
+                      label={`${FIELD.reminders}: Send quote and invoice reminders before expiry or due date.`}
                     >
                       <div className="relative max-w-[220px]">
                         <input
@@ -1393,7 +1705,7 @@ export function OrganizationSettingsView() {
                       onChange={(checked) =>
                         patchDraft({ receipts: checked })
                       }
-                      label="Receipts: Auto-send a receipt when a payment is marked received."
+                      label={`${FIELD.receipts}: Auto-send a receipt when a payment is marked received.`}
                     />
                   </div>
                 </SectionEditor>
@@ -1402,22 +1714,24 @@ export function OrganizationSettingsView() {
                   title="Default Automations"
                   onEdit={() => startEdit("automations")}
                 >
-                  <div className="flex flex-col gap-2 type-body">
-                    <p>
-                      <span className="text-black/45">Auto-send: </span>
-                      {saved.autoSend ? "On" : "Off"}
-                    </p>
-                    <p>
-                      <span className="text-black/45">Reminders: </span>
-                      {saved.reminders
-                        ? `On · ${saved.reminderDays || "—"} days before`
-                        : "Off"}
-                    </p>
-                    <p>
-                      <span className="text-black/45">Receipts: </span>
-                      {saved.receipts ? "On" : "Off"}
-                    </p>
-                  </div>
+                  <ViewFieldList>
+                    <ViewField
+                      label={FIELD.autoSend}
+                      value={saved.autoSend ? "On" : "Off"}
+                    />
+                    <ViewField
+                      label={FIELD.reminders}
+                      value={
+                        saved.reminders
+                          ? `On · ${saved.reminderDays || "—"} days before`
+                          : "Off"
+                      }
+                    />
+                    <ViewField
+                      label={FIELD.receipts}
+                      value={saved.receipts ? "On" : "Off"}
+                    />
+                  </ViewFieldList>
                 </ViewCard>
               )}
             </section>
@@ -1569,37 +1883,62 @@ export function OrganizationSettingsView() {
           role="alertdialog"
           aria-labelledby="discard-warning-title"
           aria-describedby="discard-warning-desc"
-          className="fixed bottom-6 left-1/2 z-[220] w-[min(92vw,380px)] -translate-x-1/2 rounded-xl border border-black/15 bg-white p-4 shadow-2xl"
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/35 px-4"
         >
-          <p
-            id="discard-warning-title"
-            className="text-sm font-semibold text-black"
-          >
-            Unsaved changes
-          </p>
-          <p
-            id="discard-warning-desc"
-            className="mt-1 text-sm text-black/60"
-          >
-            You have unsaved edits in this section. Discard them?
-          </p>
-          <div className="mt-3 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={keepEditing}
-              className={UI_CLASS.btnSecondary}
+          <div className="w-full max-w-[380px] rounded-xl border border-black/15 bg-white p-4 shadow-2xl">
+            <p
+              id="discard-warning-title"
+              className="text-sm font-semibold text-black"
             >
-              Keep editing
-            </button>
-            <button
-              type="button"
-              onClick={confirmDiscard}
-              className="ui-btn-primary h-11"
+              Unsaved changes
+            </p>
+            <p
+              id="discard-warning-desc"
+              className="mt-1 text-sm text-black/60"
             >
-              Discard
-            </button>
+              You have unsaved edits in this section. Discard them?
+            </p>
+            <div className="mt-3 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={keepEditing}
+                className={UI_CLASS.btnSecondary}
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={confirmDiscard}
+                className="ui-btn-primary h-11"
+              >
+                Discard
+              </button>
+            </div>
           </div>
         </div>
+      ) : null}
+
+      {addPaymentOpen ? (
+        <AddPaymentOptionModal
+          available={availableToAdd}
+          step={addPaymentStep}
+          selectedId={addPaymentMethodId}
+          onClose={closeAddPaymentModal}
+          onSelect={(id) => {
+            setAddPaymentMethodId(id);
+            setAddPaymentStep("costs");
+          }}
+          onBack={() => {
+            if (addPaymentStep === "verify") {
+              setAddPaymentStep("costs");
+              return;
+            }
+            setAddPaymentMethodId(null);
+            setAddPaymentStep("pick");
+          }}
+          onNext={() => setAddPaymentStep("verify")}
+          onComplete={completeAddPayment}
+        />
       ) : null}
     </div>
   );

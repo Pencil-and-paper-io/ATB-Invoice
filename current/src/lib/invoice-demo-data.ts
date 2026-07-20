@@ -353,3 +353,69 @@ export function formatMoney(value: number) {
     currency: "CAD",
   }).format(value);
 }
+
+export type CustomerInvoiceRow = {
+  id: string;
+  number: string;
+  client: string;
+  status: string;
+  dueDate: string;
+  amount: number;
+  customerId: string;
+};
+
+/** Demo invoices tied to customers for the customer profile page. */
+export const customerInvoices: CustomerInvoiceRow[] = [
+  {
+    id: "inv-acme-1",
+    number: "3001",
+    client: "Acme Construction Co",
+    status: "Sent",
+    dueDate: "Apr 12, 2026",
+    amount: 2187.5,
+    customerId: "acme",
+  },
+  {
+    id: "inv-acme-2",
+    number: "3002",
+    client: "Acme Construction Co",
+    status: "Overdue",
+    dueDate: "Mar 1, 2026",
+    amount: 2187.5,
+    customerId: "acme",
+  },
+  {
+    id: "inv-acme-3",
+    number: "3003",
+    client: "Acme Construction Co",
+    status: "Viewed",
+    dueDate: "May 3, 2026",
+    amount: 2187.5,
+    customerId: "acme",
+  },
+];
+
+export function getCustomerInvoices(customerId: string | null) {
+  if (!customerId) return [];
+  return customerInvoices.filter((invoice) => invoice.customerId === customerId);
+}
+
+export function getCustomerAccountSummary(customerId: string | null) {
+  const invoices = getCustomerInvoices(customerId);
+  const totalInvoiced = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+  // Demo: Acme matches the account-summary mock (paid $0, outstanding less than total).
+  if (customerId === "acme") {
+    return {
+      invoiceCount: 3,
+      totalInvoiced: 6562.5,
+      paid: 0,
+      outstanding: 5775,
+    };
+  }
+  return {
+    invoiceCount: invoices.length,
+    totalInvoiced,
+    paid: 0,
+    outstanding: totalInvoiced,
+  };
+}
