@@ -14,6 +14,7 @@ import {
   type PaymentMethodId,
 } from "@/lib/organization-settings";
 import { ONBOARDING_JUST_COMPLETED_KEY } from "@/components/invoice/OnboardingCompleteModal";
+import { PencilIcon } from "@/components/invoice/ui";
 
 const SETUP_STEPS = [
   {
@@ -438,6 +439,7 @@ export function OnboardingWizardView() {
   const router = useRouter();
   const [step, setStep] = useState<StepIndex>(0);
   const [finishing, setFinishing] = useState(false);
+  const [editingBusinessName, setEditingBusinessName] = useState(false);
   const [state, setState] = useState<WizardState>(() =>
     settingsToWizard(loadOrganizationSettings()),
   );
@@ -623,8 +625,48 @@ export function OnboardingWizardView() {
               <>
                 <ContentBox title="Invoice Display Name">
                   <p className="type-body text-black">
-                    Do you want to use your legal business name (
-                    {state.businessName || "—"}) on invoices?
+                    We found the name registered under Canada Revenue Agency as
+                  </p>
+                  {editingBusinessName ? (
+                    <div className="flex flex-col gap-2">
+                      <input
+                        id="business-name"
+                        className={inputClass}
+                        value={state.businessName}
+                        onChange={(event) =>
+                          patch({ businessName: event.target.value })
+                        }
+                        onBlur={() => {
+                          if (state.businessName.trim()) {
+                            setEditingBusinessName(false);
+                          }
+                        }}
+                        autoFocus
+                        aria-label="CRA-registered business name"
+                      />
+                      <p className="type-danger">
+                        Only edit this if it doesn&apos;t reflect what your
+                        CRA-registered name is. This must match your
+                        CRA-registered name exactly.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingBusinessName(true)}
+                      className="flex w-full items-center justify-between gap-3 rounded border border-black/20 bg-white px-3 py-2.5 text-left transition hover:border-prime-blue"
+                      aria-label="Edit CRA-registered business name"
+                    >
+                      <span className="type-body font-semibold text-black/55">
+                        {state.businessName || "—"}
+                      </span>
+                      <span className="shrink-0 text-black/35" aria-hidden>
+                        <PencilIcon />
+                      </span>
+                    </button>
+                  )}
+                  <p className="type-body text-black">
+                    Do you want to use this name on your invoices?
                   </p>
                   <div className="flex flex-col gap-2">
                     <label className="flex items-center gap-2 text-sm">
