@@ -76,6 +76,7 @@ Scripts: `npm run dev` / `build` / `start` / `lint` from `current/`.
 | `/quote/preview` | Quote preview | `PreviewQuoteView` |
 | `/quote/sent` … `/quote/void` | Quote lifecycle | `SentQuoteView` / status pages |
 | `/organization` | Manage organization | `OrganizationSettingsView` |
+| `/onboarding` | Invoicing onboarding wizard | `OnboardingWizardView` |
 | `/customers/new` | New customer | `CustomerFormView` |
 | `/customers/new?id=acme` | Edit demo customer (Acme) | same |
 | `/payment-options/new` | Redirect → org payment options | stub |
@@ -135,7 +136,7 @@ Aligned with Epic 1 (Customer Profile).
 **Tabs (order)**
 
 1. **Account Summary** — totals + notes (when present) + Quotes / Invoices tables.
-2. **Customer Settings** — Default Settings (tax, quote expiry, payment terms, payment preferences, automations).
+2. **Customer Settings** — Default Settings (tax, quote expiry, payment terms, payment preferences, automations) + red **Delete** (no docs) or **Archive** (drafts/sent) with confirm modals.
 
 **Layout:** page title = legal name only (+ Create New). Tabs full-width, then two columns: left = tab content (metrics / settings); right = **Customer Details** (top-aligned with that content; sticky on desktop).
 
@@ -185,6 +186,23 @@ Definitions + cost notes: `current/src/lib/organization-settings.ts` (`CORE_PAYM
 - Org defaults → new customer payment preferences (checked subset of enabled methods).
 - Customer preferences → invoice payment rows via `getInvoicePaymentOptions()`.
 - Invoice “Add more payment options” navigates to `/organization#payment-options`.
+
+### 5.5 Invoicing onboarding
+
+Route: `/onboarding` · `OnboardingWizardView`
+
+Four-step wizard presented as a near-full-screen, non-dismissible modal (no close / backdrop exit):
+
+1. **Business identity** — “Welcome to Invoicing” + invoice display name (legal name in question copy / trading-as) + contact name + reply-to email + sales tax / GST/HST  
+2. **Payment options** — Interac / EFT / Cheque / Cash; credit card coming soon  
+3. **Invoicing & quotes** — payment terms, quote validity, starting QT/INV numbers  
+4. **Branding** — logo, brand color  
+
+On finish: brief loading animation, then redirect to `/dashboard` with a small **You’re all set!** modal (Create an Invoice → `/customers/new`, Close dismisses).
+
+UI: section title (headline 3) + subtitle (headline 6), dashed step progress bar, content in headline-6 titled boxes. Overlay is 96% viewport; content constrained to 800px centered.
+
+Prototype Quick Link: **Invoicing Onboarding**.
 
 ---
 

@@ -128,6 +128,7 @@ export function Modal({
   closeOnBackdrop = true,
   role = "dialog",
   describedBy,
+  aboveTitle,
 }: {
   title: string;
   titleId?: string;
@@ -147,6 +148,7 @@ export function Modal({
   closeOnBackdrop?: boolean;
   role?: "dialog" | "alertdialog";
   describedBy?: string;
+  aboveTitle?: ReactNode;
 }) {
   const generatedId = useId();
   const resolvedTitleId = titleId ?? generatedId;
@@ -183,6 +185,9 @@ export function Modal({
           onClick={onClose}
           className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70 sm:right-6 sm:top-6"
         />
+        {aboveTitle ? (
+          <div className="mb-5 flex justify-center">{aboveTitle}</div>
+        ) : null}
         <h2
           id={resolvedTitleId}
           className="type-headline-3 px-8 text-center text-black"

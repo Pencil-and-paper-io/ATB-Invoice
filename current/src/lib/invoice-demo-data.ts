@@ -415,6 +415,18 @@ export const customerInvoices: CustomerInvoiceRow[] = [
     status: "Partially Paid",
     customerId: "acme",
   },
+  // Scenario B: drafts only (Beta) — archive, cannot delete
+  {
+    id: "inv-beta-1",
+    number: "3101",
+    milestonePhase: null,
+    dateIssued: "Apr 10, 2026",
+    dueDate: "May 10, 2026",
+    amount: 1200,
+    balanceOutstanding: 1200,
+    status: "Draft",
+    customerId: "beta",
+  },
 ];
 
 /** Demo quotes tied to customers for the customer profile page. */
@@ -446,6 +458,15 @@ export const customerQuotes: CustomerQuoteRow[] = [
     status: "Draft",
     customerId: "acme",
   },
+  {
+    id: "quo-beta-1",
+    number: "Q-201",
+    dateCreated: "Apr 8, 2026",
+    expiryDate: "May 8, 2026",
+    amount: 850,
+    status: "Draft",
+    customerId: "beta",
+  },
 ];
 
 export function getCustomerInvoices(customerId: string | null) {
@@ -456,6 +477,65 @@ export function getCustomerInvoices(customerId: string | null) {
 export function getCustomerQuotes(customerId: string | null) {
   if (!customerId) return [];
   return customerQuotes.filter((quote) => quote.customerId === customerId);
+}
+
+function isDraftDocumentStatus(status: string) {
+  return status.trim().toLowerCase() === "draft";
+}
+
+/**
+ * Lifecycle for delete vs archive on the customer profile.
+ * - none: no invoices/quotes → delete allowed, archive N/A
+ * - drafts_only: only draft docs → archive, no delete
+ * - has_sent: any non-draft sent/active doc → archive, no delete
+ */
+export type CustomerDocumentLifecycle = "none" | "drafts_only" | "has_sent";
+
+export function getCustomerDocumentLifecycle(
+  customerId: string | null,
+): CustomerDocumentLifecycle {
+  if (!customerId) return "none";
+  const docs = [
+    ...getCustomerInvoices(customerId),
+    ...getCustomerQuotes(customerId),
+  ];
+  if (docs.length === 0) return "none";
+  if (docs.every((doc) => isDraftDocumentStatus(doc.status))) {
+    return "drafts_only";
+  }
+  return "has_sent";
+}
+
+const ARCHIVED_CUSTOMERS_KEY = "atb-invoice-archived-customers";
+
+export function loadArchivedCustomerIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ARCHIVED_CUSTOMERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function persistArchivedCustomerIds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ARCHIVED_CUSTOMERS_KEY, JSON.stringify(ids));
+}
+
+export function archiveCustomer(customerId: string) {
+  const next = Array.from(new Set([...loadArchivedCustomerIds(), customerId]));
+  persistArchivedCustomerIds(next);
+  return next;
+}
+
+export function isCustomerArchived(customerId: string | null) {
+  if (!customerId) return false;
+  return loadArchivedCustomerIds().includes(customerId);
 }
 
 export function hrefForCustomerInvoice(status: string) {

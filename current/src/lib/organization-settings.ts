@@ -100,7 +100,11 @@ export type PaymentMethodConfig = {
 
 export type OrganizationSettings = {
   businessName: string;
+  /** When false, tradingAsName is shown on invoice headers instead. */
+  useLegalNameOnInvoices: boolean;
+  tradingAsName: string;
   gstHstNumber: string;
+  contactName: string;
   email: string;
   phone: string;
   addressLine1: string;
@@ -121,6 +125,9 @@ export type OrganizationSettings = {
   reminders: boolean;
   reminderDays: string;
   receipts: boolean;
+  quoteStartNumber: string;
+  invoiceStartNumber: string;
+  onboardingCompleted: boolean;
 };
 
 function defaultPaymentMethods(): PaymentMethodConfig[] {
@@ -134,7 +141,10 @@ function defaultPaymentMethods(): PaymentMethodConfig[] {
 
 export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   businessName: "Horlicks Company",
+  useLegalNameOnInvoices: true,
+  tradingAsName: "",
   gstHstNumber: "",
+  contactName: "",
   email: "invoicing@horlicks.com",
   phone: "1-403-257-0099",
   addressLine1: "115-31st Ave SE",
@@ -154,7 +164,21 @@ export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   reminders: false,
   reminderDays: "3",
   receipts: false,
+  quoteStartNumber: "QT-1001",
+  invoiceStartNumber: "INV-1001",
+  onboardingCompleted: false,
 };
+
+/** Demo deposit accounts for onboarding Interac / EFT binding. */
+export const DEMO_DEPOSIT_ACCOUNTS = [
+  { id: "chequing", label: "Business Chequing ····4521" },
+  { id: "savings", label: "Business Savings ····8890" },
+] as const;
+
+/** CRA GST/HST pattern e.g. 123456789 RT 0001 */
+export function isValidGstHstNumber(value: string) {
+  return /^\d{9}\s*RT\s*\d{4}$/i.test(value.trim());
+}
 
 function canUseStorage() {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/invoice/ui";
+import { ONBOARDING_JUST_COMPLETED_KEY } from "@/components/invoice/OnboardingCompleteModal";
 
 const STORAGE_KEY = "atb-onboarding-customer-prompt-dismissed";
 
@@ -16,6 +17,9 @@ export function OnboardingCustomerPrompt() {
 
   useEffect(() => {
     try {
+      if (window.sessionStorage.getItem(ONBOARDING_JUST_COMPLETED_KEY) === "1") {
+        return;
+      }
       if (window.localStorage.getItem(STORAGE_KEY) === "1") return;
       setOpen(true);
     } catch {

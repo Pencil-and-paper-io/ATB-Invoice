@@ -9,13 +9,16 @@ import {
   type ReactNode,
 } from "react";
 import {
+  archiveCustomer,
   customers,
   formatMoney,
   getCustomerAccountSummary,
+  getCustomerDocumentLifecycle,
   getCustomerInvoices,
   getCustomerQuotes,
   hrefForCustomerInvoice,
   hrefForCustomerQuote,
+  isCustomerArchived,
 } from "@/lib/invoice-demo-data";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
@@ -644,6 +647,10 @@ function CustomerFormInner() {
     phone: "",
   });
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<
+    "delete" | "archive" | null
+  >(null);
+  const [archived, setArchived] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
   useDismissOnOutsideClick(
     createMenuRef,
@@ -664,6 +671,8 @@ function CustomerFormInner() {
       setCustomerCreated(Boolean(customerId));
       setTab(customerId ? "Account Summary" : "Customer Settings");
       setCreateDraft({ businessName: "", email: "", phone: "" });
+      setArchived(isCustomerArchived(customerId));
+      setLifecycleConfirm(null);
     }, 0);
   }, [customerId]);
 
@@ -797,6 +806,11 @@ function CustomerFormInner() {
   const invoices = getCustomerInvoices(customerId);
   const quotes = getCustomerQuotes(customerId);
   const accountSummary = getCustomerAccountSummary(customerId);
+  const documentLifecycle = getCustomerDocumentLifecycle(customerId);
+  const canDeleteCustomer = documentLifecycle === "none";
+  const canArchiveCustomer =
+    documentLifecycle === "drafts_only" || documentLifecycle === "has_sent";
+  const showLifecycleActions = Boolean(customerId) || customerCreated;
 
   const internalNotesEditor =
     editing === "notes" ? (
@@ -854,6 +868,7 @@ function CustomerFormInner() {
   const accountSummaryNotes = internalNotesEditor ?? internalNotesView;
 
   const legalName = saved.businessName.trim();
+  const customerDisplayName = legalName || "this customer";
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -865,9 +880,16 @@ function CustomerFormInner() {
         }`}
       >
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="type-page-title">
-            {legalName || (isEdit ? "Edit Customer" : "New Customer")}
-          </h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="type-page-title">
+              {legalName || (isEdit ? "Edit Customer" : "New Customer")}
+            </h1>
+            {archived ? (
+              <span className="rounded-md bg-black/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-black/60">
+                Archived
+              </span>
+            ) : null}
+          </div>
           {!showCreateModal ? (
             <div ref={createMenuRef} className="relative shrink-0">
               <button
@@ -1152,6 +1174,7 @@ function CustomerFormInner() {
             </div>
           </section>
         ) : (
+          <>
           <section className={sectionShellClass}>
             <SectionHeader
               title="Default Settings"
@@ -1411,6 +1434,43 @@ function CustomerFormInner() {
               </ViewCard>
             )}
           </section>
+
+          {showLifecycleActions ? (
+            <div className="mt-8 border-t border-black/10 pt-6">
+              {canDeleteCustomer ? (
+                <>
+                  <p className="type-body-muted max-w-xl">
+                    This customer has no invoices or quotes. Deleting removes
+                    them permanently and cannot be undone.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLifecycleConfirm("delete")}
+                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
+                  >
+                    Delete customer
+                  </button>
+                </>
+              ) : canArchiveCustomer ? (
+                <>
+                  <p className="type-body-muted max-w-xl">
+                    {documentLifecycle === "has_sent"
+                      ? "This customer has sent invoices or quotes, so they can’t be deleted. Archiving hides them from active lists while keeping financial records for audit and CRA traceability."
+                      : "This customer only has draft invoices or quotes. Archiving hides them from active lists while preserving draft history."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLifecycleConfirm("archive")}
+                    disabled={archived}
+                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {archived ? "Archived" : "Archive customer"}
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          </>
         )}
           </div>
 
@@ -1864,6 +1924,52 @@ function CustomerFormInner() {
               />
             </div>
           </div>
+        </Modal>
+      ) : null}
+
+      {lifecycleConfirm === "delete" ? (
+        <Modal
+          title="Delete customer"
+          titleId="delete-customer-title"
+          onClose={() => setLifecycleConfirm(null)}
+          zClass="z-[220]"
+          role="alertdialog"
+          confirmLabel="Delete"
+          confirmDanger
+          onConfirm={() => {
+            setLifecycleConfirm(null);
+            router.push("/customers");
+          }}
+        >
+          <p className="text-center text-sm leading-5 text-black/70">
+            Are you sure you want to permanently delete {customerDisplayName}?
+            This action cannot be undone.
+          </p>
+        </Modal>
+      ) : null}
+
+      {lifecycleConfirm === "archive" ? (
+        <Modal
+          title="Archive customer"
+          titleId="archive-customer-title"
+          onClose={() => setLifecycleConfirm(null)}
+          zClass="z-[220]"
+          role="alertdialog"
+          confirmLabel="Archive"
+          confirmDanger
+          onConfirm={() => {
+            if (customerId) {
+              archiveCustomer(customerId);
+              setArchived(true);
+            }
+            setLifecycleConfirm(null);
+          }}
+        >
+          <p className="text-center text-sm leading-5 text-black/70">
+            Are you sure you want to archive {customerDisplayName}? They will be
+            hidden from active lists but their financial records will be
+            preserved.
+          </p>
         </Modal>
       ) : null}
     </div>

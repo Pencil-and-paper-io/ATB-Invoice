@@ -277,6 +277,22 @@ export function QuickLinks() {
             </p>
             <div className="space-y-2">
               <Link
+                href="/onboarding"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/onboarding"
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  Invoicing Onboarding
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  6-step wizard: brand, payments, tax, numbering
+                </span>
+              </Link>
+              <Link
                 href="/organization"
                 onClick={() => setOpen(false)}
                 className={`block rounded-lg border px-3.5 py-3 transition ${
@@ -293,6 +309,38 @@ export function QuickLinks() {
                 </span>
               </Link>
               <Link
+                href="/customers/new?id=cedar"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/customers/new" && customerIdParam === "cedar"
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  Customer · No docs (Delete)
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  Cedar — no invoices/quotes; can permanently delete
+                </span>
+              </Link>
+              <Link
+                href="/customers/new?id=beta"
+                onClick={() => setOpen(false)}
+                className={`block rounded-lg border px-3.5 py-3 transition ${
+                  pathname === "/customers/new" && customerIdParam === "beta"
+                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                    : "border-black/10 bg-white hover:border-black/25"
+                }`}
+              >
+                <span className="text-sm font-semibold text-black">
+                  Customer · Drafts only (Archive)
+                </span>
+                <span className="mt-0.5 block text-xs text-black/55">
+                  Beta — draft invoice/quote only; archive, cannot delete
+                </span>
+              </Link>
+              <Link
                 href="/customers/new?id=acme"
                 onClick={() => setOpen(false)}
                 className={`block rounded-lg border px-3.5 py-3 transition ${
@@ -302,10 +350,10 @@ export function QuickLinks() {
                 }`}
               >
                 <span className="text-sm font-semibold text-black">
-                  Edit Customer
+                  Customer · Sent history (Archive)
                 </span>
                 <span className="mt-0.5 block text-xs text-black/55">
-                  Existing customer profile (Acme)
+                  Acme — sent invoices/quotes; archive for audit trail
                 </span>
               </Link>
               <Link
