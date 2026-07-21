@@ -166,17 +166,19 @@ Configured at **organization** level.
 
 | Concept | Storage | UX |
 |---------|---------|-----|
-| Available methods | `paymentMethods[].enabled` | Outline cards; expand/collapse for cost copy |
-| Enabled by default | `paymentPreferences` (labels) | Checkbox on card; light “Enabled by default” copy in edit; checkmark in view (aligned slot) |
-| Remove | Sets method disabled + drops preference | **Remove** outside card, underline on hover, visible on row hover |
-| Add | Multi-step modal | Pick method → review costs → Next → verification **placeholder** → Complete setup |
+| Available methods | `paymentMethods[].enabled` | EFT, Cash, Cheque always on; Interac starts off |
+| Enabled by default | `paymentPreferences` (labels) | Checkbox on available cards; “Enabled by default” in edit; checkmark in view |
+| Interac (off) | `enabled: false` | Greyed card + **Enable** button (edit); “Not enabled” in view |
+| Remove / Add modal | — | Removed; Enable replaces add flow for Interac |
+
+Helper copy: *Choose how you want to receive payments by default. You can always change this for specific customers or invoices later.*
 
 Core methods (shared reference copy — **not** user-editable text):
 
-- Interac e-Transfer  
-- EFT (Direct Deposit)  
-- Cash  
-- Cheque  
+- Interac e-Transfer (optional; Enable to turn on)  
+- EFT (Direct Deposit) — default on  
+- Cash — default on  
+- Cheque — default on  
 
 Definitions + cost notes: `current/src/lib/organization-settings.ts` (`CORE_PAYMENT_METHODS`).
 

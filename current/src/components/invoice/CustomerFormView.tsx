@@ -609,6 +609,13 @@ function CustomerFormInner() {
     email: "",
     phone: "",
   });
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+  useDismissOnOutsideClick(
+    createMenuRef,
+    () => setCreateMenuOpen(false),
+    createMenuOpen,
+  );
 
   const showCreateModal = !isEdit && !customerCreated;
 
@@ -753,8 +760,6 @@ function CustomerFormInner() {
     postalCode: saved.shippingPostalCode,
   });
 
-  const clientDisplayName =
-    saved.businessName.trim() || (isEdit ? "this customer" : "New Customer");
   const invoices = getCustomerInvoices(customerId);
   const accountSummary = getCustomerAccountSummary(customerId);
 
@@ -776,13 +781,78 @@ function CustomerFormInner() {
                 : "New Customer"}
           </h1>
           {!showCreateModal ? (
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className={`${UI_CLASS.btnPrimary} h-11 shrink-0 px-5`}
-            >
-              Create Invoice for {clientDisplayName}
-            </button>
+            <div ref={createMenuRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setCreateMenuOpen((prev) => !prev)}
+                className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center gap-2 px-5`}
+                aria-haspopup="menu"
+                aria-expanded={createMenuOpen}
+              >
+                Create New
+                <svg
+                  width="11"
+                  height="6"
+                  viewBox="0 0 11 6"
+                  fill="none"
+                  aria-hidden
+                  className={`transition ${createMenuOpen ? "rotate-180" : ""}`}
+                >
+                  <path
+                    d="M1 1l4.5 4L10 1"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {createMenuOpen ? (
+                <ul
+                  role="menu"
+                  className="absolute right-0 z-30 mt-1 w-[340px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-lg"
+                >
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full flex-col gap-1 px-4 py-3 text-left transition hover:bg-prime-blue/10"
+                      onClick={() => {
+                        setCreateMenuOpen(false);
+                        router.push("/quote");
+                      }}
+                    >
+                      <span className="text-sm font-semibold text-midnight-ink">
+                        Quote
+                      </span>
+                      <span className="text-xs font-normal leading-4 text-black/55">
+                        An estimate to help your client understand costs. This
+                        can be turned into an invoice later.
+                      </span>
+                    </button>
+                  </li>
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full flex-col gap-1 px-4 py-3 text-left transition hover:bg-prime-blue/10"
+                      onClick={() => {
+                        setCreateMenuOpen(false);
+                        router.push("/");
+                      }}
+                    >
+                      <span className="text-sm font-semibold text-midnight-ink">
+                        Invoice
+                      </span>
+                      <span className="text-xs font-normal leading-4 text-black/55">
+                        A formal request of payment for goods and services
+                        rendered.
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

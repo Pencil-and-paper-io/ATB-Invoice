@@ -126,7 +126,8 @@ export type OrganizationSettings = {
 function defaultPaymentMethods(): PaymentMethodConfig[] {
   return CORE_PAYMENT_METHODS.map((method) => ({
     id: method.id,
-    enabled: method.id === "interac",
+    /** EFT, Cash, and Cheque are available by default; Interac starts off. */
+    enabled: method.id !== "interac",
     accountLabel: "",
   }));
 }
@@ -148,7 +149,7 @@ export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   quoteExpiryDays: "45",
   paymentTerms: "Net 30",
   paymentMethods: defaultPaymentMethods(),
-  paymentPreferences: ["Interac e-Transfer"],
+  paymentPreferences: ["EFT (Direct Deposit)", "Cash", "Cheque"],
   autoSend: false,
   reminders: false,
   reminderDays: "3",
@@ -167,9 +168,12 @@ function normalizePaymentMethods(
 
   return defaults.map((fallback) => {
     const match = parsed.find((entry) => entry?.id === fallback.id);
+    const isAlwaysOn = fallback.id !== "interac";
     return {
       id: fallback.id,
-      enabled: Boolean(match?.enabled ?? fallback.enabled),
+      enabled: isAlwaysOn
+        ? true
+        : Boolean(match?.enabled ?? fallback.enabled),
       accountLabel:
         typeof match?.accountLabel === "string"
           ? match.accountLabel

@@ -19,6 +19,7 @@ export type Customer = {
   address: string;
   phone: string;
   email: string;
+  tags: string[];
 };
 
 export const customers: Customer[] = [
@@ -28,6 +29,7 @@ export const customers: Customer[] = [
     address: "115-31st Ave SE Calgary, AB T3Z 1R0",
     phone: "1-403-257-0099",
     email: "accounting@acme.co",
+    tags: ["VIP", "Contractor"],
   },
   {
     id: "beta",
@@ -35,6 +37,7 @@ export const customers: Customer[] = [
     address: "88 Riverfront Ave SW Calgary, AB T2P 0N9",
     phone: "1-403-555-0142",
     email: "billing@betabuilders.ca",
+    tags: ["Retail"],
   },
   {
     id: "cedar",
@@ -42,6 +45,7 @@ export const customers: Customer[] = [
     address: "204-12th St NW Calgary, AB T2N 1M5",
     phone: "1-403-555-0177",
     email: "invoices@cedarcontracting.ca",
+    tags: ["Wholesale", "Net-30"],
   },
 ];
 

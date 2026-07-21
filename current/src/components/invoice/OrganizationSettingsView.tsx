@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
-  getEnabledPaymentMethodLabels,
   loadOrganizationSettings,
   paymentMethodLabel,
   saveOrganizationSettings,
@@ -252,20 +251,44 @@ function ViewCard({
   onEdit,
   children,
   id,
+  asDiv = false,
 }: {
   title: string;
   tip?: string;
   onEdit: () => void;
   children: ReactNode;
   id?: string;
+  /** Use a div shell when children include links/buttons (avoids nested interactive). */
+  asDiv?: boolean;
 }) {
+  const shellClass = `relative w-full scroll-mt-8 px-7 pb-5 pt-7 text-left ${hoverCardClass}`;
+
+  if (asDiv) {
+    return (
+      <div
+        id={id}
+        role="button"
+        tabIndex={0}
+        onClick={onEdit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onEdit();
+          }
+        }}
+        className={`${shellClass} cursor-pointer`}
+      >
+        <BoxTitle title={title} tip={tip} tone="view" />
+        <div className="pr-8">{children}</div>
+        <span className="absolute right-4 top-4 text-black/30" aria-hidden>
+          <PencilIcon />
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <button
-      id={id}
-      type="button"
-      onClick={onEdit}
-      className={`relative w-full scroll-mt-8 px-7 pb-5 pt-7 text-left ${hoverCardClass}`}
-    >
+    <button id={id} type="button" onClick={onEdit} className={shellClass}>
       <BoxTitle title={title} tip={tip} tone="view" />
       <div className="pr-8">{children}</div>
       <span className="absolute right-4 top-4 text-black/30" aria-hidden>
@@ -385,216 +408,213 @@ function DefaultCheckIcon() {
   );
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
+const INTERAC_DEPOSIT_ACCOUNTS = [
+  "Chequing — ****4521",
+  "Savings — ****8830",
+  "Business — ****1102",
+] as const;
+
+function PaymentOptionDetails({
+  details,
+  muted = false,
+}: {
+  details: readonly { label: string; text: string; italic?: boolean }[];
+  muted?: boolean;
+}) {
+  if (!details.length) return null;
   return (
-    <svg
-      width="12"
-      height="8"
-      viewBox="0 0 12 8"
-      fill="none"
-      aria-hidden
-      className={`transition ${open ? "rotate-180" : ""}`}
+    <ul
+      className={`mt-2 list-disc space-y-1 pl-5 text-sm ${
+        muted ? "text-black/40" : "text-black"
+      }`}
     >
+      {details.map((detail) => (
+        <li key={`${detail.label}-${detail.text}`}>
+            <span className={detail.italic ? "italic" : undefined}>
+              {detail.label}: {detail.text}
+            </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function InteracEnableFlag({ onEnableOption }: { onEnableOption?: () => void }) {
+  return (
+    <div className="mt-3 rounded-md border border-prime-blue/20 bg-prime-blue/15 px-3 py-2.5 text-sm text-midnight-ink">
+      <p>
+        Choose where you want e-transfer payments sent in order to{" "}
+        {onEnableOption ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEnableOption();
+            }}
+            className="font-semibold text-prime-blue underline underline-offset-2 transition hover:opacity-80"
+          >
+            Enable this option
+          </button>
+        ) : (
+          <span className="font-semibold text-prime-blue">Enable this option</span>
+        )}
+        .
+      </p>
+    </div>
+  );
+}
+
+function CloseChipIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
       <path
-        d="M1 1.5 6 6.5 11 1.5"
+        d="M1.5 1.5 8.5 8.5M8.5 1.5 1.5 8.5"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.4"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-function PaymentOptionEditCard({
+function PaymentOptionRow({
   label,
   details,
   isDefault,
-  expanded,
-  onToggleExpand,
   onToggleDefault,
-  onRemove,
+  checkboxDisabled = false,
+  muted = false,
+  accountLabel,
+  onRemoveAccount,
+  footer,
+  readOnly = false,
 }: {
   label: string;
   details: readonly { label: string; text: string; italic?: boolean }[];
   isDefault: boolean;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  onToggleDefault: () => void;
-  onRemove: () => void;
+  onToggleDefault?: () => void;
+  checkboxDisabled?: boolean;
+  muted?: boolean;
+  accountLabel?: string;
+  onRemoveAccount?: () => void;
+  footer?: ReactNode;
+  /** View mode: static checkmarks (not checkbox controls) */
+  readOnly?: boolean;
 }) {
+  const checkboxClass = `mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border ${
+    checkboxDisabled
+      ? "border-black/20 bg-black/[0.04]"
+      : isDefault
+        ? "border-prime-blue bg-prime-blue text-white"
+        : "border-black/25 bg-white"
+  }`;
+
   return (
-    <div className="group flex items-start gap-2">
-      <div className="min-w-0 flex-1 rounded-[10px] border border-black/10 bg-white transition hover:bg-black/[0.04]">
-        <div className="flex items-center gap-2 px-4 py-3.5">
+    <div className="py-3.5">
+      <div className="flex items-start gap-2">
+        {readOnly ? (
+          <span
+            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
+            aria-hidden
+          >
+            {isDefault ? <DefaultCheckIcon /> : null}
+          </span>
+        ) : (
           <button
             type="button"
+            disabled={checkboxDisabled || !onToggleDefault}
             onClick={onToggleDefault}
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border ${
-              isDefault
-                ? "border-prime-blue bg-prime-blue text-white"
-                : "border-black/25 bg-white"
-            }`}
+            className={checkboxClass}
             aria-pressed={isDefault}
+            aria-disabled={checkboxDisabled}
             aria-label={
-              isDefault ? "Disable by default" : "Enable by default"
+              checkboxDisabled
+                ? `${label} unavailable until enabled`
+                : isDefault
+                  ? `Remove ${label} from defaults`
+                  : `Add ${label} to defaults`
             }
           >
-            {isDefault ? <CheckMark /> : null}
+            {!checkboxDisabled && isDefault ? <CheckMark /> : null}
           </button>
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            aria-expanded={expanded}
+        )}
+        <div className="min-w-0 flex-1">
+          <p
+            className={`type-subtitle-1 ${
+              muted ? "text-black/40" : "text-black"
+            }`}
           >
-            <span className="min-w-0 flex-1">
-              <span className="type-subtitle-1">{label}</span>
-              {isDefault ? (
-                <span className="type-body-muted ml-2">Enabled by default</span>
+            {label}
+          </p>
+          {isDefault ? (
+            <PaymentOptionDetails details={details} muted={muted} />
+          ) : !checkboxDisabled ? (
+            <p className="mt-2 text-sm text-black/40">Not enabled by default</p>
+          ) : null}
+          {accountLabel ? (
+            <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-md border border-black/15 bg-black/[0.03] py-1.5 pl-2.5 pr-1.5 text-sm text-black">
+              <span className="min-w-0">
+                <span className="font-semibold">Deposit account:</span>{" "}
+                {accountLabel}
+              </span>
+              {onRemoveAccount ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveAccount();
+                  }}
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-black/45 transition hover:bg-black/5 hover:text-black/70"
+                  aria-label="Remove deposit account"
+                >
+                  <CloseChipIcon />
+                </button>
               ) : null}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="shrink-0 text-black/40 transition hover:text-black/60"
-            aria-label={expanded ? "Collapse" : "Expand"}
-            aria-expanded={expanded}
-          >
-            <ChevronIcon open={expanded} />
-          </button>
+            </div>
+          ) : null}
+          {footer}
         </div>
-        {expanded && details.length ? (
-          <div className="border-t border-black/10 px-4 py-3 pl-[2.75rem]">
-            <ul className="list-disc space-y-1 pl-5 text-sm text-black">
-              {details.map((detail) => (
-                <li key={`${detail.label}-${detail.text}`}>
-                  <span className={detail.italic ? "italic" : undefined}>
-                    <span className="font-bold">{detail.label}:</span>{" "}
-                    {detail.text}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="type-danger mt-3.5 shrink-0 whitespace-nowrap px-1 opacity-0 transition hover:underline group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        Remove
-      </button>
     </div>
   );
 }
 
-type AddPaymentStep = "pick" | "costs" | "verify";
-
-function AddPaymentOptionModal({
-  available,
-  step,
-  selectedId,
+function EnableInteracModal({
+  account,
+  onAccountChange,
   onClose,
-  onSelect,
-  onBack,
-  onNext,
-  onComplete,
+  onConfirm,
 }: {
-  available: typeof CORE_PAYMENT_METHODS;
-  step: AddPaymentStep;
-  selectedId: PaymentMethodId | null;
+  account: string;
+  onAccountChange: (value: string) => void;
   onClose: () => void;
-  onSelect: (id: PaymentMethodId) => void;
-  onBack: () => void;
-  onNext: () => void;
-  onComplete: () => void;
+  onConfirm: () => void;
 }) {
-  const selected = CORE_PAYMENT_METHODS.find(
-    (method) => method.id === selectedId,
-  );
-
   return (
     <Modal
-      title={
-        step === "pick"
-          ? "Add payment option"
-          : step === "costs" && selected
-            ? selected.label
-            : selected
-              ? `Verify ${selected.label}`
-              : "Add payment option"
-      }
-      titleId="add-payment-title"
+      title="Enable Interac e-Transfer"
+      titleId="enable-interac-title"
       onClose={onClose}
       zClass="z-[230]"
-      cancelLabel={step === "pick" ? "Cancel" : "Back"}
-      onCancel={step === "pick" ? onClose : onBack}
-      confirmLabel={
-        step === "costs" ? "Next" : step === "verify" ? "Complete setup" : undefined
-      }
-      onConfirm={
-        step === "costs" ? onNext : step === "verify" ? onComplete : undefined
-      }
+      cancelLabel="Cancel"
+      onCancel={onClose}
+      confirmLabel="Enable"
+      onConfirm={onConfirm}
+      confirmDisabled={!account}
+      maxWidthClass="max-w-md"
     >
-      {step === "pick" ? (
-        <>
-          <p className="type-body-muted text-center">
-            Choose a payment method to set up for your business.
-          </p>
-          <ul className="mt-5 flex flex-col gap-2">
-            {available.map((method) => (
-              <li key={method.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(method.id)}
-                  className="flex w-full items-center justify-between rounded-[10px] border border-black/10 px-4 py-3 text-left transition hover:border-prime-blue/40 hover:bg-black/[0.02]"
-                >
-                  <span className="type-subtitle-1">{method.label}</span>
-                  <span className="text-black/35">
-                    <ChevronIcon open={false} />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-
-      {step === "costs" && selected ? (
-        <>
-          <p className="type-body-muted text-center">
-            Review the cost implications before continuing setup.
-          </p>
-          <ul className="mt-5 list-disc space-y-2 pl-5 text-sm text-black">
-            {selected.details.map((detail) => (
-              <li key={`${detail.label}-${detail.text}`}>
-                <span className={detail.italic ? "italic" : undefined}>
-                  <span className="font-bold">{detail.label}:</span>{" "}
-                  {detail.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-
-      {step === "verify" && selected ? (
-        <>
-          <p className="type-body-muted text-center">
-            Additional verification steps will appear here.
-          </p>
-          <div className="mt-5 rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center">
-            <p className="type-subtitle-1">Verification flow placeholder</p>
-            <p className="type-body-muted mt-2">
-              Bank linking, identity checks, or other setup steps for{" "}
-              {selected.label} will go here.
-            </p>
-          </div>
-        </>
-      ) : null}
+      <p className="type-body-muted">
+        Choose which account should receive Interac e-Transfer payments.
+      </p>
+      <div className="mt-5">
+        <FieldLabel>Deposit account</FieldLabel>
+        <SelectField
+          ariaLabel="Deposit account"
+          value={account}
+          options={INTERAC_DEPOSIT_ACCOUNTS}
+          onChange={onAccountChange}
+        />
+      </div>
     </Modal>
   );
 }
@@ -752,13 +772,10 @@ export function OrganizationSettingsView() {
   const [draft, setDraft] = useState<OrganizationSettings | null>(null);
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [discardWarning, setDiscardWarning] = useState(false);
-  const [expandedPaymentIds, setExpandedPaymentIds] = useState<
-    Set<PaymentMethodId>
-  >(() => new Set());
-  const [addPaymentOpen, setAddPaymentOpen] = useState(false);
-  const [addPaymentStep, setAddPaymentStep] = useState<AddPaymentStep>("pick");
-  const [addPaymentMethodId, setAddPaymentMethodId] =
-    useState<PaymentMethodId | null>(null);
+  const [interacEnableOpen, setInteracEnableOpen] = useState(false);
+  const [interacAccountDraft, setInteracAccountDraft] = useState<string>(
+    INTERAC_DEPOSIT_ACCOUNTS[0],
+  );
   const pendingActionRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [subUserPermissions, setSubUserPermissions] = useState<
@@ -883,24 +900,69 @@ export function OrganizationSettingsView() {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
-  function removePaymentMethod(id: PaymentMethodId) {
+  function beginEnableInterac() {
+    if (editing !== "payments" && saved) {
+      setDraft(cloneSettings(saved));
+      setEditing("payments");
+    }
+    openEnableInteracModal();
+  }
+
+  function openEnableInteracModal() {
+    const existing = draft?.paymentMethods.find(
+      (method) => method.id === "interac",
+    )?.accountLabel;
+    setInteracAccountDraft(
+      existing &&
+        INTERAC_DEPOSIT_ACCOUNTS.includes(
+          existing as (typeof INTERAC_DEPOSIT_ACCOUNTS)[number],
+        )
+        ? existing
+        : INTERAC_DEPOSIT_ACCOUNTS[0],
+    );
+    setInteracEnableOpen(true);
+  }
+
+  function completeEnableInterac() {
+    if (!interacAccountDraft) return;
     setDraft((prev) => {
       if (!prev) return prev;
-      const label = paymentMethodLabel(id);
+      const label = paymentMethodLabel("interac");
+      const prefs = prev.paymentPreferences.includes(label)
+        ? prev.paymentPreferences
+        : [...prev.paymentPreferences, label];
       return {
         ...prev,
         paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === id ? { ...method, enabled: false } : method,
+          method.id === "interac"
+            ? {
+                ...method,
+                enabled: true,
+                accountLabel: interacAccountDraft,
+              }
+            : method,
+        ),
+        paymentPreferences: prefs,
+      };
+    });
+    setInteracEnableOpen(false);
+  }
+
+  function disableInterac() {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const label = paymentMethodLabel("interac");
+      return {
+        ...prev,
+        paymentMethods: prev.paymentMethods.map((method) =>
+          method.id === "interac"
+            ? { ...method, enabled: false, accountLabel: "" }
+            : method,
         ),
         paymentPreferences: prev.paymentPreferences.filter(
           (item) => item !== label,
         ),
       };
-    });
-    setExpandedPaymentIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
     });
   }
 
@@ -916,33 +978,6 @@ export function OrganizationSettingsView() {
           : [...prev.paymentPreferences, label],
       };
     });
-  }
-
-  function openAddPaymentModal() {
-    setAddPaymentMethodId(null);
-    setAddPaymentStep("pick");
-    setAddPaymentOpen(true);
-  }
-
-  function closeAddPaymentModal() {
-    setAddPaymentOpen(false);
-    setAddPaymentMethodId(null);
-    setAddPaymentStep("pick");
-  }
-
-  function completeAddPayment() {
-    if (!addPaymentMethodId) return;
-    const id = addPaymentMethodId;
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === id ? { ...method, enabled: true } : method,
-        ),
-      };
-    });
-    closeAddPaymentModal();
   }
 
   function handleLogoReplace(file: File | null) {
@@ -1002,16 +1037,6 @@ export function OrganizationSettingsView() {
     postalCode: saved.postalCode,
   });
   const addressEmpty = !businessAddress;
-  const enabledPaymentLabels = getEnabledPaymentMethodLabels(saved);
-  const draftEnabledMethods = draft.paymentMethods.filter(
-    (method) => method.enabled,
-  );
-  const availableToAdd = CORE_PAYMENT_METHODS.filter(
-    (method) =>
-      !draft.paymentMethods.some(
-        (entry) => entry.id === method.id && entry.enabled,
-      ),
-  );
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -1404,113 +1429,112 @@ export function OrganizationSettingsView() {
               {editing === "payments" ? (
                 <SectionEditor
                   title="Payment Options"
-                  tip="Default payment options for new customers and invoices. You can still change them on a customer or invoice later."
                   onClose={closeEdit}
                   onSave={saveSection}
-                  outsideDismissEnabled={!addPaymentOpen}
+                  outsideDismissEnabled={!interacEnableOpen}
                 >
                   <p className="type-body-muted">
-                    Choose which payment options are available for your
-                    business. Enable by default to use them on new customers and
-                    invoices—you can still change this per customer or invoice
-                    later.
+                    Choose how you want to receive payments by default. You can
+                    always change this for specific customers or invoices later.
                   </p>
-                  <div className="flex flex-col gap-2.5">
-                    {draftEnabledMethods.length === 0 ? (
-                      <p className="type-body-muted">
-                        No payment options set up yet.
-                      </p>
-                    ) : (
-                      draftEnabledMethods.map((method) => {
-                        const meta = CORE_PAYMENT_METHODS.find(
-                          (entry) => entry.id === method.id,
-                        );
-                        if (!meta) return null;
-                        const label = paymentMethodLabel(method.id);
+                  <div className="flex flex-col gap-1">
+                    {draft.paymentMethods.map((method) => {
+                      const meta = CORE_PAYMENT_METHODS.find(
+                        (entry) => entry.id === method.id,
+                      );
+                      if (!meta) return null;
+                      const label = paymentMethodLabel(method.id);
+                      const isInterac = method.id === "interac";
+                      const isDefault =
+                        draft.paymentPreferences.includes(label);
+
+                      if (isInterac && !method.enabled) {
                         return (
-                          <PaymentOptionEditCard
+                          <PaymentOptionRow
                             key={method.id}
                             label={label}
-                            details={meta.details}
-                            isDefault={draft.paymentPreferences.includes(
-                              label,
-                            )}
-                            expanded={expandedPaymentIds.has(method.id)}
-                            onToggleExpand={() =>
-                              setExpandedPaymentIds((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(method.id)) next.delete(method.id);
-                                else next.add(method.id);
-                                return next;
-                              })
+                            details={[]}
+                            isDefault={false}
+                            checkboxDisabled
+                            footer={
+                              <InteracEnableFlag
+                                onEnableOption={beginEnableInterac}
+                              />
                             }
-                            onToggleDefault={() =>
-                              togglePaymentDefault(method.id)
-                            }
-                            onRemove={() => removePaymentMethod(method.id)}
                           />
                         );
-                      })
-                    )}
-                    {availableToAdd.length > 0 ? (
-                      <TertiaryButton onClick={openAddPaymentModal}>
-                        Add payment option
-                      </TertiaryButton>
-                    ) : null}
+                      }
+
+                      return (
+                        <PaymentOptionRow
+                          key={method.id}
+                          label={label}
+                          details={meta.details}
+                          isDefault={isDefault}
+                          onToggleDefault={() =>
+                            togglePaymentDefault(method.id)
+                          }
+                          accountLabel={
+                            isInterac ? method.accountLabel || undefined : undefined
+                          }
+                          onRemoveAccount={
+                            isInterac && method.accountLabel
+                              ? disableInterac
+                              : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
                 </SectionEditor>
-              ) : enabledPaymentLabels.length === 0 ? (
-                <TertiaryButton onClick={() => startEdit("payments")}>
-                  Add payment option
-                </TertiaryButton>
               ) : (
                 <ViewCard
                   id={SECTION_IDS.paymentOptions}
                   title="Payment Options"
-                  tip="Default payment options for new customers and invoices. You can still change them on a customer or invoice later."
                   onEdit={() => startEdit("payments")}
+                  asDiv
                 >
-                  <ViewFieldList>
-                    {saved.paymentMethods
-                      .filter((method) => method.enabled)
-                      .map((method) => {
-                        const meta = CORE_PAYMENT_METHODS.find(
-                          (entry) => entry.id === method.id,
-                        );
-                        const label = paymentMethodLabel(method.id);
-                        const isDefault =
-                          saved.paymentPreferences.includes(label);
-                        const costSummary = meta?.details
-                          .filter((detail) =>
-                            detail.label.startsWith("Cost to"),
-                          )
-                          .map(
-                            (detail) => `${detail.label}: ${detail.text}`,
-                          )
-                          .join(" · ");
-                        return (
-                          <div
-                            key={method.id}
-                            className="flex items-start gap-2"
-                          >
-                            <span
-                              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
-                              aria-hidden
-                            >
-                              {isDefault ? <DefaultCheckIcon /> : null}
-                            </span>
-                            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                              <p className="type-subtitle-1 text-black">
-                                {label}
-                              </p>
-                              <div className="type-body">
-                                {costSummary || "Available"}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </ViewFieldList>
+                  <p className="type-body-muted mb-1">
+                    Choose how you want to receive payments by default. You can
+                    always change this for specific customers or invoices later.
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {saved.paymentMethods.map((method) => {
+                      const meta = CORE_PAYMENT_METHODS.find(
+                        (entry) => entry.id === method.id,
+                      );
+                      const label = paymentMethodLabel(method.id);
+                      const isDefault =
+                        saved.paymentPreferences.includes(label);
+                      const details = meta?.details ?? [];
+                      const isInterac = method.id === "interac";
+
+                      return (
+                        <PaymentOptionRow
+                          key={method.id}
+                          label={label}
+                          details={
+                            method.enabled && isDefault ? details : []
+                          }
+                          isDefault={method.enabled && isDefault}
+                          checkboxDisabled={!method.enabled}
+                          readOnly
+                          accountLabel={
+                            isInterac && method.enabled
+                              ? method.accountLabel || undefined
+                              : undefined
+                          }
+                          footer={
+                            isInterac && !method.enabled ? (
+                              <InteracEnableFlag
+                                onEnableOption={beginEnableInterac}
+                              />
+                            ) : null
+                          }
+                        />
+                      );
+                    })}
+                  </div>
                 </ViewCard>
               )}
 
@@ -1880,26 +1904,12 @@ export function OrganizationSettingsView() {
         </Modal>
       ) : null}
 
-      {addPaymentOpen ? (
-        <AddPaymentOptionModal
-          available={availableToAdd}
-          step={addPaymentStep}
-          selectedId={addPaymentMethodId}
-          onClose={closeAddPaymentModal}
-          onSelect={(id) => {
-            setAddPaymentMethodId(id);
-            setAddPaymentStep("costs");
-          }}
-          onBack={() => {
-            if (addPaymentStep === "verify") {
-              setAddPaymentStep("costs");
-              return;
-            }
-            setAddPaymentMethodId(null);
-            setAddPaymentStep("pick");
-          }}
-          onNext={() => setAddPaymentStep("verify")}
-          onComplete={completeAddPayment}
+      {interacEnableOpen ? (
+        <EnableInteracModal
+          account={interacAccountDraft}
+          onAccountChange={setInteracAccountDraft}
+          onClose={() => setInteracEnableOpen(false)}
+          onConfirm={completeEnableInterac}
         />
       ) : null}
     </div>
