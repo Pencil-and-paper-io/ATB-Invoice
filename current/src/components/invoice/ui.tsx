@@ -1,6 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react";
 
 export function InfoTooltip({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -77,16 +82,147 @@ function CloseIcon({ className = "" }: { className?: string }) {
   );
 }
 
-export function EditCloseButton({ onClick }: { onClick: () => void }) {
+export function EditCloseButton({
+  onClick,
+  ariaLabel = "Close",
+  className = "absolute right-4 top-4 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70",
+}: {
+  onClick: () => void;
+  ariaLabel?: string;
+  className?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="absolute right-4 top-4 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
-      aria-label="Close editor"
+      className={className}
+      aria-label={ariaLabel}
     >
       <CloseIcon />
     </button>
+  );
+}
+
+/**
+ * Shared modal shell — use for all product dialogs.
+ * Rules: generous padding (p-8 / sm:p-10), centered `.type-headline-3` title
+ * with space below, X top-right, Cancel (`.type-danger`) bottom-left,
+ * primary action bottom-right.
+ */
+export function Modal({
+  title,
+  titleId,
+  onClose,
+  children,
+  cancelLabel = "Cancel",
+  onCancel,
+  hideCancel = false,
+  confirmLabel,
+  onConfirm,
+  confirmDisabled = false,
+  confirmDanger = false,
+  confirmChildren,
+  footer,
+  maxWidthClass = "max-w-md",
+  zClass = "z-[100]",
+  closeOnBackdrop = true,
+  role = "dialog",
+  describedBy,
+}: {
+  title: string;
+  titleId?: string;
+  onClose: () => void;
+  children: ReactNode;
+  cancelLabel?: string;
+  onCancel?: () => void;
+  hideCancel?: boolean;
+  confirmLabel?: string;
+  onConfirm?: () => void;
+  confirmDisabled?: boolean;
+  confirmDanger?: boolean;
+  confirmChildren?: ReactNode;
+  footer?: ReactNode;
+  maxWidthClass?: string;
+  zClass?: string;
+  closeOnBackdrop?: boolean;
+  role?: "dialog" | "alertdialog";
+  describedBy?: string;
+}) {
+  const generatedId = useId();
+  const resolvedTitleId = titleId ?? generatedId;
+  const handleCancel = onCancel ?? onClose;
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const showDefaultFooter =
+    footer === undefined && (Boolean(confirmLabel) || !hideCancel);
+
+  return (
+    <div
+      className={`fixed inset-0 ${zClass} flex items-center justify-center bg-black/35 px-4 py-8`}
+      role={role}
+      aria-modal="true"
+      aria-labelledby={resolvedTitleId}
+      aria-describedby={describedBy}
+      onMouseDown={(event) => {
+        if (closeOnBackdrop && event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className={`relative max-h-[90vh] w-full ${maxWidthClass} overflow-y-auto rounded-xl border border-black/15 bg-white p-8 shadow-2xl sm:p-10`}
+      >
+        <EditCloseButton
+          onClick={onClose}
+          className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70 sm:right-6 sm:top-6"
+        />
+        <h2
+          id={resolvedTitleId}
+          className="type-headline-3 px-8 text-center text-black"
+        >
+          {title}
+        </h2>
+        <div className="mt-10">{children}</div>
+        {footer !== undefined ? (
+          <div className="mt-10">{footer}</div>
+        ) : showDefaultFooter ? (
+          <div className="mt-10 flex items-center justify-between gap-3">
+            {!hideCancel ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="type-danger transition hover:underline"
+              >
+                {cancelLabel}
+              </button>
+            ) : (
+              <span />
+            )}
+            {confirmLabel ? (
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={confirmDisabled}
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded px-5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  confirmDanger
+                    ? "bg-delete-red hover:opacity-90"
+                    : "bg-prime-blue hover:bg-prime-blue-hover"
+                }`}
+              >
+                {confirmChildren ?? confirmLabel}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

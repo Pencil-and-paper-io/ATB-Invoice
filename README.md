@@ -27,6 +27,7 @@ Use this repo as a catalog of snapshots. Each entry under `versions/` is a compl
 - Based on Figma: [ATB-Q3-Invoice](https://www.figma.com/design/b8HeibpBaWOr2m4fjhzas2/ATB-Q3-Invoice)
 - Last snapshot: `versions/v003-quote-invoice-flows`
 - **Progress tracker:** [`STATUS.md`](STATUS.md) — what’s done, deferred, and locked decisions
+- **Implementation spec:** [`SPEC.md`](SPEC.md) — knowledge base for re-implementing this UX in another project
 
 ## Product scope (locked so far)
 

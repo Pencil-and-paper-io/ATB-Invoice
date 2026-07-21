@@ -155,7 +155,7 @@ export const TYPE_TOKENS: TypeToken[] = [
     label: "Headline 3",
     className: "type-headline-3",
     sample: "QT - 0003",
-    usage: "Document IDs",
+    usage: "Document IDs, modal titles",
     recipe: "ATB TT Norms · 30px · Bold",
   },
   {
@@ -163,7 +163,7 @@ export const TYPE_TOKENS: TypeToken[] = [
     label: "Headline 4",
     className: "type-headline-4",
     sample: "$3,555.99",
-    usage: "Amounts, modal titles",
+    usage: "Amounts",
     recipe: "Inter · 24px · Bold",
   },
   {

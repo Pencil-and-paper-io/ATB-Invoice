@@ -2,20 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type TaxMode } from "@/lib/alberta-tax";
-
-const CURRENCIES = [
-  { code: "CAD", name: "Canadian Dollar", region: "Canada" },
-  { code: "USD", name: "US Dollar", region: "United States" },
-  { code: "EUR", name: "Euro", region: "Eurozone" },
-  { code: "GBP", name: "British Pound", region: "United Kingdom" },
-  { code: "AUD", name: "Australian Dollar", region: "Australia" },
-  { code: "NZD", name: "New Zealand Dollar", region: "New Zealand" },
-  { code: "JPY", name: "Japanese Yen", region: "Japan" },
-  { code: "CHF", name: "Swiss Franc", region: "Switzerland" },
-  { code: "CNY", name: "Chinese Yuan", region: "China" },
-  { code: "INR", name: "Indian Rupee", region: "India" },
-  { code: "MXN", name: "Mexican Peso", region: "Mexico" },
-] as const;
+import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
 
 const ISSUE_DATE_PRESETS = [
   "Send right away",
@@ -152,72 +139,13 @@ function TaxSettingField({
   );
 }
 
-function formatCurrencyOption(option: (typeof CURRENCIES)[number]) {
-  return `${option.code} — ${option.name} (${option.region})`;
-}
-
-function CurrencyField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useOutsideClose(open, () => setOpen(false));
-  const selected =
-    CURRENCIES.find((currency) => currency.code === value) ?? CURRENCIES[0];
-
+function CadCurrencyBadge() {
   return (
-    <div ref={ref} className="relative flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2.5">
       <span className="text-sm text-black">Currency</span>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className={fieldTriggerClass}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="truncate">{formatCurrencyOption(selected)}</span>
-        <CaretIcon />
-      </button>
-      {open ? (
-        <div
-          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-auto rounded-lg border border-black/10 bg-white shadow-lg"
-          role="listbox"
-        >
-          <ul className="py-1">
-            {CURRENCIES.map((currency) => (
-              <li key={currency.code}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={currency.code === value}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition hover:bg-black/[0.04]"
-                  onClick={() => {
-                    onChange(currency.code);
-                    setOpen(false);
-                  }}
-                >
-                  <span className="flex w-4 shrink-0 justify-center text-prime-blue">
-                    {currency.code === value ? <CheckIcon /> : null}
-                  </span>
-                  <span
-                    className={`min-w-0 ${
-                      currency.code === value ? "font-semibold" : ""
-                    }`}
-                  >
-                    <span className="block">{currency.code}</span>
-                    <span className="block text-xs text-black/50">
-                      {currency.name} · {currency.region}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <p className="rounded border border-black/15 bg-input-grey px-2.5 py-2.5 text-sm font-semibold text-midnight-ink">
+        {LOCKED_CURRENCY_BADGE}
+      </p>
     </div>
   );
 }
@@ -543,10 +471,7 @@ export function InvoiceDetailsPanel({
         onChange={(taxMode) => onChange({ ...details, taxMode })}
       />
 
-      <CurrencyField
-        value={details.currency}
-        onChange={(currency) => onChange({ ...details, currency })}
-      />
+      <CadCurrencyBadge />
     </div>
   );
 }

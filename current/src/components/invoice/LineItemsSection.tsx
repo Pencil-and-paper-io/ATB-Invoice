@@ -12,6 +12,7 @@ import {
   type AlbertaTaxOption,
   type TaxMode,
 } from "@/lib/alberta-tax";
+import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
 import {
   formatMoney,
   makeBlankLineItem,
@@ -36,7 +37,7 @@ import {
   type SavedInvoiceAddon,
 } from "@/lib/saved-invoice-addons";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { CloseIcon, EditCloseButton, PencilIcon, TertiaryButton } from "./ui";
+import { EditCloseButton, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 type EditingId = string | "new" | null;
 
@@ -231,13 +232,7 @@ function InvoiceAddonModal({
     ? `Edit ${defaultName}`
     : `Add ${defaultName}`;
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel]);
+  const canSave = !saveForFuture || Boolean(name.trim());
 
   function handleSave() {
     const trimmedName = name.trim();
@@ -265,36 +260,45 @@ function InvoiceAddonModal({
     onSave(next);
   }
 
-  const canSave = !saveForFuture || Boolean(name.trim());
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={`addon-modal-${kind}`}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
+    <Modal
+      title={title}
+      titleId={`addon-modal-${kind}`}
+      onClose={onCancel}
+      confirmLabel={initial ? "Update" : "Save"}
+      onConfirm={handleSave}
+      confirmDisabled={!canSave}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          {initial && onDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="type-danger transition hover:underline"
+            >
+              Delete
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="type-danger transition hover:underline"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave}
+            className="ui-btn-primary h-11"
+          >
+            {initial ? "Update" : "Save"}
+          </button>
+        </div>
+      }
     >
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="absolute right-4 top-4 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
-          aria-label="Close"
-        >
-          <CloseIcon />
-        </button>
-
-        <h2
-          id={`addon-modal-${kind}`}
-          className="pr-8 type-modal-title text-black"
-        >
-          {title}
-        </h2>
-
-        <div className="mt-5 flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
           <div className="flex min-w-0 flex-col gap-1.5">
             <label
               htmlFor={`addon-name-${kind}`}
@@ -426,36 +430,7 @@ function InvoiceAddonModal({
             Save for future invoices
           </label>
         </div>
-
-        <div className="mt-6 flex items-center justify-between gap-3 border-t border-black/10 pt-5">
-          {initial && onDelete ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-sm font-semibold text-delete-red transition hover:opacity-80"
-            >
-              Delete
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="h-11 rounded border border-black/20 px-5 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.03]"
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="ui-btn-primary"
-          >
-            {initial ? "Update" : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -627,17 +602,22 @@ function LineItemsTotals({
 
       <div className="my-1 h-px bg-black/10" />
 
-      <div className="flex items-center justify-end gap-2.5 px-[30px]">
-        <div className="text-right">
-          <p className="text-base font-bold text-black">Total</p>
-          <p className="text-sm text-black/40">
-            {taxMode === "inclusive" ? "(Tax inclusive)" : "(Tax exclusive)"}
+      <div className="flex flex-col items-end gap-2 px-[30px]">
+        <div className="flex items-center justify-end gap-2.5">
+          <div className="text-right">
+            <p className="text-base font-bold text-black">Total</p>
+            <p className="text-sm text-black/40">
+              {taxMode === "inclusive" ? "(Tax inclusive)" : "(Tax exclusive)"}
+            </p>
+          </div>
+          <p className="w-[180px] text-right type-amount">
+            {formatMoney(totals.total)}
           </p>
+          <span className="w-4 shrink-0" aria-hidden />
         </div>
-        <p className="w-[180px] text-right type-amount">
-          {formatMoney(totals.total)}
+        <p className="pr-4 text-xs font-semibold text-black/50">
+          {LOCKED_CURRENCY_BADGE}
         </p>
-        <span className="w-4 shrink-0" aria-hidden />
       </div>
     </>
   );

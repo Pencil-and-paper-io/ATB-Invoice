@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { QuoteActionKey, QuoteStatus } from "@/lib/quote-actions";
 import { duplicateQuoteDetails } from "@/lib/quote-details";
 import { DownloadPdfModal } from "./DownloadPdfModal";
-import { CloseIcon } from "./ui";
+import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
 
@@ -24,54 +24,17 @@ function ConfirmModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Modal
+      title={title}
+      onClose={onClose}
+      zClass="z-[70]"
+      confirmLabel={confirmLabel}
+      onConfirm={onConfirm}
+      confirmDanger={danger}
     >
-      <div className="relative w-full max-w-md rounded-[10px] bg-white p-6 text-black shadow-xl">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded p-1 text-black/40 transition hover:bg-black/5"
-          aria-label="Close"
-        >
-          <CloseIcon />
-        </button>
-        <h2 className="pr-8 type-section-title">{title}</h2>
-        <p className="mt-3 text-sm leading-5 text-black/70">{body}</p>
-        <div className="mt-6 flex justify-end gap-2.5">
-          <button
-            type="button"
-            className="ui-btn-secondary"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className={`h-11 rounded px-5 text-sm font-semibold text-white ${
-              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-prime-blue-hover"
-            }`}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+      <p className="type-body-muted text-center leading-5">{body}</p>
+    </Modal>
   );
 }
 

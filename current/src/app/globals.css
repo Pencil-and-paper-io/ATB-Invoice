@@ -83,7 +83,8 @@ body {
 
 /* Headline 3 — ATB TT Norms Bold 30 */
 .type-headline-3,
-.type-doc-id {
+.type-doc-id,
+.type-modal-title {
   font-family: var(--font-montserrat), Helvetica, sans-serif;
   font-size: 30px;
   font-weight: 700;
@@ -92,8 +93,7 @@ body {
 
 /* Headline 4 — Inter Bold 24 */
 .type-headline-4,
-.type-amount,
-.type-modal-title {
+.type-amount {
   font-family: var(--font-inter), Helvetica, sans-serif;
   font-size: 24px;
   font-weight: 700;

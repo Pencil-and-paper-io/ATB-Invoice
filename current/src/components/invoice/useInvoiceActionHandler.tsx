@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   UNCOLLECTIBLE_REASON_CODES,
   type InvoiceActionKey,
   type InvoiceStatus,
 } from "@/lib/invoice-actions";
 import { DownloadPdfModal } from "./DownloadPdfModal";
-import { CloseIcon } from "./ui";
+import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
 
@@ -27,54 +27,17 @@ function ConfirmModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Modal
+      title={title}
+      onClose={onClose}
+      zClass="z-[70]"
+      confirmLabel={confirmLabel}
+      onConfirm={onConfirm}
+      confirmDanger={danger}
     >
-      <div className="relative w-full max-w-md rounded-[10px] bg-white p-6 text-black shadow-xl">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded p-1 text-black/40 transition hover:bg-black/5"
-          aria-label="Close"
-        >
-          <CloseIcon />
-        </button>
-        <h2 className="pr-8 type-section-title">{title}</h2>
-        <p className="mt-3 text-sm leading-5 text-black/70">{body}</p>
-        <div className="mt-6 flex justify-end gap-2.5">
-          <button
-            type="button"
-            className="ui-btn-secondary"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className={`h-11 rounded px-5 text-sm font-semibold text-white ${
-              danger ? "bg-delete-red" : "bg-prime-blue hover:bg-prime-blue-hover"
-            }`}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+      <p className="type-body-muted text-center leading-5">{body}</p>
+    </Modal>
   );
 }
 
@@ -162,73 +125,55 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
   ) : null;
 
   const uncollectibleModal = showUncollectible ? (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="uncollectible-title"
-        className="w-full max-w-md rounded-[10px] bg-white p-6 text-black shadow-xl"
-      >
-        <h2 id="uncollectible-title" className="type-section-title">
-          Mark as Uncollectible
-        </h2>
-        {(status === "overdue_under_90" ||
-          status === "overdue_over_90" ||
-          status === "viewed" ||
-          status === "partially_paid") && (
-          <p className="mt-3 text-sm leading-5 text-black/70">
-            Are you sure you want to write this off? Marking this invoice as
-            uncollectible will record it as bad debt in your reports. If this
-            invoice was simply created in error, you should Void it instead.
-          </p>
-        )}
-        <label className="mt-5 flex flex-col gap-2 text-sm">
-          <span className="font-medium">Reason code</span>
-          <select
+    <Modal
+      title="Mark as Uncollectible"
+      titleId="uncollectible-title"
+      onClose={() => setShowUncollectible(false)}
+      zClass="z-[70]"
+      confirmLabel="Mark Uncollectible"
+      onConfirm={confirmUncollectible}
+      confirmDanger
+    >
+      {(status === "overdue_under_90" ||
+        status === "overdue_over_90" ||
+        status === "viewed" ||
+        status === "partially_paid") && (
+        <p className="type-body-muted text-center leading-5">
+          Are you sure you want to write this off? Marking this invoice as
+          uncollectible will record it as bad debt in your reports. If this
+          invoice was simply created in error, you should Void it instead.
+        </p>
+      )}
+      <label className="mt-5 flex flex-col gap-2 text-sm">
+        <span className="font-medium">Reason code</span>
+        <select
+          className="rounded border border-black/20 bg-input-grey px-3 py-2.5 outline-none focus:border-prime-blue focus:bg-input-grey"
+          value={reason}
+          onChange={(event) =>
+            setReason(
+              event.target.value as (typeof UNCOLLECTIBLE_REASON_CODES)[number],
+            )
+          }
+        >
+          {UNCOLLECTIBLE_REASON_CODES.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+      </label>
+      {reason === "Other" ? (
+        <label className="mt-3 flex flex-col gap-2 text-sm">
+          <span className="font-medium">Other reason</span>
+          <input
             className="rounded border border-black/20 bg-input-grey px-3 py-2.5 outline-none focus:border-prime-blue focus:bg-input-grey"
-            value={reason}
-            onChange={(event) =>
-              setReason(
-                event.target.value as (typeof UNCOLLECTIBLE_REASON_CODES)[number],
-              )
-            }
-          >
-            {UNCOLLECTIBLE_REASON_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
+            value={otherReason}
+            onChange={(event) => setOtherReason(event.target.value)}
+            placeholder="Describe the reason"
+          />
         </label>
-        {reason === "Other" ? (
-          <label className="mt-3 flex flex-col gap-2 text-sm">
-            <span className="font-medium">Other reason</span>
-            <input
-              className="rounded border border-black/20 bg-input-grey px-3 py-2.5 outline-none focus:border-prime-blue focus:bg-input-grey"
-              value={otherReason}
-              onChange={(event) => setOtherReason(event.target.value)}
-              placeholder="Describe the reason"
-            />
-          </label>
-        ) : null}
-        <div className="mt-6 flex justify-end gap-2.5">
-          <button
-            type="button"
-            className="ui-btn-secondary"
-            onClick={() => setShowUncollectible(false)}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="h-11 rounded bg-delete-red px-5 text-sm font-semibold text-white"
-            onClick={confirmUncollectible}
-          >
-            Mark Uncollectible
-          </button>
-        </div>
-      </div>
-    </div>
+      ) : null}
+    </Modal>
   ) : null;
 
   const confirmModal =

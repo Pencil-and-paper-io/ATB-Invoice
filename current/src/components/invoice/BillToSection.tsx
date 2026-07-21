@@ -80,7 +80,7 @@ function CustomerDropdown({
                   strokeLinecap="round"
                 />
               </svg>
-              Create new
+              + Create new customer
             </Link>
           </div>
         </div>

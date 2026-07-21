@@ -9,7 +9,7 @@ import {
   saveInvoiceTemplate,
   type InvoiceTemplate,
 } from "@/lib/invoice-templates";
-import { CloseIcon } from "./ui";
+import { Modal } from "./ui";
 
 function CaretIcon() {
   return (
@@ -44,68 +44,32 @@ function SaveTemplateModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="save-template-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Modal
+      title="Save as Template"
+      titleId="save-template-title"
+      onClose={onClose}
+      confirmLabel="Save Template"
+      onConfirm={submit}
+      confirmDisabled={!name.trim()}
     >
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
-          aria-label="Close save template modal"
-        >
-          <CloseIcon />
-        </button>
+      <p className="type-body-muted text-center">
+        Name this invoice setup so you can reuse it later.
+      </p>
 
-        <h2
-          id="save-template-title"
-          className="pr-8 type-modal-title text-black"
-        >
-          Save as Template
-        </h2>
-        <p className="mt-2 text-sm text-black/60">
-          Name this invoice setup so you can reuse it later.
-        </p>
-
-        <label className="mt-5 flex flex-col gap-2">
-          <span className="text-sm text-black">Template name</span>
-          <input
-            ref={inputRef}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
-            }}
-            className="w-full rounded border border-black/20 bg-input-grey px-3 py-2.5 text-sm text-midnight-ink outline-none transition focus:border-prime-blue"
-            placeholder="e.g. Standard consulting invoice"
-          />
-        </label>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 rounded border border-black/20 px-5 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.03]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!name.trim()}
-            className="ui-btn-primary"
-          >
-            Save Template
-          </button>
-        </div>
-      </div>
-    </div>
+      <label className="mt-5 flex flex-col gap-2">
+        <span className="text-sm text-black">Template name</span>
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submit();
+          }}
+          className="w-full rounded border border-black/20 bg-input-grey px-3 py-2.5 text-sm text-midnight-ink outline-none transition focus:border-prime-blue"
+          placeholder="e.g. Standard consulting invoice"
+        />
+      </label>
+    </Modal>
   );
 }
 

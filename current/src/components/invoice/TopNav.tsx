@@ -1,23 +1,22 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
-function NavIcon({ children }: { children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/15"
-      aria-label="Navigation"
-    >
-      {children}
-    </button>
-  );
-}
+const NAV_LINKS = [
+  { href: "/dashboard", label: "Dashboard", match: (path: string) => path === "/dashboard" || path.startsWith("/dashboard/") },
+  { href: "/invoices", label: "Invoices", match: (path: string) => path === "/invoices" || path.startsWith("/invoices/") },
+  { href: "/customers", label: "Customers", match: (path: string) => path === "/customers" || path.startsWith("/customers/") },
+  { href: "/payments", label: "Payments", match: (path: string) => path === "/payments" || path.startsWith("/payments/") },
+] as const;
 
 export function TopNav() {
+  const pathname = usePathname();
+
   return (
-    <header className="sticky top-0 z-40 flex h-[60px] items-center justify-between bg-prime-blue pl-[30px] text-white shadow-sm">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-40 flex h-[60px] items-center gap-12 bg-prime-blue pl-[30px] pr-8 text-white shadow-sm">
+      <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
         <Image
           src="/brand/atb-logo.png"
           alt="ATB"
@@ -26,72 +25,26 @@ export function TopNav() {
           className="h-9 w-auto"
           priority
         />
-        <span className="type-headline-5 text-white-snow">
-          Invoicing
-        </span>
-      </div>
+        <span className="type-headline-5 text-white-snow">Invoicing</span>
+      </Link>
 
-      <div className="flex h-full items-center gap-6 pr-0">
-        <div className="flex items-center gap-3">
-          <NavIcon>
-            <svg width="18" height="17" viewBox="0 0 18 17" fill="none" aria-hidden>
-              <path
-                d="M1 8.5h16M9 1v15"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </NavIcon>
-          <NavIcon>
-            <svg width="19" height="20" viewBox="0 0 19 20" fill="none" aria-hidden>
-              <path
-                d="M9.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15Z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              />
-              <path
-                d="M9.5 6v4.5L12 13"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </NavIcon>
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20"
-            aria-label="Account"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <circle cx="12" cy="8" r="3.25" stroke="white" strokeWidth="1.6" />
-              <path
-                d="M5.5 18.5c1.6-2.7 3.8-4 6.5-4s4.9 1.3 6.5 4"
-                stroke="white"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <button
-          type="button"
-          className="flex h-[60px] w-[60px] items-center justify-center bg-black/8"
-          aria-label="App launcher"
-        >
-          <svg width="17" height="17" viewBox="0 0 17 17" fill="none" aria-hidden>
-            <circle cx="2.5" cy="2.5" r="1.5" fill="white" />
-            <circle cx="8.5" cy="2.5" r="1.5" fill="white" />
-            <circle cx="14.5" cy="2.5" r="1.5" fill="white" />
-            <circle cx="2.5" cy="8.5" r="1.5" fill="white" />
-            <circle cx="8.5" cy="8.5" r="1.5" fill="white" />
-            <circle cx="14.5" cy="8.5" r="1.5" fill="white" />
-            <circle cx="2.5" cy="14.5" r="1.5" fill="white" />
-            <circle cx="8.5" cy="14.5" r="1.5" fill="white" />
-            <circle cx="14.5" cy="14.5" r="1.5" fill="white" />
-          </svg>
-        </button>
-      </div>
+      <nav className="flex h-full items-stretch gap-8" aria-label="Primary">
+        {NAV_LINKS.map((link) => {
+          const active = link.match(pathname);
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`relative flex items-center type-subtitle-1 text-white transition hover:text-white/90 ${
+                active ? "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-white" : ""
+              }`}
+              aria-current={active ? "page" : undefined}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
+      </nav>
     </header>
   );
 }

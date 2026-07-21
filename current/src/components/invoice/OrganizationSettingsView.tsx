@@ -14,7 +14,7 @@ import {
 } from "@/lib/organization-settings";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, PencilIcon, TertiaryButton, CloseIcon } from "./ui";
+import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TABS = ["Business Details", "Permissions", "Sub Users"] as const;
 type TabId = (typeof TABS)[number];
@@ -110,14 +110,6 @@ function sectionIdFromDeepLink(
   return null;
 }
 
-const CURRENCIES = [
-  { code: "CAD", name: "Canadian Dollar" },
-  { code: "USD", name: "US Dollar" },
-  { code: "EUR", name: "Euro" },
-  { code: "GBP", name: "British Pound" },
-  { code: "AUD", name: "Australian Dollar" },
-] as const;
-
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
@@ -156,11 +148,6 @@ function cloneSettings(settings: OrganizationSettings): OrganizationSettings {
     paymentMethods: settings.paymentMethods.map((method) => ({ ...method })),
     paymentPreferences: [...settings.paymentPreferences],
   };
-}
-
-function currencyLabel(code: string) {
-  const match = CURRENCIES.find((entry) => entry.code === code);
-  return match ? `${match.code} — ${match.name}` : code;
 }
 
 function formatAddress(parts: {
@@ -231,6 +218,15 @@ function BoxTitle({
 }
 
 /** Stacked label + value pairs for view-mode cards. */
+function EmptyValue() {
+  return <span className="text-black/40">N/A</span>;
+}
+
+function displayOrNa(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : <EmptyValue />;
+}
+
 function ViewField({
   label,
   value,
@@ -521,124 +517,85 @@ function AddPaymentOptionModal({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-[230] flex items-center justify-center bg-black/35 px-4 py-8"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="add-payment-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Modal
+      title={
+        step === "pick"
+          ? "Add payment option"
+          : step === "costs" && selected
+            ? selected.label
+            : selected
+              ? `Verify ${selected.label}`
+              : "Add payment option"
+      }
+      titleId="add-payment-title"
+      onClose={onClose}
+      zClass="z-[230]"
+      cancelLabel={step === "pick" ? "Cancel" : "Back"}
+      onCancel={step === "pick" ? onClose : onBack}
+      confirmLabel={
+        step === "costs" ? "Next" : step === "verify" ? "Complete setup" : undefined
+      }
+      onConfirm={
+        step === "costs" ? onNext : step === "verify" ? onComplete : undefined
+      }
     >
-      <div className="relative w-full max-w-md rounded-xl border border-black/15 bg-white p-6 shadow-2xl">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-3 top-3 text-black/35 transition hover:text-black/60"
-          aria-label="Close"
-        >
-          <CloseIcon />
-        </button>
-
-        {step === "pick" ? (
-          <>
-            <h2 id="add-payment-title" className="type-headline-6 pr-8">
-              Add payment option
-            </h2>
-            <p className="type-body-muted mt-2">
-              Choose a payment method to set up for your business.
-            </p>
-            <ul className="mt-5 flex flex-col gap-2">
-              {available.map((method) => (
-                <li key={method.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(method.id)}
-                    className="flex w-full items-center justify-between rounded-[10px] border border-black/10 px-4 py-3 text-left transition hover:border-prime-blue/40 hover:bg-black/[0.02]"
-                  >
-                    <span className="type-subtitle-1">{method.label}</span>
-                    <span className="text-black/35">
-                      <ChevronIcon open={false} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-
-        {step === "costs" && selected ? (
-          <>
-            <h2 id="add-payment-title" className="type-headline-6 pr-8">
-              {selected.label}
-            </h2>
-            <p className="type-body-muted mt-2">
-              Review the cost implications before continuing setup.
-            </p>
-            <ul className="mt-5 list-disc space-y-2 pl-5 text-sm text-black">
-              {selected.details.map((detail) => (
-                <li key={`${detail.label}-${detail.text}`}>
-                  <span className={detail.italic ? "italic" : undefined}>
-                    <span className="font-bold">{detail.label}:</span>{" "}
-                    {detail.text}
+      {step === "pick" ? (
+        <>
+          <p className="type-body-muted text-center">
+            Choose a payment method to set up for your business.
+          </p>
+          <ul className="mt-5 flex flex-col gap-2">
+            {available.map((method) => (
+              <li key={method.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(method.id)}
+                  className="flex w-full items-center justify-between rounded-[10px] border border-black/10 px-4 py-3 text-left transition hover:border-prime-blue/40 hover:bg-black/[0.02]"
+                >
+                  <span className="type-subtitle-1">{method.label}</span>
+                  <span className="text-black/35">
+                    <ChevronIcon open={false} />
                   </span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onBack}
-                className="type-danger transition hover:opacity-80"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={onNext}
-                className="ui-btn-primary h-9"
-              >
-                Next
-              </button>
-            </div>
-          </>
-        ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
 
-        {step === "verify" && selected ? (
-          <>
-            <h2 id="add-payment-title" className="type-headline-6 pr-8">
-              Verify {selected.label}
-            </h2>
+      {step === "costs" && selected ? (
+        <>
+          <p className="type-body-muted text-center">
+            Review the cost implications before continuing setup.
+          </p>
+          <ul className="mt-5 list-disc space-y-2 pl-5 text-sm text-black">
+            {selected.details.map((detail) => (
+              <li key={`${detail.label}-${detail.text}`}>
+                <span className={detail.italic ? "italic" : undefined}>
+                  <span className="font-bold">{detail.label}:</span>{" "}
+                  {detail.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {step === "verify" && selected ? (
+        <>
+          <p className="type-body-muted text-center">
+            Additional verification steps will appear here.
+          </p>
+          <div className="mt-5 rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center">
+            <p className="type-subtitle-1">Verification flow placeholder</p>
             <p className="type-body-muted mt-2">
-              Additional verification steps will appear here.
+              Bank linking, identity checks, or other setup steps for{" "}
+              {selected.label} will go here.
             </p>
-            <div className="mt-5 rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center">
-              <p className="type-subtitle-1">Verification flow placeholder</p>
-              <p className="type-body-muted mt-2">
-                Bank linking, identity checks, or other setup steps for{" "}
-                {selected.label} will go here.
-              </p>
-            </div>
-            <div className="mt-6 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onBack}
-                className="type-danger transition hover:opacity-80"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={onComplete}
-                className="ui-btn-primary h-9"
-              >
-                Complete setup
-              </button>
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
+          </div>
+        </>
+      ) : null}
+    </Modal>
   );
 }
 
@@ -1187,19 +1144,19 @@ export function OrganizationSettingsView() {
                   <ViewFieldList>
                     <ViewField
                       label={FIELD.businessName}
-                      value={saved.businessName || "—"}
+                      value={displayOrNa(saved.businessName)}
                     />
                     <ViewField
                       label={FIELD.gstHstNumber}
-                      value={saved.gstHstNumber || "—"}
+                      value={displayOrNa(saved.gstHstNumber)}
                     />
                     <ViewField
                       label={FIELD.email}
-                      value={saved.email || "—"}
+                      value={displayOrNa(saved.email)}
                     />
                     <ViewField
                       label={FIELD.phoneNumber}
-                      value={saved.phone || "—"}
+                      value={displayOrNa(saved.phone)}
                     />
                   </ViewFieldList>
                 </ViewCard>
@@ -1289,7 +1246,7 @@ export function OrganizationSettingsView() {
                   <ViewFieldList>
                     <ViewField
                       label={FIELD.businessAddress}
-                      value={businessAddress || "—"}
+                      value={businessAddress || <EmptyValue />}
                     />
                   </ViewFieldList>
                 </ViewCard>
@@ -1565,13 +1522,12 @@ export function OrganizationSettingsView() {
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <FieldLabel>{FIELD.currency}</FieldLabel>
-                      <SelectField
-                        ariaLabel={FIELD.currency}
-                        value={draft.currency}
-                        options={CURRENCIES}
-                        onChange={(value) => patchDraft({ currency: value })}
-                      />
+                      <FieldLabel tip="All quotes and invoices are locked to Canadian Dollars.">
+                        {FIELD.currency}
+                      </FieldLabel>
+                      <p className="rounded border border-black/15 bg-input-grey px-3 py-2.5 text-sm font-semibold text-midnight-ink">
+                        CAD — Canadian Dollar (locked)
+                      </p>
                     </div>
                     <div>
                       <FieldLabel>{FIELD.taxSetting}</FieldLabel>
@@ -1637,7 +1593,7 @@ export function OrganizationSettingsView() {
                   <ViewFieldList>
                     <ViewField
                       label={FIELD.currency}
-                      value={currencyLabel(saved.currency)}
+                      value="CAD — Canadian Dollar (locked)"
                     />
                     <ViewField
                       label={FIELD.taxSetting}
@@ -1645,11 +1601,17 @@ export function OrganizationSettingsView() {
                     />
                     <ViewField
                       label={FIELD.quoteExpiry}
-                      value={`${saved.quoteExpiryDays || "—"} days`}
+                      value={
+                        saved.quoteExpiryDays.trim() ? (
+                          `${saved.quoteExpiryDays} days`
+                        ) : (
+                          <EmptyValue />
+                        )
+                      }
                     />
                     <ViewField
                       label={FIELD.paymentTerms}
-                      value={saved.paymentTerms}
+                      value={displayOrNa(saved.paymentTerms)}
                     />
                   </ViewFieldList>
                 </ViewCard>
@@ -1722,9 +1684,17 @@ export function OrganizationSettingsView() {
                     <ViewField
                       label={FIELD.reminders}
                       value={
-                        saved.reminders
-                          ? `On · ${saved.reminderDays || "—"} days before`
-                          : "Off"
+                        saved.reminders ? (
+                          saved.reminderDays.trim() ? (
+                            `On · ${saved.reminderDays} days before`
+                          ) : (
+                            <>
+                              On · <EmptyValue />
+                            </>
+                          )
+                        ) : (
+                          "Off"
+                        )
                       }
                     />
                     <ViewField
@@ -1858,7 +1828,15 @@ export function OrganizationSettingsView() {
                         {user.enabled ? "Sub-User" : "No Access"}
                       </td>
                       <td className="px-5 py-4">
-                        {user.enabled ? (user.dateJoined ?? "—") : "—"}
+                        {user.enabled ? (
+                          user.dateJoined ? (
+                            user.dateJoined
+                          ) : (
+                            <EmptyValue />
+                          )
+                        ) : (
+                          <EmptyValue />
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
@@ -1879,43 +1857,27 @@ export function OrganizationSettingsView() {
       </main>
 
       {discardWarning ? (
-        <div
+        <Modal
+          title="Unsaved changes"
+          titleId="discard-warning-title"
+          describedBy="discard-warning-desc"
           role="alertdialog"
-          aria-labelledby="discard-warning-title"
-          aria-describedby="discard-warning-desc"
-          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/35 px-4"
+          onClose={keepEditing}
+          closeOnBackdrop={false}
+          zClass="z-[220]"
+          cancelLabel="Keep editing"
+          onCancel={keepEditing}
+          confirmLabel="Discard"
+          onConfirm={confirmDiscard}
+          confirmDanger
         >
-          <div className="w-full max-w-[380px] rounded-xl border border-black/15 bg-white p-4 shadow-2xl">
-            <p
-              id="discard-warning-title"
-              className="text-sm font-semibold text-black"
-            >
-              Unsaved changes
-            </p>
-            <p
-              id="discard-warning-desc"
-              className="mt-1 text-sm text-black/60"
-            >
-              You have unsaved edits in this section. Discard them?
-            </p>
-            <div className="mt-3 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={keepEditing}
-                className={UI_CLASS.btnSecondary}
-              >
-                Keep editing
-              </button>
-              <button
-                type="button"
-                onClick={confirmDiscard}
-                className="ui-btn-primary h-11"
-              >
-                Discard
-              </button>
-            </div>
-          </div>
-        </div>
+          <p
+            id="discard-warning-desc"
+            className="type-body-muted text-center"
+          >
+            You have unsaved edits in this section. Discard them?
+          </p>
+        </Modal>
       ) : null}
 
       {addPaymentOpen ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getQuoteActionsForStatus,
@@ -13,7 +13,7 @@ import { NoteToSelfSection } from "./NoteToSelfSection";
 import { SendQuoteModal } from "./SendQuoteModal";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
-import { CloseIcon } from "./ui";
+import { Modal } from "./ui";
 
 export type QuoteSentVariant =
   | "awaiting"
@@ -197,82 +197,39 @@ function RecordDecisionModal({
   onAccept: () => void;
   onReject: () => void;
 }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="record-decision-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+    <Modal title="Record decision" titleId="record-decision-title" onClose={onClose}>
+      <p className="type-body-muted text-center">
+        Choose how the customer responded to this quote.
+      </p>
+
+      <div className="mt-5 flex flex-col gap-2.5">
         <button
           type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
-          aria-label="Close decision modal"
+          onClick={onAccept}
+          className="rounded-lg border border-prime-blue bg-prime-blue/5 px-4 py-3.5 text-left transition hover:bg-prime-blue/10"
         >
-          <CloseIcon />
+          <span className="block text-sm font-semibold text-black">
+            Quote Accepted
+          </span>
+          <span className="mt-0.5 block text-sm text-black/60">
+            Creates a draft invoice. Add payment options and due date there.
+          </span>
         </button>
-
-        <h2
-          id="record-decision-title"
-          className="pr-8 type-modal-title text-black"
+        <button
+          type="button"
+          onClick={onReject}
+          className="rounded-lg border border-black/15 bg-white px-4 py-3.5 text-left transition hover:border-black/30"
         >
-          Record decision
-        </h2>
-        <p className="mt-2 text-sm text-black/60">
-          Choose how the customer responded to this quote.
-        </p>
-
-        <div className="mt-5 flex flex-col gap-2.5">
-          <button
-            type="button"
-            onClick={onAccept}
-            className="rounded-lg border border-prime-blue bg-prime-blue/5 px-4 py-3.5 text-left transition hover:bg-prime-blue/10"
-          >
-            <span className="block text-sm font-semibold text-black">
-              Quote Accepted
-            </span>
-            <span className="mt-0.5 block text-sm text-black/60">
-              Creates a draft invoice. Add payment options and due date there.
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={onReject}
-            className="rounded-lg border border-black/15 bg-white px-4 py-3.5 text-left transition hover:border-black/30"
-          >
-            <span className="block text-sm font-semibold text-black">
-              Quote Rejected
-            </span>
-            <span className="mt-0.5 block text-sm text-black/60">
-              Marks this quote as declined. No invoice is created.
-            </span>
-          </button>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="ui-btn-secondary"
-          >
-            Cancel
-          </button>
-        </div>
+          <span className="block text-sm font-semibold text-black">
+            Quote Rejected
+          </span>
+          <span className="mt-0.5 block text-sm text-black/60">
+            Marks this quote as declined. No invoice is created.
+          </span>
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

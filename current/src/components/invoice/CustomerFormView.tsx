@@ -21,35 +21,36 @@ import {
   getEnabledPaymentMethodLabels,
   loadOrganizationSettings,
 } from "@/lib/organization-settings";
+import {
+  CA_PROVINCES_TERRITORIES,
+  CUSTOMER_TAG_OPTIONS,
+  LOCKED_CURRENCY,
+  provinceLabel,
+} from "@/lib/canada";
 import { ORGANIZATION_DEFAULTS } from "@/lib/org-defaults";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, PencilIcon, TertiaryButton } from "./ui";
-
-const CURRENCIES = [
-  { code: "CAD", name: "Canadian Dollar" },
-  { code: "USD", name: "US Dollar" },
-  { code: "EUR", name: "Euro" },
-  { code: "GBP", name: "British Pound" },
-  { code: "AUD", name: "Australian Dollar" },
-] as const;
+import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
+const LEGAL_NAME_TIP =
+  "Required for CRA records and Canada Small Business Financing Loan eligibility. Use the customer’s official legal business name.";
+
 /** Single source for edit FieldLabel + view ViewField copy. */
 const FIELD = {
-  businessLegalName: "Business Legal Name",
+  businessLegalName: "Customer / Business Legal Name",
   businessEmail: "Business Email",
   phoneNumber: "Phone Number",
   billingAddress: "Billing Address",
   shippingAddress: "Shipping Address",
-  shippingSame: "Shipping address is the same",
-  firstName: "First Name",
-  lastName: "Last Name",
+  addShipping: "Add shipping address or service address",
+  contactName: "Contact Name",
   contactEmail: "Contact Email",
-  currency: "Currency",
+  sendCommsHere: "Send all communications to this email",
+  tags: "Tags",
   taxSetting: "Tax Setting",
   quoteExpiry: "Quote Expiry",
   paymentTerms: "Payment Terms",
@@ -57,12 +58,14 @@ const FIELD = {
   reminders: "Reminders",
   receipts: "Receipts",
   internalNotes: "Internal Notes",
+  province: "Province / Territory",
 } as const;
 
 type SectionKey =
   | "business"
   | "address"
   | "contact"
+  | "tags"
   | "settings"
   | "paymentPreferences"
   | "automations"
@@ -86,16 +89,16 @@ type CustomerFormState = {
   city: string;
   province: string;
   postalCode: string;
-  shippingSame: boolean;
+  hasShippingAddress: boolean;
   shippingAddressLine1: string;
   shippingAddressLine2: string;
   shippingCity: string;
   shippingProvince: string;
   shippingPostalCode: string;
-  firstName: string;
-  lastName: string;
+  contactName: string;
   contactEmail: string;
   useContactEmailForComms: boolean;
+  tags: string[];
   internalNotes: string;
 };
 
@@ -106,7 +109,7 @@ function emptyCustomerForm(
     businessName: "",
     email: "",
     phone: "",
-    currency: cascade.currency,
+    currency: LOCKED_CURRENCY,
     taxStatus: cascade.taxStatus,
     quoteExpiryDays: cascade.quoteExpiryDays,
     paymentTerms: cascade.paymentTerms,
@@ -120,16 +123,16 @@ function emptyCustomerForm(
     city: "",
     province: "",
     postalCode: "",
-    shippingSame: true,
+    hasShippingAddress: false,
     shippingAddressLine1: "",
     shippingAddressLine2: "",
     shippingCity: "",
     shippingProvince: "",
     shippingPostalCode: "",
-    firstName: "",
-    lastName: "",
+    contactName: "",
     contactEmail: "",
     useContactEmailForComms: false,
+    tags: [],
     internalNotes: "",
   };
 }
@@ -144,11 +147,6 @@ const sectionShellClass = UI_CLASS.sectionShell;
 const sectionDividerClass =
   "mt-6 border-t border-dashed border-black/15 pt-6";
 
-function currencyLabel(code: string) {
-  const match = CURRENCIES.find((entry) => entry.code === code);
-  return match ? `${match.code} — ${match.name}` : code;
-}
-
 function formatAddress(parts: {
   line1: string;
   line2: string;
@@ -159,7 +157,9 @@ function formatAddress(parts: {
   const lines = [
     parts.line1,
     parts.line2,
-    [parts.city, parts.province].filter(Boolean).join(", "),
+    [parts.city, parts.province ? provinceLabel(parts.province) : ""]
+      .filter(Boolean)
+      .join(", "),
     parts.postalCode,
   ].filter(Boolean);
   return lines.length ? lines : null;
@@ -270,10 +270,9 @@ function SelectField({
   const normalized = options.map((option) =>
     typeof option === "string"
       ? { value: option, label: option }
-      : { value: option.code, label: `${option.code} — ${option.name}` },
+      : { value: option.code, label: `${option.name} (${option.code})` },
   );
-  const selected =
-    normalized.find((option) => option.value === value) ?? normalized[0];
+  const selected = normalized.find((option) => option.value === value);
 
   return (
     <div ref={ref} className="relative">
@@ -285,7 +284,9 @@ function SelectField({
         onClick={() => setOpen((prev) => !prev)}
         className={`${inputClass} flex items-center justify-between text-left`}
       >
-        <span className="truncate">{selected.label}</span>
+        <span className={`truncate ${selected ? "" : "text-black/45"}`}>
+          {selected?.label ?? "Select…"}
+        </span>
         <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
           <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
         </svg>
@@ -360,6 +361,15 @@ function BoxTitle({
 }
 
 /** Stacked label + value pairs for view-mode cards. */
+function EmptyValue() {
+  return <span className="text-black/40">N/A</span>;
+}
+
+function displayOrNa(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : <EmptyValue />;
+}
+
 function ViewField({
   label,
   value,
@@ -455,6 +465,7 @@ function AddressFields({
   idPrefix,
   values,
   onChange,
+  requireProvince = false,
 }: {
   idPrefix: string;
   values: {
@@ -465,11 +476,12 @@ function AddressFields({
     postalCode: string;
   };
   onChange: (patch: Partial<typeof values>) => void;
+  requireProvince?: boolean;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <FieldLabel htmlFor={`${idPrefix}-line1`}>Address Line 1</FieldLabel>
+      <div className="sm:col-span-2">
+        <FieldLabel htmlFor={`${idPrefix}-line1`}>Street Address</FieldLabel>
         <input
           id={`${idPrefix}-line1`}
           className={inputClass}
@@ -477,8 +489,11 @@ function AddressFields({
           onChange={(event) => onChange({ addressLine1: event.target.value })}
         />
       </div>
-      <div>
-        <FieldLabel htmlFor={`${idPrefix}-line2`}>Address Line 2</FieldLabel>
+      <div className="sm:col-span-2">
+        <FieldLabel htmlFor={`${idPrefix}-line2`}>
+          Address Line 2{" "}
+          <span className="font-normal text-black/45">(optional)</span>
+        </FieldLabel>
         <input
           id={`${idPrefix}-line2`}
           className={inputClass}
@@ -496,12 +511,23 @@ function AddressFields({
         />
       </div>
       <div>
-        <FieldLabel htmlFor={`${idPrefix}-province`}>Province</FieldLabel>
-        <input
-          id={`${idPrefix}-province`}
-          className={inputClass}
+        <FieldLabel
+          tip={
+            requireProvince
+              ? "Required for GST, HST, and PST/RST tax calculations."
+              : undefined
+          }
+        >
+          {FIELD.province}
+          {requireProvince ? (
+            <span className="type-danger"> *</span>
+          ) : null}
+        </FieldLabel>
+        <SelectField
+          ariaLabel={FIELD.province}
           value={values.province}
-          onChange={(event) => onChange({ province: event.target.value })}
+          options={CA_PROVINCES_TERRITORIES}
+          onChange={(value) => onChange({ province: value })}
         />
       </div>
       <div>
@@ -539,6 +565,7 @@ function formFromCustomerId(id: string | null): CustomerFormState {
     city: cityPart,
     province,
     postalCode,
+    currency: LOCKED_CURRENCY,
   };
 }
 
@@ -630,14 +657,45 @@ function CustomerFormInner() {
     });
   }
 
+  function toggleTag(tag: string) {
+    setDraft((prev) => {
+      const exists = prev.tags.includes(tag);
+      return {
+        ...prev,
+        tags: exists
+          ? prev.tags.filter((item) => item !== tag)
+          : [...prev.tags, tag],
+      };
+    });
+  }
+
+  function setShippingEnabled(enabled: boolean) {
+    setDraft((prev) => {
+      if (!enabled) {
+        return { ...prev, hasShippingAddress: false };
+      }
+      return {
+        ...prev,
+        hasShippingAddress: true,
+        shippingAddressLine1: prev.addressLine1,
+        shippingAddressLine2: prev.addressLine2,
+        shippingCity: prev.city,
+        shippingProvince: prev.province,
+        shippingPostalCode: prev.postalCode,
+      };
+    });
+  }
+
   function saveCreateModal() {
     const name = createDraft.businessName.trim();
     if (!name) return;
+    if (createDraft.email.trim() && !isValidEmail(createDraft.email)) return;
     const next: CustomerFormState = {
       ...saved,
       businessName: name,
       email: createDraft.email.trim(),
       phone: createDraft.phone.trim(),
+      currency: LOCKED_CURRENCY,
     };
     setSaved(next);
     setDraft(next);
@@ -646,7 +704,18 @@ function CustomerFormInner() {
     setEditing(null);
   }
 
+  function cancelCreateModal() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/customers");
+  }
+
+  const createEmailValid =
+    !createDraft.email.trim() || isValidEmail(createDraft.email);
   const createNameValid = createDraft.businessName.trim().length > 0;
+  const createCanSave = createNameValid && createEmailValid;
 
   const businessEmpty =
     !saved.businessName && !saved.email && !saved.phone;
@@ -656,15 +725,18 @@ function CustomerFormInner() {
     !saved.city &&
     !saved.province &&
     !saved.postalCode &&
-    (saved.shippingSame ||
-      (!saved.shippingAddressLine1 &&
-        !saved.shippingAddressLine2 &&
-        !saved.shippingCity &&
-        !saved.shippingProvince &&
-        !saved.shippingPostalCode));
+    !saved.hasShippingAddress;
   const contactEmpty =
-    !saved.firstName && !saved.lastName && !saved.contactEmail;
+    !saved.contactName && !saved.contactEmail;
+  const tagsEmpty = saved.tags.length === 0;
   const notesEmpty = !saved.internalNotes.trim();
+
+  const businessSaveDisabled =
+    !draft.businessName.trim() ||
+    (Boolean(draft.email.trim()) && !isValidEmail(draft.email));
+  const addressSaveDisabled = !draft.province.trim();
+  const contactSaveDisabled =
+    draft.useContactEmailForComms && !isValidEmail(draft.contactEmail);
 
   const billingLines = formatAddress({
     line1: saved.addressLine1,
@@ -826,13 +898,12 @@ function CustomerFormInner() {
                 title="Business Details"
                 onClose={closeEdit}
                 onSave={saveSection}
+                saveDisabled={businessSaveDisabled}
               >
                 <div>
-                  <FieldLabel
-                    htmlFor="business-name"
-                    tip="The official name of this customer’s business—the one they use on government paperwork and contracts."
-                  >
-                    {FIELD.businessLegalName}
+                  <FieldLabel htmlFor="business-name" tip={LEGAL_NAME_TIP}>
+                    {FIELD.businessLegalName}{" "}
+                    <span className="type-danger">*</span>
                   </FieldLabel>
                   <input
                     id="business-name"
@@ -854,6 +925,11 @@ function CustomerFormInner() {
                       patchDraft({ email: event.target.value })
                     }
                   />
+                  {draft.email.trim() && !isValidEmail(draft.email) ? (
+                    <p className="type-danger mt-1.5">
+                      Enter a valid email address.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <FieldLabel htmlFor="phone">{FIELD.phoneNumber}</FieldLabel>
@@ -880,25 +956,28 @@ function CustomerFormInner() {
                 <ViewFieldList>
                   <ViewField
                     label={FIELD.businessLegalName}
-                    value={saved.businessName || "—"}
+                    value={displayOrNa(saved.businessName)}
                   />
                   <ViewField
                     label={FIELD.businessEmail}
                     value={
-                      <>
-                        {saved.email || "—"}
-                        {saved.useContactEmailForComms ? (
-                          <span className="type-body-muted">
-                            {" "}
-                            · Communications go to contact email
-                          </span>
-                        ) : null}
-                      </>
+                      saved.email.trim() ? (
+                        <>
+                          {saved.email}
+                          {saved.useContactEmailForComms ? (
+                            <p className="type-body-muted mt-0.5">
+                              Emails are not sent here.
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <EmptyValue />
+                      )
                     }
                   />
                   <ViewField
                     label={FIELD.phoneNumber}
-                    value={saved.phone || "—"}
+                    value={displayOrNa(saved.phone)}
                   />
                 </ViewFieldList>
               </ViewCard>
@@ -909,13 +988,15 @@ function CustomerFormInner() {
                 title="Address"
                 onClose={closeEdit}
                 onSave={saveSection}
+                saveDisabled={addressSaveDisabled}
               >
                 <p className="type-body-muted -mt-2">
-                  Some loan applications ask for this address. Add it if you
-                  have it.
+                  Billing locality is used for CRA alignment and tax
+                  calculations. Province / Territory is required.
                 </p>
                 <AddressFields
                   idPrefix="billing"
+                  requireProvince
                   values={{
                     addressLine1: draft.addressLine1,
                     addressLine2: draft.addressLine2,
@@ -925,16 +1006,19 @@ function CustomerFormInner() {
                   }}
                   onChange={(patch) => patchDraft(patch)}
                 />
+                {!draft.province.trim() ? (
+                  <p className="type-danger -mt-2">
+                    Select a province or territory to enable tax calculations.
+                  </p>
+                ) : null}
                 <div>
                   <CheckboxRow
-                    checked={draft.shippingSame}
-                    onChange={(checked) =>
-                      patchDraft({ shippingSame: checked })
-                    }
-                    label={FIELD.shippingSame}
+                    checked={draft.hasShippingAddress}
+                    onChange={setShippingEnabled}
+                    label={FIELD.addShipping}
                   />
                 </div>
-                {!draft.shippingSame ? (
+                {draft.hasShippingAddress ? (
                   <div className={`flex flex-col gap-4 ${sectionDividerClass}`}>
                     <h4 className="type-subtitle-1">{FIELD.shippingAddress}</h4>
                     <AddressFields
@@ -972,14 +1056,18 @@ function CustomerFormInner() {
                 <ViewFieldList>
                   <ViewField
                     label={FIELD.billingAddress}
-                    value={billingLines?.join(", ") || "—"}
+                    value={
+                      billingLines ? billingLines.join(", ") : <EmptyValue />
+                    }
                   />
                   <ViewField
                     label={FIELD.shippingAddress}
                     value={
-                      saved.shippingSame
-                        ? "Same as billing"
-                        : shippingLines?.join(", ") || "—"
+                      saved.hasShippingAddress
+                        ? shippingLines
+                          ? shippingLines.join(", ")
+                          : <EmptyValue />
+                        : <EmptyValue />
                     }
                   />
                 </ViewFieldList>
@@ -991,38 +1079,20 @@ function CustomerFormInner() {
                 title="Contact Info"
                 onClose={closeEdit}
                 onSave={saveSection}
-                saveDisabled={
-                  draft.useContactEmailForComms &&
-                  !isValidEmail(draft.contactEmail)
-                }
+                saveDisabled={contactSaveDisabled}
               >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <FieldLabel htmlFor="first-name">
-                      {FIELD.firstName}
-                    </FieldLabel>
-                    <input
-                      id="first-name"
-                      className={inputClass}
-                      value={draft.firstName}
-                      onChange={(event) =>
-                        patchDraft({ firstName: event.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel htmlFor="last-name">
-                      {FIELD.lastName}
-                    </FieldLabel>
-                    <input
-                      id="last-name"
-                      className={inputClass}
-                      value={draft.lastName}
-                      onChange={(event) =>
-                        patchDraft({ lastName: event.target.value })
-                      }
-                    />
-                  </div>
+                <div>
+                  <FieldLabel htmlFor="contact-name">
+                    {FIELD.contactName}
+                  </FieldLabel>
+                  <input
+                    id="contact-name"
+                    className={inputClass}
+                    value={draft.contactName}
+                    onChange={(event) =>
+                      patchDraft({ contactName: event.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <FieldLabel htmlFor="contact-email">
@@ -1044,7 +1114,7 @@ function CustomerFormInner() {
                     onChange={(checked) =>
                       patchDraft({ useContactEmailForComms: checked })
                     }
-                    label="Send quotes and invoices here instead of the business email"
+                    label={FIELD.sendCommsHere}
                   />
                   {draft.useContactEmailForComms &&
                   !isValidEmail(draft.contactEmail) ? (
@@ -1065,28 +1135,66 @@ function CustomerFormInner() {
               >
                 <ViewFieldList>
                   <ViewField
-                    label={FIELD.firstName}
-                    value={saved.firstName || "—"}
-                  />
-                  <ViewField
-                    label={FIELD.lastName}
-                    value={saved.lastName || "—"}
+                    label={FIELD.contactName}
+                    value={displayOrNa(saved.contactName)}
                   />
                   <ViewField
                     label={FIELD.contactEmail}
                     value={
-                      <>
-                        {saved.contactEmail || "—"}
-                        {saved.useContactEmailForComms ? (
-                          <p className="type-body-muted mt-0.5">
-                            Communication is sent to this address based on your
-                            preferences.
-                          </p>
-                        ) : null}
-                      </>
+                      saved.contactEmail.trim() ? (
+                        <>
+                          {saved.contactEmail}
+                          {saved.useContactEmailForComms ? (
+                            <p className="type-body-muted mt-0.5">
+                              All communications are sent to this email.
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <EmptyValue />
+                      )
                     }
                   />
                 </ViewFieldList>
+              </ViewCard>
+            )}
+
+            {editing === "tags" ? (
+              <SectionEditor
+                title="Tags"
+                onClose={closeEdit}
+                onSave={saveSection}
+              >
+                <p className="type-body-muted -mt-2">
+                  Group accounts for filtering (for example, VIP or Contractor).
+                </p>
+                <div className="flex flex-col gap-2.5">
+                  {CUSTOMER_TAG_OPTIONS.map((tag) => (
+                    <CheckboxRow
+                      key={tag}
+                      checked={draft.tags.includes(tag)}
+                      onChange={() => toggleTag(tag)}
+                      label={tag}
+                    />
+                  ))}
+                </div>
+              </SectionEditor>
+            ) : tagsEmpty ? (
+              <TertiaryButton onClick={() => startEdit("tags")}>
+                Add Tags
+              </TertiaryButton>
+            ) : (
+              <ViewCard title="Tags" onEdit={() => startEdit("tags")}>
+                <div className="flex flex-wrap gap-2">
+                  {saved.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-prime-blue/10 px-2.5 py-1 text-sm font-semibold text-prime-blue"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </ViewCard>
             )}
           </section>
@@ -1106,17 +1214,6 @@ function CustomerFormInner() {
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <FieldLabel tip="The money type used on this customer’s quotes and invoices (for example, Canadian dollars).">
-                      {FIELD.currency}
-                    </FieldLabel>
-                    <SelectField
-                      ariaLabel={FIELD.currency}
-                      value={draft.currency}
-                      options={CURRENCIES}
-                      onChange={(value) => patchDraft({ currency: value })}
-                    />
-                  </div>
-                  <div>
                     <FieldLabel tip="Whether you usually charge sales tax for this customer.">
                       {FIELD.taxSetting}
                     </FieldLabel>
@@ -1131,13 +1228,10 @@ function CustomerFormInner() {
                       }
                     />
                   </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <FieldLabel
                       htmlFor="quote-expiry"
-                      tip="How long a quote stays open for this customer before it expires."
+                      tip="How long a quote stays open for this customer before it expires. Starts from your organization default."
                     >
                       {FIELD.quoteExpiry}
                     </FieldLabel>
@@ -1180,20 +1274,22 @@ function CustomerFormInner() {
               <ViewCard title="Settings" onEdit={() => startEdit("settings")}>
                 <ViewFieldList>
                   <ViewField
-                    label={FIELD.currency}
-                    value={currencyLabel(saved.currency)}
-                  />
-                  <ViewField
                     label={FIELD.taxSetting}
                     value={saved.taxStatus}
                   />
                   <ViewField
                     label={FIELD.quoteExpiry}
-                    value={`${saved.quoteExpiryDays || "—"} days`}
+                    value={
+                      saved.quoteExpiryDays.trim() ? (
+                        `${saved.quoteExpiryDays} days`
+                      ) : (
+                        <EmptyValue />
+                      )
+                    }
                   />
                   <ViewField
                     label={FIELD.paymentTerms}
-                    value={saved.paymentTerms}
+                    value={displayOrNa(saved.paymentTerms)}
                   />
                 </ViewFieldList>
               </ViewCard>
@@ -1352,9 +1448,17 @@ function CustomerFormInner() {
                   <ViewField
                     label={FIELD.reminders}
                     value={
-                      saved.reminders
-                        ? `On · ${saved.reminderDays || "—"} days before`
-                        : "Off"
+                      saved.reminders ? (
+                        saved.reminderDays.trim() ? (
+                          `On · ${saved.reminderDays} days before`
+                        ) : (
+                          <>
+                            On · <EmptyValue />
+                          </>
+                        )
+                      ) : (
+                        "Off"
+                      )
                     }
                   />
                   <ViewField
@@ -1422,89 +1526,81 @@ function CustomerFormInner() {
       </main>
 
       {showCreateModal ? (
-        <div
-          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/35 px-4 py-8"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-customer-title"
+        <Modal
+          title="Create New Customer"
+          titleId="create-customer-title"
+          onClose={cancelCreateModal}
+          closeOnBackdrop={false}
+          zClass="z-[220]"
+          maxWidthClass="max-w-xl"
+          confirmLabel="Save"
+          onConfirm={saveCreateModal}
+          confirmDisabled={!createCanSave}
         >
-          <div className="w-full max-w-md rounded-xl border border-black/15 bg-white p-6 shadow-2xl">
-            <h2 id="create-customer-title" className="type-headline-6">
-              Business Details
-            </h2>
-            <p className="type-body-muted mt-2">
-              Add the basics to create this customer. Business Legal Name is
-              required.
-            </p>
-            <div className="mt-5 flex flex-col gap-4">
-              <div>
-                <FieldLabel
-                  htmlFor="create-business-name"
-                  tip="The official name of this customer’s business—the one they use on government paperwork and contracts."
-                >
-                  {FIELD.businessLegalName}{" "}
-                  <span className="type-danger">*</span>
-                </FieldLabel>
-                <input
-                  id="create-business-name"
-                  className={inputClass}
-                  value={createDraft.businessName}
-                  onChange={(event) =>
-                    setCreateDraft((prev) => ({
-                      ...prev,
-                      businessName: event.target.value,
-                    }))
-                  }
-                  autoFocus
-                />
-              </div>
-              <div>
-                <FieldLabel htmlFor="create-email">
-                  {FIELD.businessEmail}
-                </FieldLabel>
-                <input
-                  id="create-email"
-                  type="email"
-                  className={inputClass}
-                  value={createDraft.email}
-                  onChange={(event) =>
-                    setCreateDraft((prev) => ({
-                      ...prev,
-                      email: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <FieldLabel htmlFor="create-phone">
-                  {FIELD.phoneNumber}
-                </FieldLabel>
-                <input
-                  id="create-phone"
-                  type="tel"
-                  className={inputClass}
-                  value={createDraft.phone}
-                  onChange={(event) =>
-                    setCreateDraft((prev) => ({
-                      ...prev,
-                      phone: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={saveCreateModal}
-                disabled={!createNameValid}
-                className="ui-btn-primary h-9 disabled:cursor-not-allowed disabled:opacity-40"
+          <h3 className="type-headline-6">Business Details</h3>
+          <div className="mt-5 flex flex-col gap-4">
+            <div>
+              <FieldLabel
+                htmlFor="create-business-name"
+                tip={LEGAL_NAME_TIP}
               >
-                Save
-              </button>
+                {FIELD.businessLegalName}{" "}
+                <span className="type-danger">*</span>
+              </FieldLabel>
+              <input
+                id="create-business-name"
+                className={inputClass}
+                value={createDraft.businessName}
+                onChange={(event) =>
+                  setCreateDraft((prev) => ({
+                    ...prev,
+                    businessName: event.target.value,
+                  }))
+                }
+                autoFocus
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="create-email">
+                {FIELD.businessEmail}
+              </FieldLabel>
+              <input
+                id="create-email"
+                type="email"
+                className={inputClass}
+                value={createDraft.email}
+                onChange={(event) =>
+                  setCreateDraft((prev) => ({
+                    ...prev,
+                    email: event.target.value,
+                  }))
+                }
+              />
+              {!createEmailValid ? (
+                <p className="type-danger mt-1.5">
+                  Enter a valid email address.
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <FieldLabel htmlFor="create-phone">
+                {FIELD.phoneNumber}
+              </FieldLabel>
+              <input
+                id="create-phone"
+                type="tel"
+                className={inputClass}
+                value={createDraft.phone}
+                onChange={(event) =>
+                  setCreateDraft((prev) => ({
+                    ...prev,
+                    phone: event.target.value,
+                  }))
+                }
+              />
             </div>
           </div>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
