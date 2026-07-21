@@ -13,6 +13,9 @@ import {
   formatMoney,
   getCustomerAccountSummary,
   getCustomerInvoices,
+  getCustomerQuotes,
+  hrefForCustomerInvoice,
+  hrefForCustomerQuote,
 } from "@/lib/invoice-demo-data";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
@@ -41,7 +44,7 @@ const LEGAL_NAME_TIP =
 
 /** Single source for edit FieldLabel + view ViewField copy. */
 const FIELD = {
-  businessLegalName: "Customer / Business Legal Name",
+  businessLegalName: "Business Legal Name",
   businessEmail: "Business Email",
   phoneNumber: "Phone Number",
   billingAddress: "Billing Address",
@@ -140,6 +143,9 @@ function emptyCustomerForm(
 const inputClass = UI_CLASS.input;
 
 const hoverCardClass = UI_CLASS.hoverCard;
+
+/** Static panel (no blue hover outline) — e.g. Account Summary metrics. */
+const staticCardClass = "rounded-[10px] border border-black/10";
 
 const sectionShellClass = UI_CLASS.sectionShell;
 
@@ -360,16 +366,7 @@ function BoxTitle({
   );
 }
 
-/** Stacked label + value pairs for view-mode cards. */
-function EmptyValue() {
-  return <span className="text-black/40">N/A</span>;
-}
-
-function displayOrNa(value: string | null | undefined) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : <EmptyValue />;
-}
-
+/** Stacked label + value pairs for view-mode cards. Empty values are omitted. */
 function ViewField({
   label,
   value,
@@ -377,6 +374,14 @@ function ViewField({
   label: string;
   value: ReactNode;
 }) {
+  if (
+    value == null ||
+    value === false ||
+    (typeof value === "string" && !value.trim())
+  ) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-1">
       <p className="type-subtitle-1 text-black">{label}</p>
@@ -393,18 +398,21 @@ function ViewCard({
   title,
   onEdit,
   children,
+  hideTitle = false,
 }: {
   title: string;
   onEdit: () => void;
   children: ReactNode;
+  hideTitle?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onEdit}
       className={`relative w-full px-7 pb-5 pt-7 text-left ${hoverCardClass}`}
+      aria-label={hideTitle ? title : undefined}
     >
-      <BoxTitle title={title} tone="view" />
+      {hideTitle ? null : <BoxTitle title={title} tone="view" />}
       <div className="pr-8">{children}</div>
       <span className="absolute right-4 top-4 text-black/30" aria-hidden>
         <PencilIcon />
@@ -566,6 +574,19 @@ function formFromCustomerId(id: string | null): CustomerFormState {
     province,
     postalCode,
     currency: LOCKED_CURRENCY,
+    // Demo: show compact identity strip with alternate contact when present.
+    ...(id === "acme"
+      ? {
+          contactName: "Jamie Rivera",
+          contactEmail: "ap@acmeconstruction.example",
+          useContactEmailForComms: true,
+          hasShippingAddress: true,
+          shippingAddressLine1: "88 Yard Gate",
+          shippingCity: cityPart || "Calgary",
+          shippingProvince: province || "AB",
+          shippingPostalCode: postalCode || "T2E 1A1",
+        }
+      : {}),
   };
 }
 
@@ -581,8 +602,20 @@ function SortHeader({ label }: { label: string }) {
   );
 }
 
-const CUSTOMER_TABS = ["Account Summary", "About Customer"] as const;
+const CUSTOMER_TABS = ["Account Summary", "Customer Settings"] as const;
 type CustomerTab = (typeof CUSTOMER_TABS)[number];
+
+const DOCUMENT_TABS = ["Quotes", "Invoices"] as const;
+type DocumentTab = (typeof DOCUMENT_TABS)[number];
+
+/** Customer Details card order (filled cards keep this sequence above Add links). */
+const CUSTOMER_DETAIL_ORDER = [
+  "business",
+  "contact",
+  "address",
+  "notes",
+  "tags",
+] as const;
 
 function CustomerFormInner() {
   const router = useRouter();
@@ -602,8 +635,9 @@ function CustomerFormInner() {
     Boolean(customerId),
   );
   const [tab, setTab] = useState<CustomerTab>(() =>
-    customerId ? "Account Summary" : "About Customer",
+    customerId ? "Account Summary" : "Customer Settings",
   );
+  const [documentTab, setDocumentTab] = useState<DocumentTab>("Quotes");
   const [createDraft, setCreateDraft] = useState({
     businessName: "",
     email: "",
@@ -628,7 +662,7 @@ function CustomerFormInner() {
       setDraft(next);
       setEditing(null);
       setCustomerCreated(Boolean(customerId));
-      setTab(customerId ? "Account Summary" : "About Customer");
+      setTab(customerId ? "Account Summary" : "Customer Settings");
       setCreateDraft({ businessName: "", email: "", phone: "" });
     }, 0);
   }, [customerId]);
@@ -707,7 +741,7 @@ function CustomerFormInner() {
     setSaved(next);
     setDraft(next);
     setCustomerCreated(true);
-    setTab("About Customer");
+    setTab("Customer Settings");
     setEditing(null);
   }
 
@@ -761,24 +795,78 @@ function CustomerFormInner() {
   });
 
   const invoices = getCustomerInvoices(customerId);
+  const quotes = getCustomerQuotes(customerId);
   const accountSummary = getCustomerAccountSummary(customerId);
+
+  const internalNotesEditor =
+    editing === "notes" ? (
+      <SectionEditor
+        title="Internal Notes"
+        onClose={closeEdit}
+        onSave={saveSection}
+      >
+        <p className="type-body-muted">
+          Private notes for you and your team. Customers will not see these.
+        </p>
+        <div className="relative">
+          <textarea
+            className={`${inputClass} min-h-[140px] resize-y`}
+            maxLength={1000}
+            value={draft.internalNotes}
+            onChange={(event) =>
+              patchDraft({
+                internalNotes: event.target.value.slice(0, 1000),
+              })
+            }
+            aria-label={FIELD.internalNotes}
+          />
+          <p className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-black/40">
+            {draft.internalNotes.length}/1000
+          </p>
+        </div>
+      </SectionEditor>
+    ) : null;
+
+  const internalNotesView = !notesEmpty ? (
+    <ViewCard
+      title="Internal Notes"
+      hideTitle
+      onEdit={() => startEdit("notes")}
+    >
+      <p className="type-body whitespace-pre-wrap leading-5">
+        {saved.internalNotes}
+      </p>
+    </ViewCard>
+  ) : null;
+
+  /** Shared notes UI for Customer Details (includes Add when empty). */
+  const internalNotesBlock =
+    internalNotesEditor ??
+    (notesEmpty ? (
+      <TertiaryButton onClick={() => startEdit("notes")}>
+        Add Internal Notes
+      </TertiaryButton>
+    ) : (
+      internalNotesView
+    ));
+
+  /** Account Summary: show notes only when present or actively editing — no Add CTA. */
+  const accountSummaryNotes = internalNotesEditor ?? internalNotesView;
+
+  const legalName = saved.businessName.trim();
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
 
       <main
-        className={`mx-auto max-w-[900px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16 ${
+        className={`mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16 ${
           showCreateModal ? "pointer-events-none select-none opacity-40" : ""
         }`}
       >
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="type-page-title">
-            {saved.businessName.trim()
-              ? saved.businessName.trim()
-              : isEdit
-                ? "Edit Customer"
-                : "New Customer"}
+            {legalName || (isEdit ? "Edit Customer" : "New Customer")}
           </h1>
           {!showCreateModal ? (
             <div ref={createMenuRef} className="relative shrink-0">
@@ -878,14 +966,12 @@ function CustomerFormInner() {
           </div>
         </div>
 
-        {tab === "Account Summary" ? (
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+          <div className="min-w-0 lg:order-1">
+            {tab === "Account Summary" ? (
           <section className={sectionShellClass}>
-            <div className={`px-7 pb-6 pt-7 ${hoverCardClass}`}>
-              <h2 className="type-headline-6 text-black">Account summary</h2>
-              <p className="type-body-muted mt-1">
-                Read-only totals from invoicing.
-              </p>
-              <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
+            <div className={`px-7 pb-6 pt-7 ${staticCardClass}`}>
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
                     Invoices
@@ -921,355 +1007,151 @@ function CustomerFormInner() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-              <div className="grid grid-cols-[1fr_1.2fr_0.9fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
-                <SortHeader label="Invoice" />
-                <SortHeader label="Client" />
-                <SortHeader label="Status" />
-                <SortHeader label="Due Date" />
-                <SortHeader label="Amount" />
-              </div>
+            {accountSummaryNotes}
 
-              {invoices.length > 0 ? (
-                <ul>
-                  {invoices.map((invoice, index) => (
-                    <li
-                      key={invoice.id}
-                      className={`grid grid-cols-[1fr_1.2fr_0.9fr_1fr_0.9fr] gap-3 px-5 py-3.5 text-sm text-black ${
-                        index < invoices.length - 1
-                          ? "border-b border-black/10"
-                          : ""
+            <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+              <div className="flex flex-wrap gap-1 border-b border-black/10 px-5 py-3">
+                {DOCUMENT_TABS.map((id) => {
+                  const active = documentTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setDocumentTab(id)}
+                      className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                        active
+                          ? "bg-midnight-ink text-white"
+                          : "bg-transparent text-black hover:bg-black/[0.04]"
                       }`}
                     >
-                      <span className="font-medium">{invoice.number}</span>
-                      <span className="truncate">{invoice.client}</span>
-                      <span>{invoice.status}</span>
-                      <span>{invoice.dueDate}</span>
-                      <span className="font-medium">
-                        {formatMoney(invoice.amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                      {id}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {documentTab === "Quotes" ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <div className="grid min-w-[640px] grid-cols-[1fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
+                      <SortHeader label="Quote ID" />
+                      <SortHeader label="Date Created" />
+                      <SortHeader label="Expiry Date" />
+                      <SortHeader label="Total Amount" />
+                      <SortHeader label="Status" />
+                    </div>
+                    {quotes.length > 0 ? (
+                      <ul className="min-w-[640px]">
+                        {quotes.map((quote, index) => (
+                          <li key={quote.id}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(hrefForCustomerQuote(quote.status))
+                              }
+                              className={`grid w-full grid-cols-[1fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 px-5 py-3.5 text-left text-sm text-black transition hover:bg-prime-blue/5 ${
+                                index < quotes.length - 1
+                                  ? "border-b border-black/10"
+                                  : ""
+                              }`}
+                            >
+                              <span className="font-medium">{quote.number}</span>
+                              <span>{quote.dateCreated}</span>
+                              <span>{quote.expiryDate}</span>
+                              <span className="font-medium">
+                                {formatMoney(quote.amount)}
+                              </span>
+                              <span>{quote.status}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="px-5 py-12 text-center">
+                        <p className="type-body-muted">
+                          No quotes yet for this customer.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => router.push("/quote")}
+                          className="type-link mt-3 text-sm font-semibold text-prime-blue"
+                        >
+                          Create Quote
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
-                <div className="px-5 py-12 text-center type-body-muted">
-                  No invoices yet for this customer.
-                </div>
+                <>
+                  <div className="overflow-x-auto">
+                    <div className="grid min-w-[860px] grid-cols-[0.8fr_1fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
+                      <SortHeader label="Invoice ID" />
+                      <SortHeader label="Milestone Phase" />
+                      <SortHeader label="Date Issued" />
+                      <SortHeader label="Due Date" />
+                      <SortHeader label="Total Amount" />
+                      <SortHeader label="Balance Outstanding" />
+                      <SortHeader label="Status" />
+                    </div>
+                    {invoices.length > 0 ? (
+                      <ul className="min-w-[860px]">
+                        {invoices.map((invoice, index) => (
+                          <li key={invoice.id}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(
+                                  hrefForCustomerInvoice(invoice.status),
+                                )
+                              }
+                              className={`grid w-full grid-cols-[0.8fr_1fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 px-5 py-3.5 text-left text-sm text-black transition hover:bg-prime-blue/5 ${
+                                index < invoices.length - 1
+                                  ? "border-b border-black/10"
+                                  : ""
+                              }`}
+                            >
+                              <span className="font-medium">
+                                {invoice.number}
+                              </span>
+                              <span>
+                                {invoice.milestonePhase ?? (
+                                  <span className="text-black/40">—</span>
+                                )}
+                              </span>
+                              <span>{invoice.dateIssued}</span>
+                              <span>{invoice.dueDate}</span>
+                              <span className="font-medium">
+                                {formatMoney(invoice.amount)}
+                              </span>
+                              <span className="font-medium">
+                                {formatMoney(invoice.balanceOutstanding)}
+                              </span>
+                              <span>{invoice.status}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="px-5 py-12 text-center">
+                        <p className="type-body-muted">
+                          No invoices yet for this customer.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => router.push("/")}
+                          className="type-link mt-3 text-sm font-semibold text-prime-blue"
+                        >
+                          Create Invoice
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </section>
         ) : (
-        <div className="flex flex-col gap-5">
-          {/* Customer Details */}
-          <section className={sectionShellClass}>
-            <SectionHeader title="Customer Details" />
-            {editing === "business" ? (
-              <SectionEditor
-                title="Business Details"
-                onClose={closeEdit}
-                onSave={saveSection}
-                saveDisabled={businessSaveDisabled}
-              >
-                <div>
-                  <FieldLabel htmlFor="business-name" tip={LEGAL_NAME_TIP}>
-                    {FIELD.businessLegalName}{" "}
-                    <span className="type-danger">*</span>
-                  </FieldLabel>
-                  <input
-                    id="business-name"
-                    className={inputClass}
-                    value={draft.businessName}
-                    onChange={(event) =>
-                      patchDraft({ businessName: event.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <FieldLabel htmlFor="email">{FIELD.businessEmail}</FieldLabel>
-                  <input
-                    id="email"
-                    type="email"
-                    className={inputClass}
-                    value={draft.email}
-                    onChange={(event) =>
-                      patchDraft({ email: event.target.value })
-                    }
-                  />
-                  {draft.email.trim() && !isValidEmail(draft.email) ? (
-                    <p className="type-danger mt-1.5">
-                      Enter a valid email address.
-                    </p>
-                  ) : null}
-                </div>
-                <div>
-                  <FieldLabel htmlFor="phone">{FIELD.phoneNumber}</FieldLabel>
-                  <input
-                    id="phone"
-                    type="tel"
-                    className={inputClass}
-                    value={draft.phone}
-                    onChange={(event) =>
-                      patchDraft({ phone: event.target.value })
-                    }
-                  />
-                </div>
-              </SectionEditor>
-            ) : businessEmpty ? (
-              <TertiaryButton onClick={() => startEdit("business")}>
-                Add Business Details
-              </TertiaryButton>
-            ) : (
-              <ViewCard
-                title="Business Details"
-                onEdit={() => startEdit("business")}
-              >
-                <ViewFieldList>
-                  <ViewField
-                    label={FIELD.businessLegalName}
-                    value={displayOrNa(saved.businessName)}
-                  />
-                  <ViewField
-                    label={FIELD.businessEmail}
-                    value={
-                      saved.email.trim() ? (
-                        <>
-                          {saved.email}
-                          {saved.useContactEmailForComms ? (
-                            <p className="type-body-muted mt-0.5">
-                              Emails are not sent here.
-                            </p>
-                          ) : null}
-                        </>
-                      ) : (
-                        <EmptyValue />
-                      )
-                    }
-                  />
-                  <ViewField
-                    label={FIELD.phoneNumber}
-                    value={displayOrNa(saved.phone)}
-                  />
-                </ViewFieldList>
-              </ViewCard>
-            )}
-
-            {editing === "address" ? (
-              <SectionEditor
-                title="Address"
-                onClose={closeEdit}
-                onSave={saveSection}
-                saveDisabled={addressSaveDisabled}
-              >
-                <p className="type-body-muted -mt-2">
-                  Billing locality is used for CRA alignment and tax
-                  calculations. Province / Territory is required.
-                </p>
-                <AddressFields
-                  idPrefix="billing"
-                  requireProvince
-                  values={{
-                    addressLine1: draft.addressLine1,
-                    addressLine2: draft.addressLine2,
-                    city: draft.city,
-                    province: draft.province,
-                    postalCode: draft.postalCode,
-                  }}
-                  onChange={(patch) => patchDraft(patch)}
-                />
-                {!draft.province.trim() ? (
-                  <p className="type-danger -mt-2">
-                    Select a province or territory to enable tax calculations.
-                  </p>
-                ) : null}
-                <div>
-                  <CheckboxRow
-                    checked={draft.hasShippingAddress}
-                    onChange={setShippingEnabled}
-                    label={FIELD.addShipping}
-                  />
-                </div>
-                {draft.hasShippingAddress ? (
-                  <div className={`flex flex-col gap-4 ${sectionDividerClass}`}>
-                    <h4 className="type-subtitle-1">{FIELD.shippingAddress}</h4>
-                    <AddressFields
-                      idPrefix="shipping"
-                      values={{
-                        addressLine1: draft.shippingAddressLine1,
-                        addressLine2: draft.shippingAddressLine2,
-                        city: draft.shippingCity,
-                        province: draft.shippingProvince,
-                        postalCode: draft.shippingPostalCode,
-                      }}
-                      onChange={(patch) =>
-                        patchDraft({
-                          shippingAddressLine1:
-                            patch.addressLine1 ?? draft.shippingAddressLine1,
-                          shippingAddressLine2:
-                            patch.addressLine2 ?? draft.shippingAddressLine2,
-                          shippingCity: patch.city ?? draft.shippingCity,
-                          shippingProvince:
-                            patch.province ?? draft.shippingProvince,
-                          shippingPostalCode:
-                            patch.postalCode ?? draft.shippingPostalCode,
-                        })
-                      }
-                    />
-                  </div>
-                ) : null}
-              </SectionEditor>
-            ) : addressEmpty ? (
-              <TertiaryButton onClick={() => startEdit("address")}>
-                Add Address
-              </TertiaryButton>
-            ) : (
-              <ViewCard title="Address" onEdit={() => startEdit("address")}>
-                <ViewFieldList>
-                  <ViewField
-                    label={FIELD.billingAddress}
-                    value={
-                      billingLines ? billingLines.join(", ") : <EmptyValue />
-                    }
-                  />
-                  <ViewField
-                    label={FIELD.shippingAddress}
-                    value={
-                      saved.hasShippingAddress
-                        ? shippingLines
-                          ? shippingLines.join(", ")
-                          : <EmptyValue />
-                        : <EmptyValue />
-                    }
-                  />
-                </ViewFieldList>
-              </ViewCard>
-            )}
-
-            {editing === "contact" ? (
-              <SectionEditor
-                title="Contact Info"
-                onClose={closeEdit}
-                onSave={saveSection}
-                saveDisabled={contactSaveDisabled}
-              >
-                <div>
-                  <FieldLabel htmlFor="contact-name">
-                    {FIELD.contactName}
-                  </FieldLabel>
-                  <input
-                    id="contact-name"
-                    className={inputClass}
-                    value={draft.contactName}
-                    onChange={(event) =>
-                      patchDraft({ contactName: event.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <FieldLabel htmlFor="contact-email">
-                    {FIELD.contactEmail}
-                  </FieldLabel>
-                  <input
-                    id="contact-email"
-                    type="email"
-                    className={inputClass}
-                    value={draft.contactEmail}
-                    onChange={(event) =>
-                      patchDraft({ contactEmail: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <CheckboxRow
-                    checked={draft.useContactEmailForComms}
-                    onChange={(checked) =>
-                      patchDraft({ useContactEmailForComms: checked })
-                    }
-                    label={FIELD.sendCommsHere}
-                  />
-                  {draft.useContactEmailForComms &&
-                  !isValidEmail(draft.contactEmail) ? (
-                    <p className="type-danger pl-7">
-                      Enter a valid contact email to use this option.
-                    </p>
-                  ) : null}
-                </div>
-              </SectionEditor>
-            ) : contactEmpty ? (
-              <TertiaryButton onClick={() => startEdit("contact")}>
-                Add Contact Info
-              </TertiaryButton>
-            ) : (
-              <ViewCard
-                title="Contact Info"
-                onEdit={() => startEdit("contact")}
-              >
-                <ViewFieldList>
-                  <ViewField
-                    label={FIELD.contactName}
-                    value={displayOrNa(saved.contactName)}
-                  />
-                  <ViewField
-                    label={FIELD.contactEmail}
-                    value={
-                      saved.contactEmail.trim() ? (
-                        <>
-                          {saved.contactEmail}
-                          {saved.useContactEmailForComms ? (
-                            <p className="type-body-muted mt-0.5">
-                              All communications are sent to this email.
-                            </p>
-                          ) : null}
-                        </>
-                      ) : (
-                        <EmptyValue />
-                      )
-                    }
-                  />
-                </ViewFieldList>
-              </ViewCard>
-            )}
-
-            {editing === "tags" ? (
-              <SectionEditor
-                title="Tags"
-                onClose={closeEdit}
-                onSave={saveSection}
-              >
-                <p className="type-body-muted -mt-2">
-                  Group accounts for filtering (for example, VIP or Contractor).
-                </p>
-                <div className="flex flex-col gap-2.5">
-                  {CUSTOMER_TAG_OPTIONS.map((tag) => (
-                    <CheckboxRow
-                      key={tag}
-                      checked={draft.tags.includes(tag)}
-                      onChange={() => toggleTag(tag)}
-                      label={tag}
-                    />
-                  ))}
-                </div>
-              </SectionEditor>
-            ) : tagsEmpty ? (
-              <TertiaryButton onClick={() => startEdit("tags")}>
-                Add Tags
-              </TertiaryButton>
-            ) : (
-              <ViewCard title="Tags" onEdit={() => startEdit("tags")}>
-                <div className="flex flex-wrap gap-2">
-                  {saved.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-md bg-prime-blue/10 px-2.5 py-1 text-sm font-semibold text-prime-blue"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </ViewCard>
-            )}
-          </section>
-
-          {/* Default Settings */}
           <section className={sectionShellClass}>
             <SectionHeader
               title="Default Settings"
@@ -1345,21 +1227,19 @@ function CustomerFormInner() {
                 <ViewFieldList>
                   <ViewField
                     label={FIELD.taxSetting}
-                    value={saved.taxStatus}
+                    value={saved.taxStatus.trim() || null}
                   />
                   <ViewField
                     label={FIELD.quoteExpiry}
                     value={
-                      saved.quoteExpiryDays.trim() ? (
-                        `${saved.quoteExpiryDays} days`
-                      ) : (
-                        <EmptyValue />
-                      )
+                      saved.quoteExpiryDays.trim()
+                        ? `${saved.quoteExpiryDays} days`
+                        : null
                     }
                   />
                   <ViewField
                     label={FIELD.paymentTerms}
-                    value={displayOrNa(saved.paymentTerms)}
+                    value={saved.paymentTerms.trim() || null}
                   />
                 </ViewFieldList>
               </ViewCard>
@@ -1431,28 +1311,26 @@ function CustomerFormInner() {
                 onEdit={() => startEdit("paymentPreferences")}
               >
                 <ViewFieldList>
-                  {saved.paymentPreferences.length ? (
-                    saved.paymentPreferences.map((option) => {
-                      const method = CORE_PAYMENT_METHODS.find(
-                        (entry) => entry.label === option,
-                      );
-                      const costSummary = method?.details
-                        .filter((detail) =>
-                          detail.label.startsWith("Cost to"),
-                        )
-                        .map((detail) => `${detail.label}: ${detail.text}`)
-                        .join(" · ");
-                      return (
-                        <ViewField
-                          key={option}
-                          label={option}
-                          value={costSummary || "Accepted"}
-                        />
-                      );
-                    })
-                  ) : (
-                    <ViewField label="Selected" value="None selected" />
-                  )}
+                  {saved.paymentPreferences.length
+                    ? saved.paymentPreferences.map((option) => {
+                        const method = CORE_PAYMENT_METHODS.find(
+                          (entry) => entry.label === option,
+                        );
+                        const costSummary = method?.details
+                          .filter((detail) =>
+                            detail.label.startsWith("Cost to"),
+                          )
+                          .map((detail) => `${detail.label}: ${detail.text}`)
+                          .join(" · ");
+                        return (
+                          <ViewField
+                            key={option}
+                            label={option}
+                            value={costSummary || "Accepted"}
+                          />
+                        );
+                      })
+                    : null}
                 </ViewFieldList>
               </ViewCard>
             )}
@@ -1513,86 +1391,402 @@ function CustomerFormInner() {
                 <ViewFieldList>
                   <ViewField
                     label={FIELD.autoSend}
-                    value={saved.autoSend ? "On" : "Off"}
+                    value={saved.autoSend ? "On" : null}
                   />
                   <ViewField
                     label={FIELD.reminders}
                     value={
-                      saved.reminders ? (
-                        saved.reminderDays.trim() ? (
-                          `On · ${saved.reminderDays} days before`
-                        ) : (
-                          <>
-                            On · <EmptyValue />
-                          </>
-                        )
-                      ) : (
-                        "Off"
-                      )
+                      saved.reminders
+                        ? saved.reminderDays.trim()
+                          ? `On · ${saved.reminderDays} days before`
+                          : "On"
+                        : null
                     }
                   />
                   <ViewField
                     label={FIELD.receipts}
-                    value={saved.receipts ? "On" : "Off"}
+                    value={saved.receipts ? "On" : null}
                   />
                 </ViewFieldList>
               </ViewCard>
             )}
           </section>
-
-          {/* Internal Notes */}
-          <section className={sectionShellClass}>
-            {editing === "notes" ? (
-              <SectionEditor
-                title="Internal Notes"
-                onClose={closeEdit}
-                onSave={saveSection}
-              >
-                <p className="type-body-muted">
-                  Private notes for you and your team. Customers will not see
-                  these.
-                </p>
-                <div className="relative">
-                  <textarea
-                    className={`${inputClass} min-h-[140px] resize-y`}
-                    maxLength={1000}
-                    value={draft.internalNotes}
-                    onChange={(event) =>
-                      patchDraft({
-                        internalNotes: event.target.value.slice(0, 1000),
-                      })
-                    }
-                    aria-label={FIELD.internalNotes}
-                  />
-                  <p className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-black/40">
-                    {draft.internalNotes.length}/1000
-                  </p>
-                </div>
-              </SectionEditor>
-            ) : notesEmpty ? (
-              <TertiaryButton onClick={() => startEdit("notes")}>
-                Add Internal Notes
-              </TertiaryButton>
-            ) : (
-              <ViewCard
-                title="Internal Notes"
-                onEdit={() => startEdit("notes")}
-              >
-                <ViewFieldList>
-                  <ViewField
-                    label={FIELD.internalNotes}
-                    value={
-                      <p className="whitespace-pre-wrap leading-5">
-                        {saved.internalNotes}
-                      </p>
-                    }
-                  />
-                </ViewFieldList>
-              </ViewCard>
-            )}
-          </section>
-        </div>
         )}
+          </div>
+
+          <aside className="min-w-0 max-lg:order-first lg:sticky lg:top-6 lg:order-2">
+            {/* Customer Details — filled/editing cards above remaining Add links */}
+            <section className={sectionShellClass}>
+              <SectionHeader title="Customer Details" />
+              {(
+                [
+                  {
+                    key: "business",
+                    filled: editing === "business" || !businessEmpty,
+                    node:
+                      editing === "business" ? (
+                        <SectionEditor
+                          title="Business Details"
+                          onClose={closeEdit}
+                          onSave={saveSection}
+                          saveDisabled={businessSaveDisabled}
+                        >
+                          <div>
+                            <FieldLabel
+                              htmlFor="business-name"
+                              tip={LEGAL_NAME_TIP}
+                            >
+                              {FIELD.businessLegalName}{" "}
+                              <span className="type-danger">*</span>
+                            </FieldLabel>
+                            <input
+                              id="business-name"
+                              className={inputClass}
+                              value={draft.businessName}
+                              onChange={(event) =>
+                                patchDraft({ businessName: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel htmlFor="email">
+                              {FIELD.businessEmail}
+                            </FieldLabel>
+                            <input
+                              id="email"
+                              type="email"
+                              className={inputClass}
+                              value={draft.email}
+                              onChange={(event) =>
+                                patchDraft({ email: event.target.value })
+                              }
+                            />
+                            {draft.email.trim() && !isValidEmail(draft.email) ? (
+                              <p className="type-danger mt-1.5">
+                                Enter a valid email address.
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <FieldLabel htmlFor="phone">
+                              {FIELD.phoneNumber}
+                            </FieldLabel>
+                            <input
+                              id="phone"
+                              type="tel"
+                              className={inputClass}
+                              value={draft.phone}
+                              onChange={(event) =>
+                                patchDraft({ phone: event.target.value })
+                              }
+                            />
+                          </div>
+                        </SectionEditor>
+                      ) : businessEmpty ? (
+                        <TertiaryButton onClick={() => startEdit("business")}>
+                          Add Business Details
+                        </TertiaryButton>
+                      ) : (
+                        <ViewCard
+                          title="Business Details"
+                          hideTitle
+                          onEdit={() => startEdit("business")}
+                        >
+                          <ViewFieldList>
+                            <ViewField
+                              label={FIELD.businessLegalName}
+                              value={saved.businessName.trim() || null}
+                            />
+                            <ViewField
+                              label={FIELD.businessEmail}
+                              value={
+                                saved.email.trim() ? (
+                                  <>
+                                    {saved.email}
+                                    {saved.useContactEmailForComms ? (
+                                      <p className="type-body-muted mt-0.5">
+                                        Emails are not sent here.
+                                      </p>
+                                    ) : null}
+                                  </>
+                                ) : null
+                              }
+                            />
+                            <ViewField
+                              label={FIELD.phoneNumber}
+                              value={saved.phone.trim() || null}
+                            />
+                          </ViewFieldList>
+                        </ViewCard>
+                      ),
+                  },
+                  {
+                    key: "address",
+                    filled: editing === "address" || !addressEmpty,
+                    node:
+                      editing === "address" ? (
+                        <SectionEditor
+                          title="Address"
+                          onClose={closeEdit}
+                          onSave={saveSection}
+                          saveDisabled={addressSaveDisabled}
+                        >
+                          <p className="type-body-muted -mt-2">
+                            Billing locality is used for CRA alignment and tax
+                            calculations. Province / Territory is required.
+                          </p>
+                          <AddressFields
+                            idPrefix="billing"
+                            requireProvince
+                            values={{
+                              addressLine1: draft.addressLine1,
+                              addressLine2: draft.addressLine2,
+                              city: draft.city,
+                              province: draft.province,
+                              postalCode: draft.postalCode,
+                            }}
+                            onChange={(patch) => patchDraft(patch)}
+                          />
+                          {!draft.province.trim() ? (
+                            <p className="type-danger -mt-2">
+                              Select a province or territory to enable tax
+                              calculations.
+                            </p>
+                          ) : null}
+                          <div>
+                            <CheckboxRow
+                              checked={draft.hasShippingAddress}
+                              onChange={setShippingEnabled}
+                              label={FIELD.addShipping}
+                            />
+                          </div>
+                          {draft.hasShippingAddress ? (
+                            <div
+                              className={`flex flex-col gap-4 ${sectionDividerClass}`}
+                            >
+                              <h4 className="type-subtitle-1">
+                                {FIELD.shippingAddress}
+                              </h4>
+                              <AddressFields
+                                idPrefix="shipping"
+                                values={{
+                                  addressLine1: draft.shippingAddressLine1,
+                                  addressLine2: draft.shippingAddressLine2,
+                                  city: draft.shippingCity,
+                                  province: draft.shippingProvince,
+                                  postalCode: draft.shippingPostalCode,
+                                }}
+                                onChange={(patch) =>
+                                  patchDraft({
+                                    shippingAddressLine1:
+                                      patch.addressLine1 ??
+                                      draft.shippingAddressLine1,
+                                    shippingAddressLine2:
+                                      patch.addressLine2 ??
+                                      draft.shippingAddressLine2,
+                                    shippingCity:
+                                      patch.city ?? draft.shippingCity,
+                                    shippingProvince:
+                                      patch.province ?? draft.shippingProvince,
+                                    shippingPostalCode:
+                                      patch.postalCode ??
+                                      draft.shippingPostalCode,
+                                  })
+                                }
+                              />
+                            </div>
+                          ) : null}
+                        </SectionEditor>
+                      ) : addressEmpty ? (
+                        <TertiaryButton onClick={() => startEdit("address")}>
+                          Add Address
+                        </TertiaryButton>
+                      ) : (
+                        <ViewCard
+                          title="Address"
+                          hideTitle
+                          onEdit={() => startEdit("address")}
+                        >
+                          <ViewFieldList>
+                            <ViewField
+                              label={FIELD.billingAddress}
+                              value={
+                                billingLines ? billingLines.join(", ") : null
+                              }
+                            />
+                            <ViewField
+                              label={FIELD.shippingAddress}
+                              value={
+                                saved.hasShippingAddress && shippingLines
+                                  ? shippingLines.join(", ")
+                                  : null
+                              }
+                            />
+                          </ViewFieldList>
+                        </ViewCard>
+                      ),
+                  },
+                  {
+                    key: "contact",
+                    filled: editing === "contact" || !contactEmpty,
+                    node:
+                      editing === "contact" ? (
+                        <SectionEditor
+                          title="Contact Info"
+                          onClose={closeEdit}
+                          onSave={saveSection}
+                          saveDisabled={contactSaveDisabled}
+                        >
+                          <div>
+                            <FieldLabel htmlFor="contact-name">
+                              {FIELD.contactName}
+                            </FieldLabel>
+                            <input
+                              id="contact-name"
+                              className={inputClass}
+                              value={draft.contactName}
+                              onChange={(event) =>
+                                patchDraft({ contactName: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel htmlFor="contact-email">
+                              {FIELD.contactEmail}
+                            </FieldLabel>
+                            <input
+                              id="contact-email"
+                              type="email"
+                              className={inputClass}
+                              value={draft.contactEmail}
+                              onChange={(event) =>
+                                patchDraft({ contactEmail: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <CheckboxRow
+                              checked={draft.useContactEmailForComms}
+                              onChange={(checked) =>
+                                patchDraft({ useContactEmailForComms: checked })
+                              }
+                              label={FIELD.sendCommsHere}
+                            />
+                            {draft.useContactEmailForComms &&
+                            !isValidEmail(draft.contactEmail) ? (
+                              <p className="type-danger pl-7">
+                                Enter a valid contact email to use this option.
+                              </p>
+                            ) : null}
+                          </div>
+                        </SectionEditor>
+                      ) : contactEmpty ? (
+                        <TertiaryButton onClick={() => startEdit("contact")}>
+                          Add Contact Info
+                        </TertiaryButton>
+                      ) : (
+                        <ViewCard
+                          title="Contact Info"
+                          hideTitle
+                          onEdit={() => startEdit("contact")}
+                        >
+                          <ViewFieldList>
+                            <ViewField
+                              label={FIELD.contactName}
+                              value={saved.contactName.trim() || null}
+                            />
+                            <ViewField
+                              label={FIELD.contactEmail}
+                              value={
+                                saved.contactEmail.trim() ? (
+                                  <>
+                                    {saved.contactEmail}
+                                    {saved.useContactEmailForComms ? (
+                                      <p className="type-body-muted mt-0.5">
+                                        All communications are sent to this
+                                        email.
+                                      </p>
+                                    ) : null}
+                                  </>
+                                ) : null
+                              }
+                            />
+                          </ViewFieldList>
+                        </ViewCard>
+                      ),
+                  },
+                  {
+                    key: "tags",
+                    filled: editing === "tags" || !tagsEmpty,
+                    node:
+                      editing === "tags" ? (
+                        <SectionEditor
+                          title="Tags"
+                          onClose={closeEdit}
+                          onSave={saveSection}
+                        >
+                          <p className="type-body-muted -mt-2">
+                            Group accounts for filtering (for example, VIP or
+                            Contractor).
+                          </p>
+                          <div className="flex flex-col gap-2.5">
+                            {CUSTOMER_TAG_OPTIONS.map((tag) => (
+                              <CheckboxRow
+                                key={tag}
+                                checked={draft.tags.includes(tag)}
+                                onChange={() => toggleTag(tag)}
+                                label={tag}
+                              />
+                            ))}
+                          </div>
+                        </SectionEditor>
+                      ) : tagsEmpty ? (
+                        <TertiaryButton onClick={() => startEdit("tags")}>
+                          Add Tags
+                        </TertiaryButton>
+                      ) : (
+                        <ViewCard
+                          title="Tags"
+                          hideTitle
+                          onEdit={() => startEdit("tags")}
+                        >
+                          <div className="flex flex-wrap gap-2">
+                            {saved.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-md bg-prime-blue/10 px-2.5 py-1 text-sm font-semibold text-prime-blue"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </ViewCard>
+                      ),
+                  },
+                  {
+                    key: "notes",
+                    filled: editing === "notes" || !notesEmpty,
+                    node: internalNotesBlock,
+                  },
+                ] as const
+              )
+                .slice()
+                .sort((a, b) => {
+                  if (a.filled !== b.filled) {
+                    return Number(b.filled) - Number(a.filled);
+                  }
+                  return (
+                    CUSTOMER_DETAIL_ORDER.indexOf(a.key) -
+                    CUSTOMER_DETAIL_ORDER.indexOf(b.key)
+                  );
+                })
+                .map((slot) => (
+                  <div key={slot.key}>{slot.node}</div>
+                ))}
+            </section>
+          </aside>
+        </div>
+
       </main>
 
       {showCreateModal ? (

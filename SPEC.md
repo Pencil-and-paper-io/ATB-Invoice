@@ -122,7 +122,7 @@ Aligned with Epic 1 (Customer Profile).
 **New customer**
 
 1. Page loads with a **blocking modal**: Business Details fields.
-2. **Customer / Business Legal Name is mandatory** (CRA/CSBFL tooltip); Save disabled until non-empty.
+2. **Business Legal Name is mandatory** (CRA/CSBFL tooltip); Save disabled until non-empty.
 3. Primary Business Email optional but format-validated when present; phone optional.
 4. On Save: modal closes; page title becomes the legal name; land on **About Customer** tab.
 5. Behind the modal the page is dimmed and non-interactive.
@@ -134,21 +134,19 @@ Aligned with Epic 1 (Customer Profile).
 
 **Tabs (order)**
 
-1. **Account Summary** — read-only totals + invoice table; empty for brand-new customers.
-2. **About Customer** — profile sections (details, address, contact, tags, settings, payment preferences, automations, notes).
+1. **Account Summary** — totals + notes (when present) + Quotes / Invoices tables.
+2. **Customer Settings** — Default Settings (tax, quote expiry, payment terms, payment preferences, automations).
 
-**Header**
+**Layout:** page title = legal name only (+ Create New). Tabs full-width, then two columns: left = tab content (metrics / settings); right = **Customer Details** (top-aligned with that content; sticky on desktop).
 
-- Title = saved business legal name (fallback: “New Customer” / “Edit Customer”).
-- Top-right primary button: **Create Invoice for {name}** → `/` (hidden while create modal is open).
-
-**About Customer field rules**
+**Customer Details (right column):** business → contact → address → notes → tags — filled cards above remaining Add links (same order).
 
 - Contact: checkbox *Contact information is different (e.g., Accounts Payable)* → Contact Name (optional) + Contact Email (required); communications route to contact email.
 - Billing: Street, City, Province/Territory (**13 CA dropdown, required for tax**), Postal; optional Address Line 2.
 - Shipping: checkbox *Add shipping address or service address* clones billing on check; shipping edits do not overwrite billing.
 - Tags: multi-select (VIP, Contractor, …).
-- Internal notes: multiline, customers never see them.
+- Internal notes: under Customer Details (and on Account Summary when present); view cards show title only (no duplicate label). Multiline; customers never see them.
+- Customer Details ordering: business → contact → address → notes → tags; completed/editing cards stay above remaining “Add …” links.
 - Currency: locked **CAD** (no dropdown). Invoice/quote builders show badge *Invoice Total in CAD (Canadian Dollars)*.
 - Quote expiry / payment terms / payment methods cascade from org settings with local override.
 
@@ -158,7 +156,7 @@ Aligned with Epic 1 (Customer Profile).
 2. Customer directory `/customers` → **+ Create new customer**.
 3. Bill-to dropdown on invoice/quote → **+ Create new customer**.
 
-**About Customer sections** mirror org patterns (view/edit cards). Settings / payment preferences / automations **seed from org cascade defaults**.
+**Customer Settings** sections mirror org patterns (view/edit cards). Settings / payment preferences / automations **seed from org cascade defaults**.
 
 ### 5.4 Payment options
 

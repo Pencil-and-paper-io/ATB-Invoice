@@ -361,10 +361,22 @@ export function formatMoney(value: number) {
 export type CustomerInvoiceRow = {
   id: string;
   number: string;
-  client: string;
-  status: string;
+  milestonePhase: string | null;
+  dateIssued: string;
   dueDate: string;
   amount: number;
+  balanceOutstanding: number;
+  status: string;
+  customerId: string;
+};
+
+export type CustomerQuoteRow = {
+  id: string;
+  number: string;
+  dateCreated: string;
+  expiryDate: string;
+  amount: number;
+  status: string;
   customerId: string;
 };
 
@@ -373,28 +385,65 @@ export const customerInvoices: CustomerInvoiceRow[] = [
   {
     id: "inv-acme-1",
     number: "3001",
-    client: "Acme Construction Co",
-    status: "Sent",
+    milestonePhase: "Deposit",
+    dateIssued: "Mar 12, 2026",
     dueDate: "Apr 12, 2026",
     amount: 2187.5,
+    balanceOutstanding: 2187.5,
+    status: "Sent",
     customerId: "acme",
   },
   {
     id: "inv-acme-2",
     number: "3002",
-    client: "Acme Construction Co",
-    status: "Overdue",
+    milestonePhase: null,
+    dateIssued: "Feb 1, 2026",
     dueDate: "Mar 1, 2026",
     amount: 2187.5,
+    balanceOutstanding: 2187.5,
+    status: "Overdue",
     customerId: "acme",
   },
   {
     id: "inv-acme-3",
     number: "3003",
-    client: "Acme Construction Co",
-    status: "Viewed",
+    milestonePhase: "Progress",
+    dateIssued: "Apr 3, 2026",
     dueDate: "May 3, 2026",
     amount: 2187.5,
+    balanceOutstanding: 1400,
+    status: "Partially Paid",
+    customerId: "acme",
+  },
+];
+
+/** Demo quotes tied to customers for the customer profile page. */
+export const customerQuotes: CustomerQuoteRow[] = [
+  {
+    id: "quo-acme-1",
+    number: "Q-104",
+    dateCreated: "Jan 8, 2026",
+    expiryDate: "Feb 8, 2026",
+    amount: 4200,
+    status: "Accepted",
+    customerId: "acme",
+  },
+  {
+    id: "quo-acme-2",
+    number: "Q-118",
+    dateCreated: "Mar 20, 2026",
+    expiryDate: "Apr 20, 2026",
+    amount: 1850,
+    status: "Sent",
+    customerId: "acme",
+  },
+  {
+    id: "quo-acme-3",
+    number: "Q-121",
+    dateCreated: "Apr 2, 2026",
+    expiryDate: "May 2, 2026",
+    amount: 990,
+    status: "Draft",
     customerId: "acme",
   },
 ];
@@ -404,9 +453,41 @@ export function getCustomerInvoices(customerId: string | null) {
   return customerInvoices.filter((invoice) => invoice.customerId === customerId);
 }
 
+export function getCustomerQuotes(customerId: string | null) {
+  if (!customerId) return [];
+  return customerQuotes.filter((quote) => quote.customerId === customerId);
+}
+
+export function hrefForCustomerInvoice(status: string) {
+  const key = status.toLowerCase();
+  if (key === "draft") return "/";
+  if (key === "viewed") return "/sent/viewed";
+  if (key === "paid") return "/sent/paid";
+  if (key === "overdue") return "/sent/overdue";
+  if (key === "uncollectible") return "/sent/uncollectible";
+  if (key === "void") return "/sent/void";
+  return "/sent";
+}
+
+export function hrefForCustomerQuote(status: string) {
+  const key = status.toLowerCase();
+  if (key === "draft") return "/quote";
+  if (key === "viewed") return "/quote/viewed";
+  if (key === "rejected") return "/quote/rejected";
+  if (key === "expired") return "/quote/expired";
+  if (key === "void") return "/quote/void";
+  if (key === "accepted") return "/?from=quote";
+  return "/quote/sent";
+}
+
 export function getCustomerAccountSummary(customerId: string | null) {
   const invoices = getCustomerInvoices(customerId);
   const totalInvoiced = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+  const outstanding = invoices.reduce(
+    (sum, invoice) => sum + invoice.balanceOutstanding,
+    0,
+  );
+  const paid = Math.max(0, totalInvoiced - outstanding);
   // Demo: Acme matches the account-summary mock (paid $0, outstanding less than total).
   if (customerId === "acme") {
     return {
@@ -419,7 +500,7 @@ export function getCustomerAccountSummary(customerId: string | null) {
   return {
     invoiceCount: invoices.length,
     totalInvoiced,
-    paid: 0,
-    outstanding: totalInvoiced,
+    paid,
+    outstanding,
   };
 }
