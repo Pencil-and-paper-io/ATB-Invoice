@@ -423,6 +423,7 @@ export function OnboardingWizardView() {
   const [finishing, setFinishing] = useState(false);
   const [editingBusinessName, setEditingBusinessName] = useState(false);
   const [showPaymentConfirmError, setShowPaymentConfirmError] = useState(false);
+  const [gstHstShowError, setGstHstShowError] = useState(false);
   const [state, setState] = useState<WizardState>(() =>
     settingsToWizard(loadOrganizationSettings()),
   );
@@ -773,15 +774,16 @@ export function OnboardingWizardView() {
                             checked={
                               state.gstRegistrationStatus === option.value
                             }
-                            onChange={() =>
+                            onChange={() => {
+                              setGstHstShowError(false);
                               patch({
                                 gstRegistrationStatus: option.value,
                                 gstHstNumber:
                                   option.value === "registered"
                                     ? state.gstHstNumber
                                     : "",
-                              })
-                            }
+                              });
+                            }}
                           />
                           <span>{option.label}</span>
                         </label>
@@ -805,7 +807,19 @@ export function OnboardingWizardView() {
                         {option.value === "registered" &&
                         state.gstRegistrationStatus === "registered" ? (
                           <div className="mt-1.5 pl-6">
-                            <div className="flex flex-nowrap items-center gap-2">
+                            <div
+                              className="flex flex-nowrap items-center gap-2"
+                              onBlur={(event) => {
+                                const next = event.relatedTarget as Node | null;
+                                if (
+                                  next &&
+                                  event.currentTarget.contains(next)
+                                ) {
+                                  return;
+                                }
+                                setGstHstShowError(true);
+                              }}
+                            >
                               <input
                                 id="gst-hst-bn"
                                 inputMode="numeric"
@@ -816,6 +830,7 @@ export function OnboardingWizardView() {
                                   const bn = event.target.value
                                     .replace(/[^\d]/g, "")
                                     .slice(0, 9);
+                                  setGstHstShowError(false);
                                   patch({
                                     gstHstNumber: formatGstHstNumber(
                                       bn,
@@ -839,6 +854,7 @@ export function OnboardingWizardView() {
                                   const account = event.target.value
                                     .replace(/[^\d]/g, "")
                                     .slice(0, 4);
+                                  setGstHstShowError(false);
                                   patch({
                                     gstHstNumber: formatGstHstNumber(
                                       gstParts.bn,
@@ -850,7 +866,7 @@ export function OnboardingWizardView() {
                                 aria-label="GST/HST account number, 4 digits"
                               />
                             </div>
-                            {(gstParts.bn || gstParts.account) &&
+                            {gstHstShowError &&
                             !isValidGstHstNumber(state.gstHstNumber) ? (
                               <p className="type-danger mt-2">
                                 Enter a valid CRA number (9 digits + RT + 4

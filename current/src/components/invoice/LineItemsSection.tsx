@@ -4,16 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   computeInvoiceTotals,
   computeLineTotal,
+  findTaxOption,
   formatDiscountChip,
-  matchAlbertaTaxOptions,
   ALBERTA_TAX_TOOLTIP,
-  TAX_RESOURCES_LABEL,
-  TAX_RESOURCES_URL,
-  type AlbertaTaxOption,
   type TaxMode,
 } from "@/lib/alberta-tax";
 import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
-import { TAX_CATEGORY_CHIPS } from "@/lib/place-of-supply";
 import {
   formatMoney,
   makeBlankLineItem,
@@ -37,7 +33,14 @@ import {
   upsertSavedInvoiceAddon,
   type SavedInvoiceAddon,
 } from "@/lib/saved-invoice-addons";
+import {
+  CUSTOMER_NON_TAXABLE_OPTIONS,
+  CUSTOMER_TAXABLE_OPTIONS,
+  taxSuggestionsFromOption,
+  type TaxSuggestions,
+} from "@/lib/tax-suggestions";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
+import { TaxSuggestionsEditor } from "./TaxSuggestionsEditor";
 import { EditCloseButton, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 type EditingId = string | "new" | null;
@@ -765,40 +768,53 @@ function MoneyInput({
   );
 }
 
+const LINE_ITEM_TAX_OPTIONS = [
+  ...CUSTOMER_TAXABLE_OPTIONS,
+  ...CUSTOMER_NON_TAXABLE_OPTIONS,
+];
+
+function taxSuggestionsFromLabel(label: string): TaxSuggestions {
+  const option = findTaxOption(label.trim());
+  if (option) return taxSuggestionsFromOption(option);
+  return {
+    includeGst: false,
+    gstRate: "",
+    includePst: false,
+    pstRate: "",
+    suggestedLabel: label.trim(),
+  };
+}
+
 function TaxField({
   value,
   onChange,
   enabled,
   onEnabledChange,
+  recommendedLabel = "",
+  recommendedNote = "",
 }: {
   value: string;
   onChange: (value: string) => void;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  recommendedLabel?: string;
+  recommendedNote?: string;
 }) {
-  const [open, setOpen] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const matches = useMemo(() => matchAlbertaTaxOptions(value), [value]);
-
-  useEffect(() => {
-    function onClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-        setTooltipOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
 
   return (
-    <div ref={ref} className="relative min-w-0 w-full">
+    <div className="relative min-w-0 w-full">
       <label className="mb-2.5 flex items-center gap-2.5 text-sm text-black">
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(event) => onEnabledChange(event.target.checked)}
+          onChange={(event) => {
+            const nextEnabled = event.target.checked;
+            onEnabledChange(nextEnabled);
+            if (nextEnabled && !value.trim() && recommendedLabel) {
+              onChange(recommendedLabel);
+            }
+          }}
           className="h-5 w-5 rounded-[4px] accent-prime-blue"
         />
         <span>Add tax</span>
@@ -834,104 +850,13 @@ function TaxField({
       </label>
 
       {enabled ? (
-        <>
-          <input
-            className={inputClass}
-            value={value}
-            onChange={(event) => {
-              onChange(event.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            placeholder="Start typing a tax…"
-            autoComplete="off"
-          />
-          <div className="mt-2 flex flex-wrap gap-2">
-            {TAX_CATEGORY_CHIPS.map((chip) => {
-              const active = value === chip.optionLabel;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  title={chip.hint}
-                  className={`rounded border px-2.5 py-1 text-xs font-semibold transition ${
-                    active
-                      ? "border-prime-blue bg-prime-blue/10 text-prime-blue"
-                      : "border-black/15 bg-white text-black/70 hover:border-black/30"
-                  }`}
-                  onClick={() => {
-                    onChange(chip.optionLabel);
-                    setOpen(false);
-                  }}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
-          </div>
-          {TAX_CATEGORY_CHIPS.find((chip) => chip.optionLabel === value) ? (
-            <p className="mt-2 text-xs leading-4 text-black/50">
-              {
-                TAX_CATEGORY_CHIPS.find((chip) => chip.optionLabel === value)!
-                  .hint
-              }
-            </p>
-          ) : null}
-          {open ? (
-            <div
-              className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg"
-              role="listbox"
-            >
-              {matches.length ? (
-                <ul className="max-h-56 overflow-auto py-1">
-                  {matches.map((option: AlbertaTaxOption) => (
-                    <li key={option.label}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={option.label === value}
-                        className="flex w-full flex-col px-4 py-2.5 text-left transition hover:bg-black/[0.04]"
-                        onClick={() => {
-                          onChange(option.label);
-                          setOpen(false);
-                        }}
-                      >
-                        <span className="text-sm font-semibold text-black">
-                          {option.label}
-                        </span>
-                        <span className="text-xs text-black/50">{option.hint}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="px-4 py-3 text-sm text-black/50">
-                  No matching tax items
-                </p>
-              )}
-              <div className="border-t border-black/10">
-                <a
-                  href={TAX_RESOURCES_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-prime-blue transition hover:bg-prime-blue/5"
-                  onClick={() => setOpen(false)}
-                >
-                  {TAX_RESOURCES_LABEL}
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                    <path
-                      d="M3.5 2.5H9.5V8.5M9.5 2.5 2.5 9.5"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </a>
-              </div>
-            </div>
-          ) : null}
-        </>
+        <TaxSuggestionsEditor
+          value={taxSuggestionsFromLabel(value)}
+          options={LINE_ITEM_TAX_OPTIONS}
+          recommendedLabel={recommendedLabel || undefined}
+          recommendedNote={recommendedNote || undefined}
+          onChange={(next) => onChange(next.suggestedLabel)}
+        />
       ) : null}
     </div>
   );
@@ -1133,6 +1058,8 @@ function LineItemForm({
   onSave,
   onDelete,
   onClose,
+  recommendedTaxLabel = "",
+  recommendedTaxNote = "",
 }: {
   initial: LineItem & { tax?: string };
   isNew: boolean;
@@ -1142,6 +1069,8 @@ function LineItemForm({
   onSave: (item: LineItem & { tax: string }) => void;
   onDelete: () => void;
   onClose: () => void;
+  recommendedTaxLabel?: string;
+  recommendedTaxNote?: string;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
   useDismissOnOutsideClick(formRef, onClose);
@@ -1287,6 +1216,8 @@ function LineItemForm({
             onChange={setTax}
             enabled={taxEnabled}
             onEnabledChange={setTaxEnabled}
+            recommendedLabel={recommendedTaxLabel}
+            recommendedNote={recommendedTaxNote}
           />
           <DiscountField
             value={discount}
@@ -1336,12 +1267,15 @@ export function LineItemsSection({
   taxMode = "exclusive",
   currency = getInvoiceCurrency(),
   defaultTaxLabel = "",
+  recommendedTaxNote = "",
 }: {
   initialItems?: LineItem[];
   taxMode?: TaxMode;
   currency?: string;
   /** Prefill from customer profile tax settings; editable per line. */
   defaultTaxLabel?: string;
+  /** Explains why defaultTaxLabel is recommended in the tax dropdown. */
+  recommendedTaxNote?: string;
 }) {
   const [items, setItems] = useState<LineItem[]>(initialItems);
   const [editingId, setEditingId] = useState<EditingId>(null);
@@ -1487,6 +1421,8 @@ export function LineItemsSection({
                 onSave={saveExisting}
                 onDelete={() => deleteExisting(item.id)}
                 onClose={closeEditor}
+                recommendedTaxLabel={defaultTaxLabel}
+                recommendedTaxNote={recommendedTaxNote}
               />
             ) : (
               <LineItemCard
@@ -1513,6 +1449,8 @@ export function LineItemsSection({
           onSave={saveNew}
           onDelete={closeEditor}
           onClose={closeEditor}
+          recommendedTaxLabel={defaultTaxLabel}
+          recommendedTaxNote={recommendedTaxNote}
         />
       ) : null}
 

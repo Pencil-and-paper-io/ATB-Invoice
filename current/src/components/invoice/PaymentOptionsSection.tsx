@@ -43,7 +43,11 @@ function PaymentOptionRow({
 
   return (
     <div className="flex gap-2.5">
-      <div className="flex h-16 shrink-0 items-center">
+      <div
+        className={`flex shrink-0 items-center ${
+          option.checked ? "h-16" : "h-11"
+        }`}
+      >
         <button
           type="button"
           onClick={() => onToggle(option.id)}
@@ -69,132 +73,136 @@ function PaymentOptionRow({
         </button>
       </div>
       <div
-        className={`min-w-0 flex-1 rounded-[10px] border px-[30px] py-5 transition ${
-          option.checked ? "border-midnight-ink" : "border-black/10"
+        className={`min-w-0 flex-1 rounded-[10px] border border-black/10 px-[30px] transition ${
+          option.checked ? "py-5" : "py-3"
         }`}
       >
         <p className="text-base font-bold leading-6 text-black">{option.label}</p>
-        {showDestination ? (
-          <p className="mt-1 text-sm leading-5 text-black">
-            Requests will be shown as coming from{" "}
-            <span className="font-semibold">{organizationName || "—"}</span>{" "}
-            using{" "}
-            <span className="font-semibold">{organizationEmail || "—"}</span>.
-          </p>
-        ) : null}
+        {option.checked ? (
+          <>
+            {showDestination ? (
+              <p className="mt-1 text-sm leading-5 text-black">
+                Requests will be shown as coming from{" "}
+                <span className="font-semibold">{organizationName || "—"}</span>{" "}
+                using{" "}
+                <span className="font-semibold">{organizationEmail || "—"}</span>.
+              </p>
+            ) : null}
 
-        {option.details?.length && (!requiresAccount || option.checked) ? (
-          <ul className="mt-2.5 list-disc space-y-1 pl-5 text-sm font-normal text-black">
-            {option.details.map((detail) => (
-              <li key={`${detail.label}-${detail.text}`}>
-                <span className={detail.italic ? "italic" : undefined}>
-                  {detail.label}: {detail.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+            {option.details?.length ? (
+              <ul className="mt-2.5 list-disc space-y-1 pl-5 text-sm font-normal text-black">
+                {option.details.map((detail) => (
+                  <li key={`${detail.label}-${detail.text}`}>
+                    <span className={detail.italic ? "italic" : undefined}>
+                      {detail.label}: {detail.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
 
-        {showDestination ? (
-          <div className="mt-4 flex flex-col gap-2">
-            <label className="text-sm text-black">
-              Choose the destination of your payment
-            </label>
-            {accountSaved && draftMatchesSaved && accountDraft.trim() ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded border border-black/20 bg-input-grey px-3.5">
-                  <span className="min-w-0 truncate text-sm text-black">
-                    {accountDraft}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onAccountDraftChange("")}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-black/50 transition hover:bg-black/5 hover:text-black"
-                    aria-label="Disconnect account"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      aria-hidden
+            {showDestination ? (
+              <div className="mt-4 flex flex-col gap-2">
+                <label className="text-sm text-black">
+                  Choose the destination of your payment
+                </label>
+                {accountSaved && draftMatchesSaved && accountDraft.trim() ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded border border-black/20 bg-input-grey px-3.5">
+                      <span className="min-w-0 truncate text-sm text-black">
+                        {accountDraft}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onAccountDraftChange("")}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-black/50 transition hover:bg-black/5 hover:text-black"
+                        aria-label="Disconnect account"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          aria-hidden
+                        >
+                          <path
+                            d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span className="inline-flex h-9 shrink-0 items-center gap-1.5 px-1 text-sm font-semibold text-black">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        aria-hidden
+                      >
+                        <path
+                          d="M3.5 8.2 6.4 11 12.5 4.5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Connected
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative min-w-0 flex-1">
+                      <select
+                        aria-label={`${option.label} payment destination`}
+                        className={`${inputClass} appearance-none pr-12 ${
+                          accountDraft ? "text-black" : "text-black/45"
+                        }`}
+                        value={accountDraft}
+                        onChange={(event) =>
+                          onAccountDraftChange(event.target.value)
+                        }
+                      >
+                        <option value="">Select an account...</option>
+                        {DEMO_DEPOSIT_ACCOUNTS.map((account) => (
+                          <option key={account.id} value={account.label}>
+                            {account.label}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-black/55"
+                        width="11"
+                        height="6"
+                        viewBox="0 0 11 6"
+                        fill="none"
+                        aria-hidden
+                      >
+                        <path
+                          d="M1 1l4.5 4L10 1"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onSaveAccount}
+                      disabled={!accountDraft.trim() || draftMatchesSaved}
+                      className="ui-btn-secondary h-9 shrink-0 px-4 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      <path
-                        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <span className="inline-flex h-9 shrink-0 items-center gap-1.5 px-1 text-sm font-semibold text-black">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    aria-hidden
-                  >
-                    <path
-                      d="M3.5 8.2 6.4 11 12.5 4.5"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Connected
-                </span>
+                      Confirm
+                    </button>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <select
-                    aria-label={`${option.label} payment destination`}
-                    className={`${inputClass} appearance-none pr-12 ${
-                      accountDraft ? "text-black" : "text-black/45"
-                    }`}
-                    value={accountDraft}
-                    onChange={(event) =>
-                      onAccountDraftChange(event.target.value)
-                    }
-                  >
-                    <option value="">Select an account...</option>
-                    {DEMO_DEPOSIT_ACCOUNTS.map((account) => (
-                      <option key={account.id} value={account.label}>
-                        {account.label}
-                      </option>
-                    ))}
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-black/55"
-                    width="11"
-                    height="6"
-                    viewBox="0 0 11 6"
-                    fill="none"
-                    aria-hidden
-                  >
-                    <path
-                      d="M1 1l4.5 4L10 1"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <button
-                  type="button"
-                  onClick={onSaveAccount}
-                  disabled={!accountDraft.trim() || draftMatchesSaved}
-                  className="ui-btn-secondary h-9 shrink-0 px-4 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Confirm
-                </button>
-              </div>
-            )}
-          </div>
+            ) : null}
+          </>
         ) : null}
       </div>
     </div>

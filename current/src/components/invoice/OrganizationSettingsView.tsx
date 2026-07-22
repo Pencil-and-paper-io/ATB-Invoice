@@ -35,6 +35,7 @@ type SectionKey =
   | "brand"
   | "payments"
   | "settings"
+  | "tax"
   | "automations";
 
 const SECTION_IDS = {
@@ -121,6 +122,26 @@ function sectionIdFromDeepLink(
 }
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
+
+const TAX_SETTING_OPTIONS: {
+  value: (typeof TAX_OPTIONS)[number];
+  label: string;
+  details: string;
+}[] = [
+  {
+    value: "Taxable",
+    label: "Taxable",
+    details:
+      "Choose this if you usually charge GST/HST on the goods or services you sell. Most vendors that sell taxable supplies (products, consulting, trades, and similar commercial services) fall here. New customers will inherit this as their default.",
+  },
+  {
+    value: "Tax-exempt",
+    label: "Tax-exempt",
+    details:
+      "Choose this if GST/HST does not apply to what you sell — show tax as blank/N/A (not $0.00). Common exempt vendors include most healthcare and dental practices, many educational providers, child care for ages 14 and under, most financial services, and long-term residential landlords. If you’re unsure, check CRA guidance or your accountant.",
+  },
+];
+
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
 /** Single source for edit FieldLabel + view ViewField copy. */
@@ -257,6 +278,13 @@ function ViewField({
 
 function ViewFieldList({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-4">{children}</div>;
+}
+
+/** Horizontal label/value pairs for compact view-mode rows. */
+function ViewFieldRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+  );
 }
 
 function ViewCard({
@@ -717,6 +745,7 @@ export function OrganizationSettingsView() {
   const [draft, setDraft] = useState<OrganizationSettings | null>(null);
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [discardWarning, setDiscardWarning] = useState(false);
+  const [gstHstShowError, setGstHstShowError] = useState(false);
   const [accountDrafts, setAccountDrafts] = useState<
     Record<"interac" | "eft", string>
   >({ interac: "", eft: "" });
@@ -832,6 +861,7 @@ export function OrganizationSettingsView() {
       runOrWarn(() => {
         const next = cloneSettings(saved);
         setDraft(next);
+        setGstHstShowError(false);
         if (section === "payments") syncAccountConnectState(next);
         setEditing(section);
       });
@@ -839,6 +869,7 @@ export function OrganizationSettingsView() {
     }
     const next = cloneSettings(saved);
     setDraft(next);
+    setGstHstShowError(false);
     if (section === "payments") syncAccountConnectState(next);
     setEditing(section);
   }
@@ -849,6 +880,7 @@ export function OrganizationSettingsView() {
         setDraft(cloneSettings(saved));
         syncAccountConnectState(saved);
       }
+      setGstHstShowError(false);
       setEditing(null);
     });
   }
@@ -1053,10 +1085,6 @@ export function OrganizationSettingsView() {
                   title="Business Details"
                   onClose={closeEdit}
                   onSave={saveSection}
-                  saveDisabled={
-                    draft.gstRegistrationStatus === "registered" &&
-                    !isValidGstHstNumber(draft.gstHstNumber)
-                  }
                 >
                   <div>
                     <FieldLabel
@@ -1073,128 +1101,6 @@ export function OrganizationSettingsView() {
                         patchDraft({ businessName: event.target.value })
                       }
                     />
-                  </div>
-                  <div>
-                    <p className="type-body mb-3 text-black">
-                      {FIELD.gstRegistration}
-                    </p>
-                    <div className="mt-1 flex flex-col gap-3">
-                      {GST_REGISTRATION_OPTIONS.map((option) => (
-                        <div key={option.value}>
-                          <label className="flex items-start gap-2 text-sm leading-5 text-black">
-                            <input
-                              type="radio"
-                              name="org-gst-registration"
-                              className="mt-0.5 accent-prime-blue"
-                              checked={
-                                draft.gstRegistrationStatus === option.value
-                              }
-                              onChange={() =>
-                                patchDraft({
-                                  gstRegistrationStatus: option.value,
-                                  taxStatus:
-                                    option.value === "small_supplier"
-                                      ? "Tax-exempt"
-                                      : "Taxable",
-                                  gstHstNumber:
-                                    option.value === "registered"
-                                      ? draft.gstHstNumber
-                                      : "",
-                                })
-                              }
-                            />
-                            <span>{option.label}</span>
-                          </label>
-                          {option.value === "pending_number" &&
-                          draft.gstRegistrationStatus === "pending_number" ? (
-                            <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
-                              You need a GST/HST number once you exceed $30,000
-                              in revenue.{" "}
-                              <a
-                                href={GST_HST_REGISTER_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-semibold text-prime-blue underline underline-offset-2"
-                              >
-                                Register with the CRA
-                              </a>
-                              , then add this in later in your organization
-                              settings.
-                            </p>
-                          ) : null}
-                          {option.value === "registered" &&
-                          draft.gstRegistrationStatus === "registered" ? (
-                            <div className="mt-1.5 pl-6">
-                              <div className="flex flex-nowrap items-center gap-2">
-                                <input
-                                  id="org-gst-bn"
-                                  inputMode="numeric"
-                                  maxLength={9}
-                                  className={`${inputClass} !w-[9.5rem] shrink-0`}
-                                  value={
-                                    parseGstHstNumber(draft.gstHstNumber).bn
-                                  }
-                                  onChange={(event) => {
-                                    const bn = event.target.value
-                                      .replace(/[^\d]/g, "")
-                                      .slice(0, 9);
-                                    const { account } = parseGstHstNumber(
-                                      draft.gstHstNumber,
-                                    );
-                                    patchDraft({
-                                      gstHstNumber: formatGstHstNumber(
-                                        bn,
-                                        account,
-                                      ),
-                                    });
-                                  }}
-                                  placeholder="123456789"
-                                  aria-label="GST/HST business number, 9 digits"
-                                />
-                                <span className="shrink-0 type-body text-black">
-                                  RT
-                                </span>
-                                <input
-                                  id="org-gst-account"
-                                  inputMode="numeric"
-                                  maxLength={4}
-                                  className={`${inputClass} !w-[5.5rem] shrink-0`}
-                                  value={
-                                    parseGstHstNumber(draft.gstHstNumber)
-                                      .account
-                                  }
-                                  onChange={(event) => {
-                                    const account = event.target.value
-                                      .replace(/[^\d]/g, "")
-                                      .slice(0, 4);
-                                    const { bn } = parseGstHstNumber(
-                                      draft.gstHstNumber,
-                                    );
-                                    patchDraft({
-                                      gstHstNumber: formatGstHstNumber(
-                                        bn,
-                                        account,
-                                      ),
-                                    });
-                                  }}
-                                  placeholder="0001"
-                                  aria-label="GST/HST account number, 4 digits"
-                                />
-                              </div>
-                              {(parseGstHstNumber(draft.gstHstNumber).bn ||
-                                parseGstHstNumber(draft.gstHstNumber)
-                                  .account) &&
-                              !isValidGstHstNumber(draft.gstHstNumber) ? (
-                                <p className="type-danger mt-2">
-                                  Enter a valid CRA number (9 digits + RT + 4
-                                  digits).
-                                </p>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
                   </div>
                   <div>
                     <FieldLabel
@@ -1236,26 +1142,11 @@ export function OrganizationSettingsView() {
                   title="Business Details"
                   onEdit={() => startEdit("business")}
                 >
-                  <ViewFieldList>
+                  <ViewFieldRow>
                     <ViewField
                       label={FIELD.businessName}
                       value={displayOrNa(saved.businessName)}
                     />
-                    <ViewField
-                      label={FIELD.gstRegistrationStatus}
-                      value={
-                        GST_REGISTRATION_OPTIONS.find(
-                          (option) =>
-                            option.value === saved.gstRegistrationStatus,
-                        )?.label ?? null
-                      }
-                    />
-                    {saved.gstRegistrationStatus === "registered" ? (
-                      <ViewField
-                        label={FIELD.gstHstNumber}
-                        value={displayOrNa(saved.gstHstNumber)}
-                      />
-                    ) : null}
                     <ViewField
                       label={FIELD.email}
                       value={displayOrNa(saved.email)}
@@ -1264,7 +1155,7 @@ export function OrganizationSettingsView() {
                       label={FIELD.phoneNumber}
                       value={displayOrNa(saved.phone)}
                     />
-                  </ViewFieldList>
+                  </ViewFieldRow>
                 </ViewCard>
               )}
 
@@ -1459,7 +1350,7 @@ export function OrganizationSettingsView() {
                   tip="These styles apply to new invoices. Sent invoices keep the look they had when they were sent."
                   onEdit={() => startEdit("brand")}
                 >
-                  <ViewFieldList>
+                  <ViewFieldRow>
                     <ViewField
                       label={FIELD.brandColor}
                       value={
@@ -1493,7 +1384,7 @@ export function OrganizationSettingsView() {
                         </span>
                       }
                     />
-                  </ViewFieldList>
+                  </ViewFieldRow>
                 </ViewCard>
               )}
             </section>
@@ -1592,15 +1483,12 @@ export function OrganizationSettingsView() {
                   onEdit={() => startEdit("payments")}
                   asDiv
                 >
-                  <p className="type-body-muted mb-1">
-                    Choose how you want to receive payments by default. You can
-                    always change this for specific customers or invoices later.
-                  </p>
                   <div className="flex flex-col">
-                    {saved.paymentMethods.map((method) => {
+                    {saved.paymentMethods
+                      .filter((method) => method.enabled)
+                      .map((method) => {
                       const label = paymentMethodLabel(method.id);
                       const account = method.accountLabel?.trim();
-                      const isOn = method.enabled;
 
                       return (
                         <div key={method.id} className="py-3.5">
@@ -1609,47 +1497,42 @@ export function OrganizationSettingsView() {
                               className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
                               aria-hidden
                             >
-                              {isOn ? <DefaultCheckIcon /> : null}
+                              <DefaultCheckIcon />
                             </span>
                             <div className="min-w-0 flex-1">
-                              <p
-                                className={`type-subtitle-1 ${
-                                  isOn ? "text-black" : "text-black/40"
-                                }`}
-                              >
+                              <p className="type-subtitle-1 text-black">
                                 {label}
                               </p>
-                              {isOn ? (
-                                account ? (
-                                  <p className="mt-1 text-sm text-black/70">
-                                    {account}
-                                  </p>
-                                ) : needsDepositAccount(method.id) ? (
-                                  <p className="mt-1 text-sm text-delete-red">
-                                    Payment destination not connected
-                                  </p>
-                                ) : null
-                              ) : (
-                                <p className="mt-1 text-sm text-black/40">
-                                  Not enabled by default
+                              {account ? (
+                                <p className="mt-1 text-sm text-black/70">
+                                  {account}
                                 </p>
-                              )}
+                              ) : needsDepositAccount(method.id) ? (
+                                <p className="mt-1 text-sm text-delete-red">
+                                  Payment destination not connected
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                         </div>
                       );
                     })}
+                    {!saved.paymentMethods.some((method) => method.enabled) ? (
+                      <p className="type-body-muted py-3.5">
+                        No payment options enabled by default.
+                      </p>
+                    ) : null}
                   </div>
                 </ViewCard>
               )}
 
               {editing === "settings" ? (
                 <SectionEditor
-                  title="Settings"
+                  title="Invoice and Quote Details"
                   onClose={closeEdit}
                   onSave={saveSection}
                 >
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-3">
                     <div>
                       <FieldLabel tip="All quotes and invoices are locked to Canadian Dollars.">
                         {FIELD.currency}
@@ -1682,24 +1565,6 @@ export function OrganizationSettingsView() {
                         </svg>
                         <span className="sr-only">(locked)</span>
                       </div>
-                    </div>
-                    <div>
-                      <FieldLabel
-                        tip="Tax-exempt means GST/HST does not apply to the goods or services on the invoice (show tax as blank/N/A, not $0.00). Common examples: most healthcare and dental services, many educational services, child care for ages 14 and under, most financial services, and long-term residential rent. If you’re unsure, check CRA guidance or your accountant."
-                      >
-                        {FIELD.taxSetting}
-                      </FieldLabel>
-                      <SelectField
-                        ariaLabel={FIELD.taxSetting}
-                        value={draft.taxStatus}
-                        options={TAX_OPTIONS}
-                        onChange={(value) =>
-                          patchDraft({
-                            taxStatus:
-                              value as OrganizationSettings["taxStatus"],
-                          })
-                        }
-                      />
                     </div>
                     <div>
                       <FieldLabel
@@ -1745,46 +1610,13 @@ export function OrganizationSettingsView() {
                 </SectionEditor>
               ) : (
                 <ViewCard
-                  title="Settings"
+                  title="Invoice and Quote Details"
                   onEdit={() => startEdit("settings")}
                 >
-                  <ViewFieldList>
+                  <ViewFieldRow>
                     <ViewField
                       label={FIELD.currency}
-                      value={
-                        <div className="flex h-[42px] max-w-md items-center justify-between gap-3 rounded border border-black/15 bg-[#E8E8E8] px-3.5 text-sm text-midnight-ink">
-                          <span>CAD — Canadian Dollar</span>
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            aria-hidden
-                            className="shrink-0 text-black/50"
-                          >
-                            <rect
-                              x="3.5"
-                              y="7"
-                              width="9"
-                              height="6.5"
-                              rx="1.2"
-                              stroke="currentColor"
-                              strokeWidth="1.3"
-                            />
-                            <path
-                              d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"
-                              stroke="currentColor"
-                              strokeWidth="1.3"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <span className="sr-only">(locked)</span>
-                        </div>
-                      }
-                    />
-                    <ViewField
-                      label={FIELD.taxSetting}
-                      value={saved.taxStatus}
+                      value="CAD — Canadian Dollar"
                     />
                     <ViewField
                       label={FIELD.quoteExpiry}
@@ -1800,7 +1632,219 @@ export function OrganizationSettingsView() {
                       label={FIELD.paymentTerms}
                       value={displayOrNa(saved.paymentTerms)}
                     />
-                  </ViewFieldList>
+                  </ViewFieldRow>
+                </ViewCard>
+              )}
+
+              {editing === "tax" ? (
+                <SectionEditor
+                  title="Tax Info"
+                  onClose={closeEdit}
+                  onSave={saveSection}
+                  saveDisabled={
+                    draft.gstRegistrationStatus === "registered" &&
+                    !isValidGstHstNumber(draft.gstHstNumber)
+                  }
+                >
+                  <div>
+                    <p className="type-body mb-3 text-black">
+                      {FIELD.gstRegistration}
+                    </p>
+                    <div className="mt-1 flex flex-col gap-3">
+                      {GST_REGISTRATION_OPTIONS.map((option) => (
+                        <div key={option.value}>
+                          <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                            <input
+                              type="radio"
+                              name="org-gst-registration"
+                              className="mt-0.5 accent-prime-blue"
+                              checked={
+                                draft.gstRegistrationStatus === option.value
+                              }
+                              onChange={() => {
+                                setGstHstShowError(false);
+                                patchDraft({
+                                  gstRegistrationStatus: option.value,
+                                  taxStatus:
+                                    option.value === "small_supplier"
+                                      ? "Tax-exempt"
+                                      : "Taxable",
+                                  gstHstNumber:
+                                    option.value === "registered"
+                                      ? draft.gstHstNumber
+                                      : "",
+                                });
+                              }}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                          {option.value === "pending_number" &&
+                          draft.gstRegistrationStatus === "pending_number" ? (
+                            <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
+                              You need a GST/HST number once you exceed $30,000
+                              in revenue.{" "}
+                              <a
+                                href={GST_HST_REGISTER_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-prime-blue underline underline-offset-2"
+                              >
+                                Register with the CRA
+                              </a>
+                              , then add this in later in your organization
+                              settings.
+                            </p>
+                          ) : null}
+                          {option.value === "registered" &&
+                          draft.gstRegistrationStatus === "registered" ? (
+                            <div className="mt-1.5 pl-6">
+                              <div
+                                className="flex flex-nowrap items-center gap-2"
+                                onBlur={(event) => {
+                                  const next = event.relatedTarget as Node | null;
+                                  if (
+                                    next &&
+                                    event.currentTarget.contains(next)
+                                  ) {
+                                    return;
+                                  }
+                                  setGstHstShowError(true);
+                                }}
+                              >
+                                <input
+                                  id="org-gst-bn"
+                                  inputMode="numeric"
+                                  maxLength={9}
+                                  className={`${inputClass} !w-[9.5rem] shrink-0`}
+                                  value={
+                                    parseGstHstNumber(draft.gstHstNumber).bn
+                                  }
+                                  onChange={(event) => {
+                                    const bn = event.target.value
+                                      .replace(/[^\d]/g, "")
+                                      .slice(0, 9);
+                                    const { account } = parseGstHstNumber(
+                                      draft.gstHstNumber,
+                                    );
+                                    setGstHstShowError(false);
+                                    patchDraft({
+                                      gstHstNumber: formatGstHstNumber(
+                                        bn,
+                                        account,
+                                      ),
+                                    });
+                                  }}
+                                  placeholder="123456789"
+                                  aria-label="GST/HST business number, 9 digits"
+                                />
+                                <span className="shrink-0 type-body text-black">
+                                  RT
+                                </span>
+                                <input
+                                  id="org-gst-account"
+                                  inputMode="numeric"
+                                  maxLength={4}
+                                  className={`${inputClass} !w-[5.5rem] shrink-0`}
+                                  value={
+                                    parseGstHstNumber(draft.gstHstNumber)
+                                      .account
+                                  }
+                                  onChange={(event) => {
+                                    const account = event.target.value
+                                      .replace(/[^\d]/g, "")
+                                      .slice(0, 4);
+                                    const { bn } = parseGstHstNumber(
+                                      draft.gstHstNumber,
+                                    );
+                                    setGstHstShowError(false);
+                                    patchDraft({
+                                      gstHstNumber: formatGstHstNumber(
+                                        bn,
+                                        account,
+                                      ),
+                                    });
+                                  }}
+                                  placeholder="0001"
+                                  aria-label="GST/HST account number, 4 digits"
+                                />
+                              </div>
+                              {gstHstShowError &&
+                              !isValidGstHstNumber(draft.gstHstNumber) ? (
+                                <p className="type-danger mt-2">
+                                  Enter a valid CRA number (9 digits + RT + 4
+                                  digits).
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {isValidGstHstNumber(draft.gstHstNumber) ? (
+                    <div className={sectionDividerClass}>
+                      <FieldLabel>{FIELD.taxSetting}</FieldLabel>
+                      <p className="type-body-muted mb-3">
+                        This is your organization default for new customers.
+                        Pick the option that best matches the kind of vendor you
+                        are.
+                      </p>
+                      <div
+                        className="flex flex-col gap-3"
+                        role="radiogroup"
+                        aria-label={FIELD.taxSetting}
+                      >
+                        {TAX_SETTING_OPTIONS.map((option) => (
+                          <div key={option.value}>
+                            <label className="flex items-start gap-2.5 text-sm text-black">
+                              <input
+                                type="radio"
+                                name="org-tax-setting"
+                                className="mt-0.5 h-4 w-4 accent-prime-blue"
+                                checked={draft.taxStatus === option.value}
+                                onChange={() =>
+                                  patchDraft({ taxStatus: option.value })
+                                }
+                              />
+                              <span className="font-semibold">
+                                {option.label}
+                              </span>
+                            </label>
+                            <p className="mt-1.5 pl-6 text-sm leading-5 text-black/70">
+                              {option.details}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </SectionEditor>
+              ) : (
+                <ViewCard title="Tax Info" onEdit={() => startEdit("tax")}>
+                  {isValidGstHstNumber(saved.gstHstNumber) ? (
+                    <ViewFieldRow>
+                      <ViewField
+                        label={FIELD.gstHstNumber}
+                        value={displayOrNa(saved.gstHstNumber)}
+                      />
+                      <ViewField
+                        label={FIELD.taxSetting}
+                        value={
+                          TAX_SETTING_OPTIONS.find(
+                            (option) => option.value === saved.taxStatus,
+                          )?.label ?? saved.taxStatus
+                        }
+                      />
+                    </ViewFieldRow>
+                  ) : (
+                    <p className="type-body whitespace-nowrap">
+                      {GST_REGISTRATION_OPTIONS.find(
+                        (option) =>
+                          option.value === saved.gstRegistrationStatus,
+                      )?.label ?? "—"}
+                    </p>
+                  )}
                 </ViewCard>
               )}
 
@@ -1863,7 +1907,7 @@ export function OrganizationSettingsView() {
                   title="Default Automations"
                   onEdit={() => startEdit("automations")}
                 >
-                  <ViewFieldList>
+                  <ViewFieldRow>
                     <ViewField
                       label={FIELD.autoSend}
                       value={saved.autoSend ? "On" : "Off"}
@@ -1888,7 +1932,7 @@ export function OrganizationSettingsView() {
                       label={FIELD.receipts}
                       value={saved.receipts ? "On" : "Off"}
                     />
-                  </ViewFieldList>
+                  </ViewFieldRow>
                 </ViewCard>
               )}
             </section>

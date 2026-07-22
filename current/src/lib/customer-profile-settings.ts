@@ -84,11 +84,45 @@ export function saveCustomerProfileSettings(
 
 /** Tax label to prefill on quote/invoice line items for this customer. */
 export function getCustomerDefaultTaxLabel(customerId: string | null | undefined) {
-  if (!customerId) return "";
-  if (orgSuppressesSalesTax()) return "";
+  return getCustomerTaxRecommendation(customerId)?.label ?? "";
+}
+
+/** Customer tax default plus why it is recommended on line items. */
+export function getCustomerTaxRecommendation(
+  customerId: string | null | undefined,
+): { label: string; note: string } | null {
+  if (!customerId) return null;
+
   const settings = loadCustomerProfileSettings(customerId);
   if (!settings) {
-    return DEFAULT_TAX_SUGGESTIONS.suggestedLabel;
+    if (orgSuppressesSalesTax()) return null;
+    return {
+      label: DEFAULT_TAX_SUGGESTIONS.suggestedLabel,
+      note: "Recommended based on your organization default tax setting",
+    };
   }
-  return settings.taxSuggestions.suggestedLabel.trim();
+
+  const label = settings.taxSuggestions.suggestedLabel.trim();
+  if (!label) return null;
+
+  const isNonTaxableCategory =
+    label === "Tax Exempt" ||
+    label === "Zero-rated - 0%" ||
+    label === "No Tax";
+
+  if (orgSuppressesSalesTax() && !isNonTaxableCategory) {
+    return null;
+  }
+
+  if (settings.taxStatus === "Tax-exempt") {
+    return {
+      label,
+      note: `Recommended based on this customer's tax setting (Non-taxable · ${label})`,
+    };
+  }
+
+  return {
+    label,
+    note: `Recommended based on this customer's tax setting (${label})`,
+  };
 }

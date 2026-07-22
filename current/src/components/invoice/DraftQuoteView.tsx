@@ -35,7 +35,7 @@ import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
-import { getCustomerDefaultTaxLabel } from "@/lib/customer-profile-settings";
+import { getCustomerTaxRecommendation } from "@/lib/customer-profile-settings";
 
 function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
   const [missing, setMissing] = useState(false);
@@ -89,6 +89,7 @@ export function DraftQuoteView() {
   }));
   const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
+  const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -110,9 +111,11 @@ export function DraftQuoteView() {
       setDetails(next);
       persistQuoteDetails(next);
       rememberDocumentNumber("quote", next.invoiceNumber);
-      setDefaultTaxLabel(
-        getCustomerDefaultTaxLabel(defaultDraftCustomer?.id ?? null),
+      const taxRec = getCustomerTaxRecommendation(
+        defaultDraftCustomer?.id ?? null,
       );
+      setDefaultTaxLabel(taxRec?.label ?? "");
+      setRecommendedTaxNote(taxRec?.note ?? "");
     }, 0);
   }, []);
 
@@ -123,7 +126,9 @@ export function DraftQuoteView() {
   }
 
   function handleCustomerChange(customer: Customer | null) {
-    setDefaultTaxLabel(getCustomerDefaultTaxLabel(customer?.id ?? null));
+    const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
+    setDefaultTaxLabel(taxRec?.label ?? "");
+    setRecommendedTaxNote(taxRec?.note ?? "");
     if (!customer) return;
     const cascade = getCustomerCascadeDefaults();
     const expiryDays = Number(cascade.quoteExpiryDays) || 45;
@@ -158,7 +163,14 @@ export function DraftQuoteView() {
       <TopNav />
 
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
-        <GstMissingWarning chargingTax={Boolean(defaultTaxLabel)} />
+        <GstMissingWarning
+          chargingTax={Boolean(
+            defaultTaxLabel &&
+              defaultTaxLabel !== "Tax Exempt" &&
+              defaultTaxLabel !== "No Tax" &&
+              defaultTaxLabel !== "Zero-rated - 0%",
+          )}
+        />
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="type-page-title">Draft Quote</h1>
           <div className="flex flex-wrap items-center gap-2.5">
@@ -182,6 +194,7 @@ export function DraftQuoteView() {
                 taxMode={details.taxMode}
                 currency={details.currency}
                 defaultTaxLabel={defaultTaxLabel}
+                recommendedTaxNote={recommendedTaxNote}
               />
             </SectionCard>
 
