@@ -5,12 +5,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
+  formatGstHstNumber,
+  isValidGstHstNumber,
   loadOrganizationSettings,
+  parseGstHstNumber,
   paymentMethodLabel,
   saveOrganizationSettings,
   type OrganizationSettings,
   type PaymentMethodId,
 } from "@/lib/organization-settings";
+import {
+  GST_HST_REGISTER_URL,
+  GST_REGISTRATION_OPTIONS,
+} from "@/lib/place-of-supply";
+import {
+  DepositAccountBlock,
+  paymentRequestSubtitle,
+} from "./DepositAccountConnect";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
@@ -116,6 +127,9 @@ const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 const FIELD = {
   businessName: "Business Name",
   gstHstNumber: "GST/HST Number",
+  gstRegistration:
+    "A GST/HST number is needed to charge tax on your invoices once your business has earned $30,000 or more.",
+  gstRegistrationStatus: "GST/HST status",
   email: "Email",
   phoneNumber: "Phone Number",
   businessAddress: "Business Address",
@@ -305,6 +319,7 @@ function SectionEditor({
   onSave,
   children,
   outsideDismissEnabled = true,
+  saveDisabled = false,
 }: {
   title: string;
   tip?: string;
@@ -312,6 +327,7 @@ function SectionEditor({
   onSave: () => void;
   children: ReactNode;
   outsideDismissEnabled?: boolean;
+  saveDisabled?: boolean;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
   useDismissOnOutsideClick(formRef, onClose, outsideDismissEnabled);
@@ -333,7 +349,8 @@ function SectionEditor({
           <button
             type="button"
             onClick={onSave}
-            className="ui-btn-primary h-9"
+            disabled={saveDisabled}
+            className="ui-btn-primary h-9 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Save
           </button>
@@ -408,11 +425,6 @@ function DefaultCheckIcon() {
   );
 }
 
-const INTERAC_DEPOSIT_ACCOUNTS = [
-  "Chequing — ****4521",
-  "Savings — ****8830",
-  "Business — ****1102",
-] as const;
 
 function PaymentOptionDetails({
   details,
@@ -430,202 +442,125 @@ function PaymentOptionDetails({
     >
       {details.map((detail) => (
         <li key={`${detail.label}-${detail.text}`}>
-            <span className={detail.italic ? "italic" : undefined}>
-              {detail.label}: {detail.text}
-            </span>
+          <span className={detail.italic ? "italic" : undefined}>
+            {detail.label}: {detail.text}
+          </span>
         </li>
       ))}
     </ul>
   );
 }
 
-function PaymentEnableFlag({
-  paymentNoun,
-  onEnableOption,
-}: {
-  paymentNoun: string;
-  onEnableOption?: () => void;
-}) {
-  return (
-    <div className="mt-3 rounded-md border border-prime-blue/20 bg-prime-blue/5 px-3 py-2.5 text-sm text-midnight-ink">
-      <p>
-        Choose where you want {paymentNoun} payments sent in order to{" "}
-        {onEnableOption ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onEnableOption();
-            }}
-            className="font-semibold text-prime-blue underline underline-offset-2 transition hover:opacity-80"
-          >
-            Enable this option
-          </button>
-        ) : (
-          <span className="font-semibold text-prime-blue">Enable this option</span>
-        )}
-        .
-      </p>
-    </div>
-  );
+function needsDepositAccount(id: PaymentMethodId) {
+  return id === "interac" || id === "eft";
 }
 
-function CloseChipIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-      <path
-        d="M1.5 1.5 8.5 8.5M8.5 1.5 1.5 8.5"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function PaymentOptionRow({
+function OrgPaymentMethodRow({
+  methodId,
   label,
   details,
-  isDefault,
-  onToggleDefault,
-  checkboxDisabled = false,
-  muted = false,
-  accountLabel,
-  onRemoveAccount,
-  footer,
+  enabled,
+  onToggle,
+  subtitle,
+  accountDraft = "",
+  accountSaved = false,
+  onAccountDraftChange,
+  onConfirmAccount,
+  comingSoon = false,
   readOnly = false,
 }: {
-  label: string;
+  methodId?: PaymentMethodId;
+  label: ReactNode;
   details: readonly { label: string; text: string; italic?: boolean }[];
-  isDefault: boolean;
-  onToggleDefault?: () => void;
-  checkboxDisabled?: boolean;
-  muted?: boolean;
-  accountLabel?: string;
-  onRemoveAccount?: () => void;
-  footer?: ReactNode;
-  /** View mode: static checkmarks (not checkbox controls) */
+  enabled: boolean;
+  onToggle?: () => void;
+  subtitle?: ReactNode;
+  accountDraft?: string;
+  accountSaved?: boolean;
+  onAccountDraftChange?: (value: string) => void;
+  onConfirmAccount?: () => void;
+  comingSoon?: boolean;
   readOnly?: boolean;
 }) {
-  const checkboxClass = `mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[3px] border ${
-    checkboxDisabled
-      ? "border-black/20 bg-black/[0.04]"
-      : isDefault
-        ? "border-prime-blue bg-prime-blue text-white"
-        : "border-black/25 bg-white"
-  }`;
+  const showConnect =
+    Boolean(methodId) && needsDepositAccount(methodId!) && enabled && !comingSoon;
 
   return (
-    <div className="py-3.5">
-      <div className="flex items-start gap-2">
+    <div
+      className={`rounded-[10px] border px-4 py-3 ${
+        comingSoon
+          ? "border-black/20 bg-[#F3F3F3]"
+          : "border-black/10 bg-white"
+      }`}
+    >
+      <label
+        className={`flex items-start gap-3 ${
+          comingSoon || readOnly || !onToggle
+            ? "cursor-default"
+            : "cursor-pointer"
+        }`}
+      >
         {readOnly ? (
           <span
             className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
             aria-hidden
           >
-            {isDefault ? <DefaultCheckIcon /> : null}
+            {enabled ? <DefaultCheckIcon /> : null}
           </span>
         ) : (
-          <button
-            type="button"
-            disabled={checkboxDisabled || !onToggleDefault}
-            onClick={onToggleDefault}
-            className={checkboxClass}
-            aria-pressed={isDefault}
-            aria-disabled={checkboxDisabled}
-            aria-label={
-              checkboxDisabled
-                ? `${label} unavailable until enabled`
-                : isDefault
-                  ? `Remove ${label} from defaults`
-                  : `Add ${label} to defaults`
-            }
-          >
-            {!checkboxDisabled && isDefault ? <CheckMark /> : null}
-          </button>
+          <input
+            type="checkbox"
+            checked={enabled}
+            disabled={comingSoon || !onToggle}
+            onChange={() => onToggle?.()}
+            className="mt-0.5 h-4 w-4 rounded border-black/25 accent-prime-blue disabled:cursor-not-allowed disabled:opacity-60"
+          />
         )}
-        <div className="min-w-0 flex-1">
-          <p
-            className={`type-subtitle-1 ${
-              muted ? "text-black/40" : "text-black"
+        <span className="min-w-0 flex-1">
+          <span
+            className={`inline-flex flex-wrap items-center gap-2 text-sm font-semibold ${
+              comingSoon ? "text-black/55" : "text-black"
             }`}
           >
             {label}
-          </p>
-          {isDefault ? (
-            <PaymentOptionDetails details={details} muted={muted} />
-          ) : !checkboxDisabled ? (
-            <p className="mt-2 text-sm text-black/40">Not enabled by default</p>
+          </span>
+          {enabled && subtitle ? (
+            <span className="mt-1 block text-sm font-normal leading-5 text-black">
+              {subtitle}
+            </span>
           ) : null}
-          {accountLabel ? (
-            <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-md border border-black/15 bg-black/[0.03] py-1.5 pl-2.5 pr-1.5 text-sm text-black">
-              <span className="min-w-0">
-                <span className="font-semibold">Deposit account:</span>{" "}
-                {accountLabel}
-              </span>
-              {onRemoveAccount ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRemoveAccount();
-                  }}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-black/45 transition hover:bg-black/5 hover:text-black/70"
-                  aria-label="Remove deposit account"
-                >
-                  <CloseChipIcon />
-                </button>
-              ) : null}
-            </div>
+        </span>
+      </label>
+      {enabled && !comingSoon ? (
+        <div className="mt-3 pl-7">
+          <PaymentOptionDetails details={details} />
+          {showConnect ? (
+            readOnly ? (
+              accountSaved && accountDraft.trim() ? (
+                <DepositAccountBlock
+                  ariaLabel={`${label} payment destination`}
+                  value={accountDraft}
+                  onChange={() => undefined}
+                  saved
+                />
+              ) : (
+                <p className="mt-3 text-sm text-delete-red">
+                  Payment destination not connected.
+                </p>
+              )
+            ) : onAccountDraftChange && onConfirmAccount ? (
+              <DepositAccountBlock
+                ariaLabel={`${label} payment destination`}
+                value={accountDraft}
+                onChange={onAccountDraftChange}
+                onSave={onConfirmAccount}
+                saved={accountSaved}
+              />
+            ) : null
           ) : null}
-          {footer}
         </div>
-      </div>
+      ) : null}
     </div>
-  );
-}
-
-function EnableDepositAccountModal({
-  title,
-  titleId,
-  description,
-  account,
-  onAccountChange,
-  onClose,
-  onConfirm,
-}: {
-  title: string;
-  titleId: string;
-  description: string;
-  account: string;
-  onAccountChange: (value: string) => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Modal
-      title={title}
-      titleId={titleId}
-      onClose={onClose}
-      zClass="z-[230]"
-      cancelLabel="Cancel"
-      onCancel={onClose}
-      confirmLabel="Enable"
-      onConfirm={onConfirm}
-      confirmDisabled={!account}
-      maxWidthClass="max-w-md"
-    >
-      <p className="type-body-muted">{description}</p>
-      <div className="mt-5">
-        <FieldLabel>Deposit account</FieldLabel>
-        <SelectField
-          ariaLabel="Deposit account"
-          value={account}
-          options={INTERAC_DEPOSIT_ACCOUNTS}
-          onChange={onAccountChange}
-        />
-      </div>
-    </Modal>
   );
 }
 
@@ -782,10 +717,12 @@ export function OrganizationSettingsView() {
   const [draft, setDraft] = useState<OrganizationSettings | null>(null);
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [discardWarning, setDiscardWarning] = useState(false);
-  const [interacEnableOpen, setInteracEnableOpen] = useState(false);
-  const [interacAccountDraft, setInteracAccountDraft] = useState<string>(
-    INTERAC_DEPOSIT_ACCOUNTS[0],
-  );
+  const [accountDrafts, setAccountDrafts] = useState<
+    Record<"interac" | "eft", string>
+  >({ interac: "", eft: "" });
+  const [accountConfirmed, setAccountConfirmed] = useState<
+    Record<"interac" | "eft", boolean>
+  >({ interac: false, eft: false });
   const pendingActionRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [subUserPermissions, setSubUserPermissions] = useState<
@@ -875,22 +812,43 @@ export function OrganizationSettingsView() {
     });
   }
 
+  function syncAccountConnectState(settings: OrganizationSettings) {
+    const interac =
+      settings.paymentMethods.find((method) => method.id === "interac")
+        ?.accountLabel ?? "";
+    const eft =
+      settings.paymentMethods.find((method) => method.id === "eft")
+        ?.accountLabel ?? "";
+    setAccountDrafts({ interac, eft });
+    setAccountConfirmed({
+      interac: Boolean(interac.trim()),
+      eft: Boolean(eft.trim()),
+    });
+  }
+
   function startEdit(section: SectionKey) {
     if (!saved) return;
     if (editing && editing !== section) {
       runOrWarn(() => {
-        setDraft(cloneSettings(saved));
+        const next = cloneSettings(saved);
+        setDraft(next);
+        if (section === "payments") syncAccountConnectState(next);
         setEditing(section);
       });
       return;
     }
-    setDraft(cloneSettings(saved));
+    const next = cloneSettings(saved);
+    setDraft(next);
+    if (section === "payments") syncAccountConnectState(next);
     setEditing(section);
   }
 
   function closeEdit() {
     runOrWarn(() => {
-      if (saved) setDraft(cloneSettings(saved));
+      if (saved) {
+        setDraft(cloneSettings(saved));
+        syncAccountConnectState(saved);
+      }
       setEditing(null);
     });
   }
@@ -910,82 +868,74 @@ export function OrganizationSettingsView() {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
   }
 
-  function beginEnableInterac() {
-    if (editing !== "payments" && saved) {
-      setDraft(cloneSettings(saved));
-      setEditing("payments");
-    }
-    openEnableInteracModal();
-  }
-
-  function openEnableInteracModal() {
-    const existing = draft?.paymentMethods.find(
-      (method) => method.id === "interac",
-    )?.accountLabel;
-    setInteracAccountDraft(
-      existing &&
-        INTERAC_DEPOSIT_ACCOUNTS.includes(
-          existing as (typeof INTERAC_DEPOSIT_ACCOUNTS)[number],
-        )
-        ? existing
-        : INTERAC_DEPOSIT_ACCOUNTS[0],
+  function togglePaymentMethod(id: PaymentMethodId) {
+    const currentlyEnabled = Boolean(
+      draft?.paymentMethods.find((method) => method.id === id)?.enabled,
     );
-    setInteracEnableOpen(true);
-  }
+    const enabling = !currentlyEnabled;
 
-  function completeEnableInterac() {
-    if (!interacAccountDraft) return;
     setDraft((prev) => {
       if (!prev) return prev;
-      const label = paymentMethodLabel("interac");
+      const label = paymentMethodLabel(id);
+      const paymentMethods = prev.paymentMethods.map((method) =>
+        method.id === id
+          ? {
+              ...method,
+              enabled: enabling,
+              accountLabel: enabling
+                ? method.accountLabel
+                : needsDepositAccount(id)
+                  ? ""
+                  : method.accountLabel,
+            }
+          : method,
+      );
+      const paymentPreferences = enabling
+        ? prev.paymentPreferences.includes(label)
+          ? prev.paymentPreferences
+          : [...prev.paymentPreferences, label]
+        : prev.paymentPreferences.filter((item) => item !== label);
+      return { ...prev, paymentMethods, paymentPreferences };
+    });
+
+    if (needsDepositAccount(id) && (id === "interac" || id === "eft") && !enabling) {
+      setAccountDrafts((prev) => ({ ...prev, [id]: "" }));
+      setAccountConfirmed((prev) => ({ ...prev, [id]: false }));
+    }
+  }
+
+  function updateAccountDraft(id: "interac" | "eft", value: string) {
+    setAccountDrafts((prev) => ({ ...prev, [id]: value }));
+    setAccountConfirmed((prev) => ({ ...prev, [id]: false }));
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        paymentMethods: prev.paymentMethods.map((method) =>
+          method.id === id ? { ...method, accountLabel: "" } : method,
+        ),
+      };
+    });
+  }
+
+  function confirmAccount(id: "interac" | "eft") {
+    const accountLabel = accountDrafts[id].trim();
+    if (!accountLabel) return;
+    setAccountConfirmed((prev) => ({ ...prev, [id]: true }));
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const label = paymentMethodLabel(id);
       const prefs = prev.paymentPreferences.includes(label)
         ? prev.paymentPreferences
         : [...prev.paymentPreferences, label];
       return {
         ...prev,
         paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === "interac"
-            ? {
-                ...method,
-                enabled: true,
-                accountLabel: interacAccountDraft,
-              }
+          method.id === id
+            ? { ...method, enabled: true, accountLabel }
             : method,
         ),
         paymentPreferences: prefs,
-      };
-    });
-    setInteracEnableOpen(false);
-  }
-
-  function disableInterac() {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const label = paymentMethodLabel("interac");
-      return {
-        ...prev,
-        paymentMethods: prev.paymentMethods.map((method) =>
-          method.id === "interac"
-            ? { ...method, enabled: false, accountLabel: "" }
-            : method,
-        ),
-        paymentPreferences: prev.paymentPreferences.filter(
-          (item) => item !== label,
-        ),
-      };
-    });
-  }
-
-  function togglePaymentDefault(id: PaymentMethodId) {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const label = paymentMethodLabel(id);
-      const isDefault = prev.paymentPreferences.includes(label);
-      return {
-        ...prev,
-        paymentPreferences: isDefault
-          ? prev.paymentPreferences.filter((item) => item !== label)
-          : [...prev.paymentPreferences, label],
       };
     });
   }
@@ -1103,6 +1053,10 @@ export function OrganizationSettingsView() {
                   title="Business Details"
                   onClose={closeEdit}
                   onSave={saveSection}
+                  saveDisabled={
+                    draft.gstRegistrationStatus === "registered" &&
+                    !isValidGstHstNumber(draft.gstHstNumber)
+                  }
                 >
                   <div>
                     <FieldLabel
@@ -1121,20 +1075,126 @@ export function OrganizationSettingsView() {
                     />
                   </div>
                   <div>
-                    <FieldLabel
-                      htmlFor="org-gst"
-                      tip="Your tax number, if you collect sales tax. It can show on your invoices."
-                    >
-                      {FIELD.gstHstNumber}
-                    </FieldLabel>
-                    <input
-                      id="org-gst"
-                      className={inputClass}
-                      value={draft.gstHstNumber}
-                      onChange={(event) =>
-                        patchDraft({ gstHstNumber: event.target.value })
-                      }
-                    />
+                    <p className="type-body mb-3 text-black">
+                      {FIELD.gstRegistration}
+                    </p>
+                    <div className="mt-1 flex flex-col gap-3">
+                      {GST_REGISTRATION_OPTIONS.map((option) => (
+                        <div key={option.value}>
+                          <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                            <input
+                              type="radio"
+                              name="org-gst-registration"
+                              className="mt-0.5 accent-prime-blue"
+                              checked={
+                                draft.gstRegistrationStatus === option.value
+                              }
+                              onChange={() =>
+                                patchDraft({
+                                  gstRegistrationStatus: option.value,
+                                  taxStatus:
+                                    option.value === "small_supplier"
+                                      ? "Tax-exempt"
+                                      : "Taxable",
+                                  gstHstNumber:
+                                    option.value === "registered"
+                                      ? draft.gstHstNumber
+                                      : "",
+                                })
+                              }
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                          {option.value === "pending_number" &&
+                          draft.gstRegistrationStatus === "pending_number" ? (
+                            <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
+                              You need a GST/HST number once you exceed $30,000
+                              in revenue.{" "}
+                              <a
+                                href={GST_HST_REGISTER_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-prime-blue underline underline-offset-2"
+                              >
+                                Register with the CRA
+                              </a>
+                              , then add this in later in your organization
+                              settings.
+                            </p>
+                          ) : null}
+                          {option.value === "registered" &&
+                          draft.gstRegistrationStatus === "registered" ? (
+                            <div className="mt-1.5 pl-6">
+                              <div className="flex flex-nowrap items-center gap-2">
+                                <input
+                                  id="org-gst-bn"
+                                  inputMode="numeric"
+                                  maxLength={9}
+                                  className={`${inputClass} !w-[9.5rem] shrink-0`}
+                                  value={
+                                    parseGstHstNumber(draft.gstHstNumber).bn
+                                  }
+                                  onChange={(event) => {
+                                    const bn = event.target.value
+                                      .replace(/[^\d]/g, "")
+                                      .slice(0, 9);
+                                    const { account } = parseGstHstNumber(
+                                      draft.gstHstNumber,
+                                    );
+                                    patchDraft({
+                                      gstHstNumber: formatGstHstNumber(
+                                        bn,
+                                        account,
+                                      ),
+                                    });
+                                  }}
+                                  placeholder="123456789"
+                                  aria-label="GST/HST business number, 9 digits"
+                                />
+                                <span className="shrink-0 type-body text-black">
+                                  RT
+                                </span>
+                                <input
+                                  id="org-gst-account"
+                                  inputMode="numeric"
+                                  maxLength={4}
+                                  className={`${inputClass} !w-[5.5rem] shrink-0`}
+                                  value={
+                                    parseGstHstNumber(draft.gstHstNumber)
+                                      .account
+                                  }
+                                  onChange={(event) => {
+                                    const account = event.target.value
+                                      .replace(/[^\d]/g, "")
+                                      .slice(0, 4);
+                                    const { bn } = parseGstHstNumber(
+                                      draft.gstHstNumber,
+                                    );
+                                    patchDraft({
+                                      gstHstNumber: formatGstHstNumber(
+                                        bn,
+                                        account,
+                                      ),
+                                    });
+                                  }}
+                                  placeholder="0001"
+                                  aria-label="GST/HST account number, 4 digits"
+                                />
+                              </div>
+                              {(parseGstHstNumber(draft.gstHstNumber).bn ||
+                                parseGstHstNumber(draft.gstHstNumber)
+                                  .account) &&
+                              !isValidGstHstNumber(draft.gstHstNumber) ? (
+                                <p className="type-danger mt-2">
+                                  Enter a valid CRA number (9 digits + RT + 4
+                                  digits).
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <FieldLabel
@@ -1182,9 +1242,20 @@ export function OrganizationSettingsView() {
                       value={displayOrNa(saved.businessName)}
                     />
                     <ViewField
-                      label={FIELD.gstHstNumber}
-                      value={displayOrNa(saved.gstHstNumber)}
+                      label={FIELD.gstRegistrationStatus}
+                      value={
+                        GST_REGISTRATION_OPTIONS.find(
+                          (option) =>
+                            option.value === saved.gstRegistrationStatus,
+                        )?.label ?? null
+                      }
                     />
+                    {saved.gstRegistrationStatus === "registered" ? (
+                      <ViewField
+                        label={FIELD.gstHstNumber}
+                        value={displayOrNa(saved.gstHstNumber)}
+                      />
+                    ) : null}
                     <ViewField
                       label={FIELD.email}
                       value={displayOrNa(saved.email)}
@@ -1229,8 +1300,8 @@ export function OrganizationSettingsView() {
                       }
                     />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
+                  <div className="flex w-full flex-col gap-6">
+                    <div className="w-full">
                       <FieldLabel htmlFor="org-city">{FIELD.city}</FieldLabel>
                       <input
                         id="org-city"
@@ -1241,7 +1312,7 @@ export function OrganizationSettingsView() {
                         }
                       />
                     </div>
-                    <div>
+                    <div className="w-full">
                       <FieldLabel htmlFor="org-province">
                         {FIELD.province}
                       </FieldLabel>
@@ -1441,63 +1512,77 @@ export function OrganizationSettingsView() {
                   title="Payment Options"
                   onClose={closeEdit}
                   onSave={saveSection}
-                  outsideDismissEnabled={!interacEnableOpen}
                 >
                   <p className="type-body-muted">
                     Choose how you want to receive payments by default. You can
                     always change this for specific customers or invoices later.
                   </p>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-3">
                     {draft.paymentMethods.map((method) => {
                       const meta = CORE_PAYMENT_METHODS.find(
                         (entry) => entry.id === method.id,
                       );
                       if (!meta) return null;
                       const label = paymentMethodLabel(method.id);
-                      const isInterac = method.id === "interac";
-                      const isDefault =
-                        draft.paymentPreferences.includes(label);
-
-                      if (isInterac && !method.enabled) {
-                        return (
-                          <PaymentOptionRow
-                            key={method.id}
-                            label={label}
-                            details={[]}
-                            isDefault={false}
-                            checkboxDisabled
-                            footer={
-                              <PaymentEnableFlag
-                                paymentNoun="e-transfer"
-                                onEnableOption={beginEnableInterac}
-                              />
-                            }
-                          />
-                        );
-                      }
+                      const orgDisplayName = draft.useLegalNameOnInvoices
+                        ? draft.businessName
+                        : draft.tradingAsName.trim() || draft.businessName;
+                      const needsAccount = needsDepositAccount(method.id);
 
                       return (
-                        <PaymentOptionRow
+                        <OrgPaymentMethodRow
                           key={method.id}
+                          methodId={method.id}
                           label={label}
                           details={meta.details}
-                          isDefault={isDefault}
-                          onToggleDefault={() =>
-                            togglePaymentDefault(method.id)
-                          }
-                          accountLabel={
-                            isInterac
-                              ? method.accountLabel || undefined
+                          enabled={method.enabled}
+                          onToggle={() => togglePaymentMethod(method.id)}
+                          subtitle={
+                            needsAccount
+                              ? paymentRequestSubtitle(
+                                  orgDisplayName,
+                                  draft.email,
+                                )
                               : undefined
                           }
-                          onRemoveAccount={
-                            isInterac && method.accountLabel
-                              ? disableInterac
+                          accountDraft={
+                            method.id === "interac" || method.id === "eft"
+                              ? accountDrafts[method.id]
+                              : ""
+                          }
+                          accountSaved={
+                            method.id === "interac" || method.id === "eft"
+                              ? accountConfirmed[method.id]
+                              : false
+                          }
+                          onAccountDraftChange={
+                            method.id === "interac" || method.id === "eft"
+                              ? (value) =>
+                                  updateAccountDraft(method.id as "interac" | "eft", value)
+                              : undefined
+                          }
+                          onConfirmAccount={
+                            method.id === "interac" || method.id === "eft"
+                              ? () =>
+                                  confirmAccount(method.id as "interac" | "eft")
                               : undefined
                           }
                         />
                       );
                     })}
+                    <OrgPaymentMethodRow
+                      label={
+                        <>
+                          Credit Card
+                          <span className="rounded-md bg-black/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-black/70">
+                            Coming Soon
+                          </span>
+                        </>
+                      }
+                      details={[]}
+                      enabled={false}
+                      comingSoon
+                    />
                   </div>
                 </SectionEditor>
               ) : (
@@ -1511,41 +1596,47 @@ export function OrganizationSettingsView() {
                     Choose how you want to receive payments by default. You can
                     always change this for specific customers or invoices later.
                   </p>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col">
                     {saved.paymentMethods.map((method) => {
-                      const meta = CORE_PAYMENT_METHODS.find(
-                        (entry) => entry.id === method.id,
-                      );
                       const label = paymentMethodLabel(method.id);
-                      const isDefault =
-                        saved.paymentPreferences.includes(label);
-                      const details = meta?.details ?? [];
-                      const isInterac = method.id === "interac";
+                      const account = method.accountLabel?.trim();
+                      const isOn = method.enabled;
 
                       return (
-                        <PaymentOptionRow
-                          key={method.id}
-                          label={label}
-                          details={
-                            method.enabled && isDefault ? details : []
-                          }
-                          isDefault={method.enabled && isDefault}
-                          checkboxDisabled={!method.enabled}
-                          readOnly
-                          accountLabel={
-                            isInterac && method.enabled
-                              ? method.accountLabel || undefined
-                              : undefined
-                          }
-                          footer={
-                            isInterac && !method.enabled ? (
-                              <PaymentEnableFlag
-                                paymentNoun="e-transfer"
-                                onEnableOption={beginEnableInterac}
-                              />
-                            ) : null
-                          }
-                        />
+                        <div key={method.id} className="py-3.5">
+                          <div className="flex items-start gap-2">
+                            <span
+                              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
+                              aria-hidden
+                            >
+                              {isOn ? <DefaultCheckIcon /> : null}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`type-subtitle-1 ${
+                                  isOn ? "text-black" : "text-black/40"
+                                }`}
+                              >
+                                {label}
+                              </p>
+                              {isOn ? (
+                                account ? (
+                                  <p className="mt-1 text-sm text-black/70">
+                                    {account}
+                                  </p>
+                                ) : needsDepositAccount(method.id) ? (
+                                  <p className="mt-1 text-sm text-delete-red">
+                                    Payment destination not connected
+                                  </p>
+                                ) : null
+                              ) : (
+                                <p className="mt-1 text-sm text-black/40">
+                                  Not enabled by default
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -1563,12 +1654,41 @@ export function OrganizationSettingsView() {
                       <FieldLabel tip="All quotes and invoices are locked to Canadian Dollars.">
                         {FIELD.currency}
                       </FieldLabel>
-                      <p className="rounded border border-black/15 bg-input-grey px-3 py-2.5 text-sm font-semibold text-midnight-ink">
-                        CAD — Canadian Dollar (locked)
-                      </p>
+                      <div className="flex h-[42px] items-center justify-between gap-3 rounded border border-black/15 bg-[#E8E8E8] px-3.5 text-sm text-midnight-ink">
+                        <span>CAD — Canadian Dollar</span>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          aria-hidden
+                          className="shrink-0 text-black/50"
+                        >
+                          <rect
+                            x="3.5"
+                            y="7"
+                            width="9"
+                            height="6.5"
+                            rx="1.2"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                          />
+                          <path
+                            d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="sr-only">(locked)</span>
+                      </div>
                     </div>
                     <div>
-                      <FieldLabel>{FIELD.taxSetting}</FieldLabel>
+                      <FieldLabel
+                        tip="Tax-exempt means GST/HST does not apply to the goods or services on the invoice (show tax as blank/N/A, not $0.00). Common examples: most healthcare and dental services, many educational services, child care for ages 14 and under, most financial services, and long-term residential rent. If you’re unsure, check CRA guidance or your accountant."
+                      >
+                        {FIELD.taxSetting}
+                      </FieldLabel>
                       <SelectField
                         ariaLabel={FIELD.taxSetting}
                         value={draft.taxStatus}
@@ -1631,7 +1751,36 @@ export function OrganizationSettingsView() {
                   <ViewFieldList>
                     <ViewField
                       label={FIELD.currency}
-                      value="CAD — Canadian Dollar (locked)"
+                      value={
+                        <div className="flex h-[42px] max-w-md items-center justify-between gap-3 rounded border border-black/15 bg-[#E8E8E8] px-3.5 text-sm text-midnight-ink">
+                          <span>CAD — Canadian Dollar</span>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            aria-hidden
+                            className="shrink-0 text-black/50"
+                          >
+                            <rect
+                              x="3.5"
+                              y="7"
+                              width="9"
+                              height="6.5"
+                              rx="1.2"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                            />
+                            <path
+                              d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <span className="sr-only">(locked)</span>
+                        </div>
+                      }
                     />
                     <ViewField
                       label={FIELD.taxSetting}
@@ -1916,18 +2065,6 @@ export function OrganizationSettingsView() {
             You have unsaved edits in this section. Discard them?
           </p>
         </Modal>
-      ) : null}
-
-      {interacEnableOpen ? (
-        <EnableDepositAccountModal
-          title="Enable Interac e-Transfer"
-          titleId="enable-interac-title"
-          description="Choose which account should receive Interac e-Transfer payments."
-          account={interacAccountDraft}
-          onAccountChange={setInteracAccountDraft}
-          onClose={() => setInteracEnableOpen(false)}
-          onConfirm={completeEnableInterac}
-        />
       ) : null}
     </div>
   );

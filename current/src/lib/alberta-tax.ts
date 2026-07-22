@@ -22,10 +22,16 @@ export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
     hint: "Ontario clients — combined GST/HST when place of supply rules apply.",
   },
   {
-    label: "HST - 15% (NS / NB / NL / PE)",
+    label: "HST - 14% (NS)",
+    rate: 14,
+    gstRate: 14,
+    hint: "Nova Scotia clients — 14% HST when place of supply rules apply.",
+  },
+  {
+    label: "HST - 15% (NB / PE / NL)",
     rate: 15,
     gstRate: 15,
-    hint: "Atlantic provinces — Nova Scotia, New Brunswick, Newfoundland & Labrador, or PEI.",
+    hint: "New Brunswick, Prince Edward Island, or Newfoundland and Labrador — 15% HST.",
   },
   {
     label: "GST + PST - BC (12%)",
@@ -64,7 +70,7 @@ export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
   {
     label: "Tax Exempt",
     rate: null,
-    hint: "Exempt supplies (e.g. many financial, residential rent, or certain professional services).",
+    hint: "GST/HST does not apply — leave tax blank/N/A (not $0.00). Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
   },
   {
     label: "No Tax",
@@ -185,6 +191,8 @@ export type InvoiceTotals = {
   shipping: number;
   gst: number;
   pst: number;
+  /** Label for the federal/harmonized portion shown in totals. */
+  federalTaxLabel: "GST" | "HST" | "GST/HST";
   /** Grand total the customer pays (includes tax in both modes). */
   total: number;
 };
@@ -216,7 +224,8 @@ export function computeInvoiceTotals(
         item.discountType,
       );
 
-      const option = findTaxOption(getLineTaxLabel(item.taxBadges));
+      const taxLabel = getLineTaxLabel(item.taxBadges);
+      const option = findTaxOption(taxLabel);
       const gstRate = option?.gstRate ?? 0;
       const pstRate = option?.pstRate ?? 0;
       const hasTax = option != null && option.gstRate != null;
@@ -239,15 +248,27 @@ export function computeInvoiceTotals(
         }
       }
 
+      const isHst = Boolean(option && /hst/i.test(option.label));
+
       return {
         subtotal: acc.subtotal + lineSubtotal,
         itemDiscount: acc.itemDiscount + discount,
         gst: acc.gst + gst,
         pst: acc.pst + pst,
         total: acc.total + lineTotalWithTax,
+        hasGst: acc.hasGst || (hasTax && !isHst && gst > 0),
+        hasHst: acc.hasHst || (hasTax && isHst && gst > 0),
       };
     },
-    { subtotal: 0, itemDiscount: 0, gst: 0, pst: 0, total: 0 },
+    {
+      subtotal: 0,
+      itemDiscount: 0,
+      gst: 0,
+      pst: 0,
+      total: 0,
+      hasGst: false,
+      hasHst: false,
+    },
   );
 
   const rawDiscount = Math.max(extras.invoiceDiscount ?? 0, 0);
@@ -257,10 +278,21 @@ export function computeInvoiceTotals(
       : rawDiscount;
   const shipping = Math.max(extras.shipping ?? 0, 0);
 
+  const federalTaxLabel =
+    base.hasGst && base.hasHst
+      ? ("GST/HST" as const)
+      : base.hasHst
+        ? ("HST" as const)
+        : ("GST" as const);
+
   return {
-    ...base,
+    subtotal: base.subtotal,
+    itemDiscount: base.itemDiscount,
+    gst: base.gst,
+    pst: base.pst,
     invoiceDiscount,
     shipping,
+    federalTaxLabel,
     total: Math.max(base.total - invoiceDiscount + shipping, 0),
   };
 }

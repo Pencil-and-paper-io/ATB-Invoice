@@ -5,14 +5,24 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
-  DEMO_DEPOSIT_ACCOUNTS,
+  formatGstHstNumber,
   isValidGstHstNumber,
   loadOrganizationSettings,
+  parseGstHstNumber,
   paymentMethodLabel,
   saveOrganizationSettings,
   type OrganizationSettings,
   type PaymentMethodId,
 } from "@/lib/organization-settings";
+import {
+  DepositAccountBlock,
+  paymentRequestSubtitle,
+} from "./DepositAccountConnect";
+import {
+  GST_HST_REGISTER_URL,
+  GST_REGISTRATION_OPTIONS,
+  type GstRegistrationStatus,
+} from "@/lib/place-of-supply";
 import { ONBOARDING_JUST_COMPLETED_KEY } from "@/components/invoice/OnboardingCompleteModal";
 import { PencilIcon } from "@/components/invoice/ui";
 
@@ -54,7 +64,7 @@ type WizardState = {
   paymentTermsChoice: PaymentTermsChoice;
   customPaymentDays: string;
   quoteExpiryDays: string;
-  collectSalesTax: boolean;
+  gstRegistrationStatus: GstRegistrationStatus;
   gstHstNumber: string;
   quoteStartNumber: string;
   invoiceStartNumber: string;
@@ -89,89 +99,65 @@ function CheckboxRow({
   checked,
   onChange,
   label,
+  subtitle,
   children,
   disabled = false,
   alwaysShowChildren = false,
+  comingSoon = false,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: ReactNode;
+  subtitle?: ReactNode;
   children?: ReactNode;
   disabled?: boolean;
   alwaysShowChildren?: boolean;
+  comingSoon?: boolean;
 }) {
   return (
     <div
-      className={`rounded-[10px] border border-black/10 px-4 py-3 ${
-        disabled && !alwaysShowChildren ? "opacity-50" : ""
+      className={`rounded-[10px] border px-4 py-3 ${
+        comingSoon
+          ? "border-black/10 bg-[#F3F3F3]"
+          : disabled
+            ? "border-black/10 bg-white opacity-60"
+            : "border-black/10 bg-white"
       }`}
     >
       <label
         className={`flex items-start gap-3 ${
-          disabled ? "cursor-not-allowed" : "cursor-pointer"
+          disabled || comingSoon ? "cursor-not-allowed" : "cursor-pointer"
         }`}
       >
         <input
           type="checkbox"
           checked={checked}
-          disabled={disabled}
+          disabled={disabled || comingSoon}
           onChange={(event) => onChange(event.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-black/25 accent-prime-blue disabled:opacity-50"
+          className="mt-0.5 h-4 w-4 rounded border-black/25 accent-prime-blue disabled:cursor-not-allowed disabled:opacity-60"
         />
-        <span
-          className={`inline-flex flex-wrap items-center gap-2 text-sm font-semibold ${
-            disabled ? "text-black/40" : "text-black"
-          }`}
-        >
-          {label}
+        <span className="min-w-0 flex-1">
+          <span
+            className={`inline-flex flex-wrap items-center gap-2 text-sm font-semibold ${
+              comingSoon
+                ? "text-black/55"
+                : disabled
+                  ? "text-black/40"
+                  : "text-black"
+            }`}
+          >
+            {label}
+          </span>
+          {subtitle ? (
+            <span className="mt-1 block text-sm font-normal leading-5 text-black">
+              {subtitle}
+            </span>
+          ) : null}
         </span>
       </label>
       {(alwaysShowChildren || checked) && children ? (
         <div className="mt-3 pl-7">{children}</div>
       ) : null}
-    </div>
-  );
-}
-
-function DepositAccountSelect({
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <div className="relative">
-      <select
-        aria-label={ariaLabel}
-        className={`${inputClass} appearance-none pr-12`}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {DEMO_DEPOSIT_ACCOUNTS.map((account) => (
-          <option key={account.id} value={account.label}>
-            {account.label}
-          </option>
-        ))}
-      </select>
-      <svg
-        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-black/55"
-        width="11"
-        height="6"
-        viewBox="0 0 11 6"
-        fill="none"
-        aria-hidden
-      >
-        <path
-          d="M1 1l4.5 4L10 1"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
     </div>
   );
 }
@@ -193,63 +179,6 @@ function PaymentMethodDetails({
         </li>
       ))}
     </ul>
-  );
-}
-
-function DepositAccountBlock({
-  ariaLabel,
-  value,
-  onChange,
-  organizationName,
-  organizationEmail,
-  onSave,
-  saved = false,
-}: {
-  ariaLabel: string;
-  value: string;
-  onChange: (value: string) => void;
-  organizationName: string;
-  organizationEmail: string;
-  onSave?: () => void;
-  saved?: boolean;
-}) {
-  return (
-    <div className="mt-3">
-      <FieldLabel>Deposit Account</FieldLabel>
-      <DepositAccountSelect
-        ariaLabel={ariaLabel}
-        value={value}
-        onChange={onChange}
-      />
-      {onSave ? (
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saved}
-            className="ui-btn-secondary h-9 px-4 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Save account
-          </button>
-          {!saved ? (
-            <p className="text-sm text-black/55">
-              Save a deposit account to enable this option.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <p className="type-body-muted mt-2">
-        Requests are shown as coming from{" "}
-        <span className="font-semibold text-black/70">
-          {organizationName || "—"}
-        </span>{" "}
-        using{" "}
-        <span className="font-semibold text-black/70">
-          {organizationEmail || "—"}
-        </span>
-        .
-      </p>
-    </div>
   );
 }
 
@@ -362,10 +291,6 @@ function DashedProgress({
 }
 
 function settingsToWizard(settings: OrganizationSettings): WizardState {
-  const accountFor = (id: "interac" | "eft") =>
-    settings.paymentMethods.find((method) => method.id === id)?.accountLabel ||
-    DEMO_DEPOSIT_ACCOUNTS[0].label;
-
   const terms = settings.paymentTerms.trim().toLowerCase();
   let paymentTermsChoice: PaymentTermsChoice = "30";
   let customPaymentDays = "";
@@ -394,33 +319,23 @@ function settingsToWizard(settings: OrganizationSettings): WizardState {
     contactName: settings.contactName || "",
     replyToEmail: settings.email || "",
     paymentEnabled: {
-      interac:
-        (settings.paymentMethods.find((method) => method.id === "interac")
-          ?.enabled ??
-          false) && Boolean(accountFor("interac")),
-      eft:
-        (settings.paymentMethods.find((method) => method.id === "eft")
-          ?.enabled ??
-          true) && Boolean(accountFor("eft")),
-      cash:
-        settings.paymentMethods.find((method) => method.id === "cash")
-          ?.enabled ?? true,
-      cheque:
-        settings.paymentMethods.find((method) => method.id === "cheque")
-          ?.enabled ?? true,
+      interac: true,
+      eft: false,
+      cash: false,
+      cheque: false,
     },
     paymentAccounts: {
-      interac: accountFor("interac") || DEMO_DEPOSIT_ACCOUNTS[0].label,
-      eft: accountFor("eft") || DEMO_DEPOSIT_ACCOUNTS[0].label,
+      interac: "",
+      eft: "",
     },
     paymentAccountsSaved: {
-      interac: Boolean(accountFor("interac")),
-      eft: Boolean(accountFor("eft")),
+      interac: false,
+      eft: false,
     },
     paymentTermsChoice,
     customPaymentDays,
     quoteExpiryDays: settings.quoteExpiryDays || "30",
-    collectSalesTax: settings.taxStatus === "Taxable",
+    gstRegistrationStatus: settings.gstRegistrationStatus || "registered",
     gstHstNumber: settings.gstHstNumber || "",
     quoteStartNumber: settings.quoteStartNumber || "QT-1001",
     invoiceStartNumber: settings.invoiceStartNumber || "INV-1001",
@@ -478,8 +393,15 @@ function persistWizard(state: WizardState) {
     paymentPreferences,
     paymentTerms: paymentTermsFromWizard(state),
     quoteExpiryDays: state.quoteExpiryDays.replace(/[^\d]/g, "") || "30",
-    taxStatus: state.collectSalesTax ? "Taxable" : "Tax-exempt",
-    gstHstNumber: state.collectSalesTax ? state.gstHstNumber.trim() : "",
+    taxStatus:
+      state.gstRegistrationStatus === "small_supplier"
+        ? "Tax-exempt"
+        : "Taxable",
+    gstRegistrationStatus: state.gstRegistrationStatus,
+    gstHstNumber:
+      state.gstRegistrationStatus === "registered"
+        ? state.gstHstNumber.trim()
+        : "",
     quoteStartNumber: state.quoteStartNumber.trim() || "QT-1001",
     invoiceStartNumber: state.invoiceStartNumber.trim() || "INV-1001",
     onboardingCompleted: true,
@@ -495,25 +417,12 @@ function isPositiveDocNumber(value: string) {
   return Boolean(digits) && Number(digits) > 0;
 }
 
-function parseGstHstNumber(value: string): { bn: string; account: string } {
-  const match = value.trim().match(/^(\d{0,9})\s*RT\s*(\d{0,4})$/i);
-  if (match) {
-    return { bn: match[1] ?? "", account: match[2] ?? "" };
-  }
-  const digits = value.replace(/[^\d]/g, "");
-  return { bn: digits.slice(0, 9), account: digits.slice(9, 13) };
-}
-
-function formatGstHstNumber(bn: string, account: string) {
-  if (!bn && !account) return "";
-  return `${bn} RT ${account}`.trim();
-}
-
 export function OnboardingWizardView() {
   const router = useRouter();
   const [step, setStep] = useState<StepIndex>(0);
   const [finishing, setFinishing] = useState(false);
   const [editingBusinessName, setEditingBusinessName] = useState(false);
+  const [showPaymentConfirmError, setShowPaymentConfirmError] = useState(false);
   const [state, setState] = useState<WizardState>(() =>
     settingsToWizard(loadOrganizationSettings()),
   );
@@ -543,16 +452,22 @@ export function OnboardingWizardView() {
       if (!state.useLegalNameOnInvoices && !state.tradingAsName.trim()) {
         return false;
       }
-      if (state.collectSalesTax && !isValidGstHstNumber(state.gstHstNumber)) {
+      if (
+        state.gstRegistrationStatus === "registered" &&
+        !isValidGstHstNumber(state.gstHstNumber)
+      ) {
         return false;
       }
       return true;
     }
     if (step === 1) {
-      if (state.paymentEnabled.interac && !state.paymentAccounts.interac) {
+      if (
+        state.paymentEnabled.interac &&
+        !state.paymentAccountsSaved.interac
+      ) {
         return false;
       }
-      if (state.paymentEnabled.eft && !state.paymentAccounts.eft) {
+      if (state.paymentEnabled.eft && !state.paymentAccountsSaved.eft) {
         return false;
       }
       return true;
@@ -577,6 +492,17 @@ export function OnboardingWizardView() {
   }, [state, step]);
 
   function goNext() {
+    if (step === 1) {
+      const needsInteracConfirm =
+        state.paymentEnabled.interac && !state.paymentAccountsSaved.interac;
+      const needsEftConfirm =
+        state.paymentEnabled.eft && !state.paymentAccountsSaved.eft;
+      if (needsInteracConfirm || needsEftConfirm) {
+        setShowPaymentConfirmError(true);
+        return;
+      }
+      setShowPaymentConfirmError(false);
+    }
     if (step === 3) {
       if (finishing) return;
       persistWizard(state);
@@ -639,7 +565,6 @@ export function OnboardingWizardView() {
   const organizationDisplayName = state.useLegalNameOnInvoices
     ? state.businessName
     : state.tradingAsName.trim() || state.businessName;
-  const defaultChequing = DEMO_DEPOSIT_ACCOUNTS[0].label;
 
   if (finishing) {
     return (
@@ -763,39 +688,41 @@ export function OnboardingWizardView() {
                       />
                       Yes, use my legal business name (default)
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="legal-name-toggle"
-                        checked={!state.useLegalNameOnInvoices}
-                        onChange={() =>
-                          patch({ useLegalNameOnInvoices: false })
-                        }
-                      />
-                      No, I want to use a different name
-                    </label>
-                  </div>
-                  {!state.useLegalNameOnInvoices ? (
                     <div>
-                      <FieldLabel htmlFor="trading-as">
-                        Trading As / Operating Name
-                      </FieldLabel>
-                      <input
-                        id="trading-as"
-                        className={inputClass}
-                        value={state.tradingAsName}
-                        onChange={(event) =>
-                          patch({ tradingAsName: event.target.value })
-                        }
-                        placeholder="Shown on invoice headers"
-                      />
-                      <p className="type-body-muted mt-2">
-                        Note: To keep you CRA compliant, we will still show a
-                        footnote on your invoices automatically with your legal
-                        business name.
-                      </p>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="legal-name-toggle"
+                          checked={!state.useLegalNameOnInvoices}
+                          onChange={() =>
+                            patch({ useLegalNameOnInvoices: false })
+                          }
+                        />
+                        No, I want to use a different name
+                      </label>
+                      {!state.useLegalNameOnInvoices ? (
+                        <div className="mt-1.5 pl-6">
+                          <FieldLabel htmlFor="trading-as">
+                            Trading As / Operating Name
+                          </FieldLabel>
+                          <input
+                            id="trading-as"
+                            className={inputClass}
+                            value={state.tradingAsName}
+                            onChange={(event) =>
+                              patch({ tradingAsName: event.target.value })
+                            }
+                            placeholder="Shown on invoice headers"
+                          />
+                          <p className="type-body-muted mt-2">
+                            Note: To keep you CRA compliant, we will still show a
+                            footnote on your invoices automatically with your
+                            legal business name.
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </div>
                 </ContentBox>
 
                 <ContentBox title="Contact Details">
@@ -831,83 +758,110 @@ export function OnboardingWizardView() {
                 </ContentBox>
 
                 <ContentBox title="Sales Tax">
-                  <p className="type-label">Do you collect sales tax?</p>
-                  <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="sales-tax"
-                        checked={!state.collectSalesTax}
-                        onChange={() => patch({ collectSalesTax: false })}
-                      />
-                      No
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="sales-tax"
-                        checked={state.collectSalesTax}
-                        onChange={() => patch({ collectSalesTax: true })}
-                      />
-                      Yes
-                    </label>
-                  </div>
-                  {state.collectSalesTax ? (
-                    <div>
-                      <FieldLabel htmlFor="gst-hst-bn">
-                        GST/HST Number <span className="type-danger">*</span>
-                      </FieldLabel>
-                      <div className="flex flex-nowrap items-center gap-2">
-                        <input
-                          id="gst-hst-bn"
-                          inputMode="numeric"
-                          maxLength={9}
-                          className={`${inputClass} !w-[9.5rem] shrink-0`}
-                          value={gstParts.bn}
-                          onChange={(event) => {
-                            const bn = event.target.value
-                              .replace(/[^\d]/g, "")
-                              .slice(0, 9);
-                            patch({
-                              gstHstNumber: formatGstHstNumber(
-                                bn,
-                                gstParts.account,
-                              ),
-                            });
-                          }}
-                          placeholder="123456789"
-                          aria-label="GST/HST business number, 9 digits"
-                        />
-                        <span className="shrink-0 type-body text-black">RT</span>
-                        <input
-                          id="gst-hst-account"
-                          inputMode="numeric"
-                          maxLength={4}
-                          className={`${inputClass} !w-[5.5rem] shrink-0`}
-                          value={gstParts.account}
-                          onChange={(event) => {
-                            const account = event.target.value
-                              .replace(/[^\d]/g, "")
-                              .slice(0, 4);
-                            patch({
-                              gstHstNumber: formatGstHstNumber(
-                                gstParts.bn,
-                                account,
-                              ),
-                            });
-                          }}
-                          placeholder="0001"
-                          aria-label="GST/HST account number, 4 digits"
-                        />
+                  <p className="type-body mb-3 text-black">
+                    A GST/HST number is needed to charge tax on your invoices
+                    once your business has earned $30,000 or more.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    {GST_REGISTRATION_OPTIONS.map((option) => (
+                      <div key={option.value}>
+                        <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                          <input
+                            type="radio"
+                            name="gst-registration"
+                            className="mt-0.5 accent-prime-blue"
+                            checked={
+                              state.gstRegistrationStatus === option.value
+                            }
+                            onChange={() =>
+                              patch({
+                                gstRegistrationStatus: option.value,
+                                gstHstNumber:
+                                  option.value === "registered"
+                                    ? state.gstHstNumber
+                                    : "",
+                              })
+                            }
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                        {option.value === "pending_number" &&
+                        state.gstRegistrationStatus === "pending_number" ? (
+                          <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
+                            You need a GST/HST number once you exceed $30,000 in
+                            revenue.{" "}
+                            <a
+                              href={GST_HST_REGISTER_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-prime-blue underline underline-offset-2"
+                            >
+                              Register with the CRA
+                            </a>
+                            , then add this in later in your organization
+                            settings.
+                          </p>
+                        ) : null}
+                        {option.value === "registered" &&
+                        state.gstRegistrationStatus === "registered" ? (
+                          <div className="mt-1.5 pl-6">
+                            <div className="flex flex-nowrap items-center gap-2">
+                              <input
+                                id="gst-hst-bn"
+                                inputMode="numeric"
+                                maxLength={9}
+                                className={`${inputClass} !w-[9.5rem] shrink-0`}
+                                value={gstParts.bn}
+                                onChange={(event) => {
+                                  const bn = event.target.value
+                                    .replace(/[^\d]/g, "")
+                                    .slice(0, 9);
+                                  patch({
+                                    gstHstNumber: formatGstHstNumber(
+                                      bn,
+                                      gstParts.account,
+                                    ),
+                                  });
+                                }}
+                                placeholder="123456789"
+                                aria-label="GST/HST business number, 9 digits"
+                              />
+                              <span className="shrink-0 type-body text-black">
+                                RT
+                              </span>
+                              <input
+                                id="gst-hst-account"
+                                inputMode="numeric"
+                                maxLength={4}
+                                className={`${inputClass} !w-[5.5rem] shrink-0`}
+                                value={gstParts.account}
+                                onChange={(event) => {
+                                  const account = event.target.value
+                                    .replace(/[^\d]/g, "")
+                                    .slice(0, 4);
+                                  patch({
+                                    gstHstNumber: formatGstHstNumber(
+                                      gstParts.bn,
+                                      account,
+                                    ),
+                                  });
+                                }}
+                                placeholder="0001"
+                                aria-label="GST/HST account number, 4 digits"
+                              />
+                            </div>
+                            {(gstParts.bn || gstParts.account) &&
+                            !isValidGstHstNumber(state.gstHstNumber) ? (
+                              <p className="type-danger mt-2">
+                                Enter a valid CRA number (9 digits + RT + 4
+                                digits).
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
-                      {(gstParts.bn || gstParts.account) &&
-                      !isValidGstHstNumber(state.gstHstNumber) ? (
-                        <p className="type-danger mt-2">
-                          Enter a valid CRA number (9 digits + RT + 4 digits).
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
+                    ))}
+                  </div>
                 </ContentBox>
               </>
             ) : null}
@@ -916,25 +870,33 @@ export function OnboardingWizardView() {
               <div className="flex flex-col gap-3">
                 <CheckboxRow
                   checked={state.paymentEnabled.interac}
-                  disabled={!state.paymentAccountsSaved.interac}
-                  alwaysShowChildren
-                  onChange={(checked) =>
+                  onChange={(checked) => {
+                    setShowPaymentConfirmError(false);
                     patch({
                       paymentEnabled: {
                         ...state.paymentEnabled,
                         interac: checked,
                       },
-                    })
-                  }
+                    });
+                  }}
                   label="Interac e-Transfer Request"
+                  subtitle={
+                    state.paymentEnabled.interac
+                      ? paymentRequestSubtitle(
+                          organizationDisplayName,
+                          state.replyToEmail,
+                        )
+                      : undefined
+                  }
                 >
                   {interacMeta ? (
                     <PaymentMethodDetails details={interacMeta.details} />
                   ) : null}
                   <DepositAccountBlock
                     ariaLabel="Interac deposit account"
-                    value={state.paymentAccounts.interac || defaultChequing}
-                    onChange={(value) =>
+                    value={state.paymentAccounts.interac}
+                    onChange={(value) => {
+                      setShowPaymentConfirmError(false);
                       patch({
                         paymentAccounts: {
                           ...state.paymentAccounts,
@@ -944,52 +906,58 @@ export function OnboardingWizardView() {
                           ...state.paymentAccountsSaved,
                           interac: false,
                         },
-                        paymentEnabled: {
-                          ...state.paymentEnabled,
-                          interac: false,
-                        },
-                      })
-                    }
-                    organizationName={organizationDisplayName}
-                    organizationEmail={state.replyToEmail}
-                    onSave={() =>
+                      });
+                    }}
+                    onSave={() => {
+                      if (!state.paymentAccounts.interac.trim()) return;
+                      setShowPaymentConfirmError(false);
                       patch({
-                        paymentAccounts: {
-                          ...state.paymentAccounts,
-                          interac:
-                            state.paymentAccounts.interac || defaultChequing,
-                        },
                         paymentAccountsSaved: {
                           ...state.paymentAccountsSaved,
                           interac: true,
                         },
-                      })
-                    }
+                      });
+                    }}
                     saved={state.paymentAccountsSaved.interac}
+                    errorMessage={
+                      showPaymentConfirmError &&
+                      state.paymentEnabled.interac &&
+                      !state.paymentAccountsSaved.interac
+                        ? "Select and confirm a payment destination to continue."
+                        : undefined
+                    }
                   />
                 </CheckboxRow>
 
                 <CheckboxRow
                   checked={state.paymentEnabled.eft}
-                  disabled={!state.paymentAccountsSaved.eft}
-                  alwaysShowChildren
-                  onChange={(checked) =>
+                  onChange={(checked) => {
+                    setShowPaymentConfirmError(false);
                     patch({
                       paymentEnabled: {
                         ...state.paymentEnabled,
                         eft: checked,
                       },
-                    })
-                  }
+                    });
+                  }}
                   label="EFT (Direct Deposit)"
+                  subtitle={
+                    state.paymentEnabled.eft
+                      ? paymentRequestSubtitle(
+                          organizationDisplayName,
+                          state.replyToEmail,
+                        )
+                      : undefined
+                  }
                 >
                   {eftMeta ? (
                     <PaymentMethodDetails details={eftMeta.details} />
                   ) : null}
                   <DepositAccountBlock
                     ariaLabel="EFT deposit account"
-                    value={state.paymentAccounts.eft || defaultChequing}
-                    onChange={(value) =>
+                    value={state.paymentAccounts.eft}
+                    onChange={(value) => {
+                      setShowPaymentConfirmError(false);
                       patch({
                         paymentAccounts: {
                           ...state.paymentAccounts,
@@ -999,27 +967,26 @@ export function OnboardingWizardView() {
                           ...state.paymentAccountsSaved,
                           eft: false,
                         },
-                        paymentEnabled: {
-                          ...state.paymentEnabled,
-                          eft: false,
-                        },
-                      })
-                    }
-                    organizationName={organizationDisplayName}
-                    organizationEmail={state.replyToEmail}
-                    onSave={() =>
+                      });
+                    }}
+                    onSave={() => {
+                      if (!state.paymentAccounts.eft.trim()) return;
+                      setShowPaymentConfirmError(false);
                       patch({
-                        paymentAccounts: {
-                          ...state.paymentAccounts,
-                          eft: state.paymentAccounts.eft || defaultChequing,
-                        },
                         paymentAccountsSaved: {
                           ...state.paymentAccountsSaved,
                           eft: true,
                         },
-                      })
-                    }
+                      });
+                    }}
                     saved={state.paymentAccountsSaved.eft}
+                    errorMessage={
+                      showPaymentConfirmError &&
+                      state.paymentEnabled.eft &&
+                      !state.paymentAccountsSaved.eft
+                        ? "Select and confirm a payment destination to continue."
+                        : undefined
+                    }
                   />
                 </CheckboxRow>
 
@@ -1060,11 +1027,11 @@ export function OnboardingWizardView() {
                 <CheckboxRow
                   checked={false}
                   onChange={() => undefined}
-                  disabled
+                  comingSoon
                   label={
                     <>
                       Credit Card
-                      <span className="rounded-md bg-black/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-black/55">
+                      <span className="rounded-md bg-black/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-black/45">
                         Coming Soon
                       </span>
                     </>
@@ -1279,7 +1246,7 @@ export function OnboardingWizardView() {
                 <button
                   type="button"
                   onClick={goNext}
-                  disabled={!stepValid}
+                  disabled={step === 1 ? finishing : !stepValid || finishing}
                   className={`${UI_CLASS.btnPrimary} h-11 px-6 disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   {step === 3 ? "Finish setup" : "Continue"}

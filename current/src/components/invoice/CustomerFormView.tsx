@@ -4,10 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   archiveCustomer,
   customers,
@@ -29,17 +32,21 @@ import {
   loadOrganizationSettings,
 } from "@/lib/organization-settings";
 import {
-  CA_PROVINCES_TERRITORIES,
+  CA_LOCATION_OPTIONS,
   LOCKED_CURRENCY,
+  isCanadianProvince,
   provinceLabel,
 } from "@/lib/canada";
 import { loadCustomerTags } from "@/lib/customer-tags";
 import { ORGANIZATION_DEFAULTS } from "@/lib/org-defaults";
 import {
+  CUSTOMER_NON_TAXABLE_OPTIONS,
+  CUSTOMER_TAXABLE_OPTIONS,
   DEFAULT_TAX_SUGGESTIONS,
-  formatTaxSuggestionsSummary,
+  suggestNonTaxableForCustomer,
   type TaxSuggestions,
 } from "@/lib/tax-suggestions";
+import { suggestTaxFromProvince } from "@/lib/place-of-supply";
 import {
   loadCustomerProfileSettings,
   saveCustomerProfileSettings,
@@ -57,14 +64,14 @@ const TAX_RADIO_OPTIONS: {
   tip: string;
 }[] = [
   {
+    value: "Tax-exempt",
+    label: "Non-taxable",
+    tip: "GST/HST does not apply — leave tax blank/N/A (not $0.00). Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
+  },
+  {
     value: "Taxable",
     label: "Taxable",
     tip: "Choose this when you usually charge sales tax (GST/HST and/or PST/QST) on goods or services for this customer.",
-  },
-  {
-    value: "Tax-exempt",
-    label: "Non-taxable",
-    tip: "Choose this when sales to this customer are generally exempt or outside the scope of sales tax (for example, many financial services or exempt supplies).",
   },
 ];
 
@@ -146,7 +153,10 @@ function emptyCustomerForm(
     phone: "",
     currency: LOCKED_CURRENCY,
     taxStatus: cascade.taxStatus,
-    taxSuggestions: { ...DEFAULT_TAX_SUGGESTIONS },
+    taxSuggestions:
+      cascade.taxStatus === "Taxable"
+        ? { ...DEFAULT_TAX_SUGGESTIONS }
+        : suggestNonTaxableForCustomer("").suggestions,
     quoteExpiryDays: cascade.quoteExpiryDays,
     paymentTerms: cascade.paymentTerms,
     paymentPreferences: [...cascade.paymentPreferences],
@@ -293,14 +303,49 @@ function SelectField({
   ariaLabel: string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+
+    function placeMenu() {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const maxHeight = 224;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      const openUpward = spaceBelow < Math.min(maxHeight, 160) && spaceAbove > spaceBelow;
+      const height = Math.min(maxHeight, openUpward ? spaceAbove : spaceBelow);
+      setMenuStyle({
+        position: "fixed",
+        left: rect.left,
+        width: rect.width,
+        zIndex: 400,
+        maxHeight: height,
+        ...(openUpward
+          ? { bottom: window.innerHeight - rect.top + 4 }
+          : { top: rect.bottom + 4 }),
+      });
+    }
+
+    placeMenu();
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function handle(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -309,13 +354,20 @@ function SelectField({
   const normalized = options.map((option) =>
     typeof option === "string"
       ? { value: option, label: option }
-      : { value: option.code, label: `${option.name} (${option.code})` },
+      : {
+          value: option.code,
+          label:
+            option.code === "OUTSIDE_CA"
+              ? option.name
+              : `${option.name} (${option.code})`,
+        },
   );
   const selected = normalized.find((option) => option.value === value);
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -330,42 +382,64 @@ function SelectField({
           <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
         </svg>
       </button>
-      {open ? (
-        <ul
-          role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg"
-        >
-          {normalized.map((option) => (
-            <li key={option.value}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={option.value === value}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-black/[0.04]"
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center text-prime-blue">
-                  {option.value === value ? (
-                    <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-                      <path
-                        d="M1 5.2 4.8 8.8 13 1.5"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <ul
+              ref={menuRef}
+              role="listbox"
+              data-portal-menu
+              style={menuStyle}
+              className="overflow-auto rounded-lg border border-black/10 bg-white py-1 shadow-lg"
+            >
+              {normalized.map((option) => (
+                <li key={option.value}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={option.value === value}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-black/[0.04]"
+                    onMouseDown={(event) => {
+                      // Select before outside-click dismissals (portaled menus
+                      // sit outside SectionEditor) can revert draft state.
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center text-prime-blue">
+                      {option.value === value ? (
+                        <svg
+                          width="14"
+                          height="10"
+                          viewBox="0 0 14 10"
+                          fill="none"
+                        >
+                          <path
+                            d="M1 5.2 4.8 8.8 13 1.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : null}
+                    </span>
+                    {option.label}
+                  </button>
+                  {option.value === "OUTSIDE_CA" ? (
+                    <div
+                      className="mx-3 my-1 border-t border-black/10"
+                      role="separator"
+                      aria-hidden
+                    />
                   ) : null}
-                </span>
-                {option.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -551,7 +625,7 @@ function AddressFields({
           onChange={(event) => onChange({ addressLine2: event.target.value })}
         />
       </div>
-      <div>
+      <div className="sm:col-span-2">
         <FieldLabel htmlFor={`${idPrefix}-city`}>City</FieldLabel>
         <input
           id={`${idPrefix}-city`}
@@ -560,7 +634,7 @@ function AddressFields({
           onChange={(event) => onChange({ city: event.target.value })}
         />
       </div>
-      <div>
+      <div className="sm:col-span-2">
         <FieldLabel
           tip={
             requireProvince
@@ -576,11 +650,11 @@ function AddressFields({
         <SelectField
           ariaLabel={FIELD.province}
           value={values.province}
-          options={CA_PROVINCES_TERRITORIES}
+          options={CA_LOCATION_OPTIONS}
           onChange={(value) => onChange({ province: value })}
         />
       </div>
-      <div>
+      <div className="sm:col-span-2">
         <FieldLabel htmlFor={`${idPrefix}-postal`}>Postal Code</FieldLabel>
         <input
           id={`${idPrefix}-postal`}
@@ -689,7 +763,7 @@ function CustomerFormInner() {
   const [createDraft, setCreateDraft] = useState({
     businessName: "",
     email: "",
-    phone: "",
+    province: "",
   });
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [lifecycleConfirm, setLifecycleConfirm] = useState<
@@ -716,7 +790,7 @@ function CustomerFormInner() {
       setEditing(null);
       setCustomerCreated(Boolean(customerId));
       setTab(customerId ? "Account Summary" : "Customer Settings");
-      setCreateDraft({ businessName: "", email: "", phone: "" });
+      setCreateDraft({ businessName: "", email: "", province: "" });
       setArchived(isCustomerArchived(customerId));
       setLifecycleConfirm(null);
       setTagOptions(loadCustomerTags());
@@ -799,11 +873,16 @@ function CustomerFormInner() {
     const name = createDraft.businessName.trim();
     if (!name) return;
     if (createDraft.email.trim() && !isValidEmail(createDraft.email)) return;
+
+    const province = createDraft.province.trim();
+
     const next: CustomerFormState = {
       ...saved,
       businessName: name,
       email: createDraft.email.trim(),
-      phone: createDraft.phone.trim(),
+      phone: "",
+      province,
+      shippingProvince: isCanadianProvince(province) ? province : "",
       currency: LOCKED_CURRENCY,
     };
     setSaved(next);
@@ -843,7 +922,7 @@ function CustomerFormInner() {
   const businessSaveDisabled =
     !draft.businessName.trim() ||
     (Boolean(draft.email.trim()) && !isValidEmail(draft.email));
-  const addressSaveDisabled = !draft.province.trim();
+  const addressSaveDisabled = false;
   const contactSaveDisabled =
     draft.useContactEmailForComms && !isValidEmail(draft.contactEmail);
 
@@ -1317,50 +1396,96 @@ function CustomerFormInner() {
                       aria-label={FIELD.taxSetting}
                     >
                       {TAX_RADIO_OPTIONS.map((option) => (
-                        <label
-                          key={option.value}
-                          className="flex items-start gap-2.5 text-sm text-black"
-                        >
-                          <input
-                            type="radio"
-                            name="customer-tax-status"
-                            className="mt-0.5 h-4 w-4 accent-prime-blue"
-                            checked={draft.taxStatus === option.value}
-                            onChange={() => {
-                              patchDraft({
-                                taxStatus: option.value,
-                                taxSuggestions:
-                                  option.value === "Tax-exempt"
-                                    ? {
-                                        ...draft.taxSuggestions,
-                                        includeGst: false,
-                                        includePst: false,
-                                        suggestedLabel: "",
-                                      }
-                                    : draft.taxSuggestions.includeGst ||
-                                        draft.taxSuggestions.includePst
-                                      ? draft.taxSuggestions
-                                      : { ...DEFAULT_TAX_SUGGESTIONS },
-                              });
-                            }}
-                          />
-                          <span className="inline-flex items-center gap-1.5">
-                            {option.label}
-                            <InfoTooltip text={option.tip} />
-                          </span>
-                        </label>
+                        <div key={option.value}>
+                          <label className="flex items-start gap-2.5 text-sm text-black">
+                            <input
+                              type="radio"
+                              name="customer-tax-status"
+                              className="mt-0.5 h-4 w-4 accent-prime-blue"
+                              checked={draft.taxStatus === option.value}
+                              onChange={() => {
+                                if (option.value === "Tax-exempt") {
+                                  const nonTaxable = suggestNonTaxableForCustomer(
+                                    draft.province,
+                                  );
+                                  patchDraft({
+                                    taxStatus: option.value,
+                                    taxSuggestions: nonTaxable.suggestions,
+                                  });
+                                  return;
+                                }
+
+                                const place = suggestTaxFromProvince(
+                                  draft.province,
+                                );
+                                patchDraft({
+                                  taxStatus: "Taxable",
+                                  taxSuggestions:
+                                    place?.suggestions ?? {
+                                      ...DEFAULT_TAX_SUGGESTIONS,
+                                    },
+                                });
+                              }}
+                            />
+                            <span className="inline-flex items-center gap-1.5">
+                              {option.label}
+                              <InfoTooltip text={option.tip} />
+                            </span>
+                          </label>
+                          {option.value === "Taxable" &&
+                          draft.taxStatus === "Taxable" ? (
+                            <div className="mt-1.5 pl-6">
+                              <TaxSuggestionsEditor
+                                value={draft.taxSuggestions}
+                                options={CUSTOMER_TAXABLE_OPTIONS}
+                                recommendedLabel={
+                                  suggestTaxFromProvince(draft.province)
+                                    ?.taxLabel
+                                }
+                                recommendedNote="Recommended based on customer's province"
+                                onChange={(taxSuggestions) =>
+                                  patchDraft({ taxSuggestions })
+                                }
+                              />
+                            </div>
+                          ) : null}
+                          {option.value === "Tax-exempt" &&
+                          draft.taxStatus === "Tax-exempt" ? (
+                            <div className="mt-1.5 pl-6">
+                              {(() => {
+                                const nonTaxable =
+                                  suggestNonTaxableForCustomer(draft.province);
+                                const showRecommended = Boolean(
+                                  nonTaxable.note,
+                                );
+                                return (
+                                  <TaxSuggestionsEditor
+                                    value={draft.taxSuggestions}
+                                    options={CUSTOMER_NON_TAXABLE_OPTIONS}
+                                    placeholder="Select a tax category..."
+                                    ariaLabel="Non-taxable category"
+                                    showSelectedHint
+                                    recommendedLabel={
+                                      showRecommended
+                                        ? nonTaxable.label
+                                        : undefined
+                                    }
+                                    recommendedNote={
+                                      showRecommended
+                                        ? nonTaxable.note
+                                        : undefined
+                                    }
+                                    onChange={(taxSuggestions) =>
+                                      patchDraft({ taxSuggestions })
+                                    }
+                                  />
+                                );
+                              })()}
+                            </div>
+                          ) : null}
+                        </div>
                       ))}
                     </div>
-                    {draft.taxStatus === "Taxable" ? (
-                      <div className="mt-4">
-                        <TaxSuggestionsEditor
-                          value={draft.taxSuggestions}
-                          onChange={(taxSuggestions) =>
-                            patchDraft({ taxSuggestions })
-                          }
-                        />
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </SectionEditor>
@@ -1381,18 +1506,16 @@ function CustomerFormInner() {
                   />
                   <ViewField
                     label={FIELD.taxSetting}
-                    value={
-                      saved.taxStatus === "Tax-exempt"
-                        ? "Non-taxable"
-                        : saved.taxStatus.trim() || null
-                    }
+                    value={(() => {
+                      const status =
+                        saved.taxStatus === "Tax-exempt"
+                          ? "Non-taxable"
+                          : saved.taxStatus.trim() || null;
+                      if (!status) return null;
+                      const detail = saved.taxSuggestions.suggestedLabel.trim();
+                      return detail ? `${status} (${detail})` : status;
+                    })()}
                   />
-                  {saved.taxStatus === "Taxable" ? (
-                    <ViewField
-                      label="Tax rates"
-                      value={formatTaxSuggestionsSummary(saved.taxSuggestions)}
-                    />
-                  ) : null}
                 </ViewFieldList>
               </ViewCard>
             )}
@@ -1763,9 +1886,9 @@ function CustomerFormInner() {
                             onChange={(patch) => patchDraft(patch)}
                           />
                           {!draft.province.trim() ? (
-                            <p className="type-danger -mt-2">
-                              Select a province or territory to enable tax
-                              calculations.
+                            <p className="type-body-muted -mt-2">
+                              Add a province or territory later to enable
+                              Canadian tax suggestions.
                             </p>
                           ) : null}
                           <div>
@@ -2023,8 +2146,7 @@ function CustomerFormInner() {
           onConfirm={saveCreateModal}
           confirmDisabled={!createCanSave}
         >
-          <h3 className="type-headline-6">Business Details</h3>
-          <div className="mt-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             <div>
               <FieldLabel
                 htmlFor="create-business-name"
@@ -2069,18 +2191,17 @@ function CustomerFormInner() {
               ) : null}
             </div>
             <div>
-              <FieldLabel htmlFor="create-phone">
-                {FIELD.phoneNumber}
+              <FieldLabel tip="Used for billing address and tax suggestions (GST/HST place of supply).">
+                {FIELD.province}
               </FieldLabel>
-              <input
-                id="create-phone"
-                type="tel"
-                className={inputClass}
-                value={createDraft.phone}
-                onChange={(event) =>
+              <SelectField
+                ariaLabel={FIELD.province}
+                value={createDraft.province}
+                options={CA_LOCATION_OPTIONS}
+                onChange={(value) =>
                   setCreateDraft((prev) => ({
                     ...prev,
-                    phone: event.target.value,
+                    province: value,
                   }))
                 }
               />

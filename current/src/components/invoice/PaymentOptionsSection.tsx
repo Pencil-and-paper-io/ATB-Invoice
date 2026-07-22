@@ -24,45 +24,38 @@ function PaymentOptionRow({
   onAccountDraftChange,
   onSaveAccount,
   onToggle,
+  organizationName,
+  organizationEmail,
 }: {
   option: InvoicePaymentOption;
   accountDraft: string;
   onAccountDraftChange: (value: string) => void;
   onSaveAccount: () => void;
   onToggle: (id: InvoicePaymentOption["id"]) => void;
+  organizationName: string;
+  organizationEmail: string;
 }) {
   const requiresAccount = needsDepositAccount(option.id);
   const accountSaved = Boolean(option.accountLabel?.trim());
-  const checkboxDisabled = requiresAccount && !accountSaved;
   const draftMatchesSaved =
     accountSaved && accountDraft.trim() === option.accountLabel?.trim();
+  const showDestination = requiresAccount && option.checked;
 
   return (
     <div className="flex gap-2.5">
       <div className="flex h-16 shrink-0 items-center">
         <button
           type="button"
-          disabled={checkboxDisabled}
-          onClick={() => {
-            if (checkboxDisabled) return;
-            onToggle(option.id);
-          }}
+          onClick={() => onToggle(option.id)}
           className={`flex h-5 w-5 items-center justify-center rounded-[3px] transition ${
-            checkboxDisabled
-              ? "cursor-not-allowed border border-black/20 bg-black/[0.04] opacity-60"
-              : option.checked
-                ? "border border-prime-blue bg-prime-blue"
-                : "border border-black/25 bg-transparent"
+            option.checked
+              ? "border border-prime-blue bg-prime-blue"
+              : "border border-black/25 bg-transparent"
           }`}
           aria-pressed={option.checked}
-          aria-disabled={checkboxDisabled}
-          aria-label={
-            checkboxDisabled
-              ? `Save a deposit account to enable ${option.label}`
-              : `Toggle ${option.label}`
-          }
+          aria-label={`Toggle ${option.label}`}
         >
-          {option.checked && !checkboxDisabled ? (
+          {option.checked ? (
             <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-hidden>
               <path
                 d="M1 5.2 4.2 8.5 11 1.5"
@@ -81,8 +74,16 @@ function PaymentOptionRow({
         }`}
       >
         <p className="text-base font-bold leading-6 text-black">{option.label}</p>
+        {showDestination ? (
+          <p className="mt-1 text-sm leading-5 text-black">
+            Requests will be shown as coming from{" "}
+            <span className="font-semibold">{organizationName || "—"}</span>{" "}
+            using{" "}
+            <span className="font-semibold">{organizationEmail || "—"}</span>.
+          </p>
+        ) : null}
 
-        {option.details?.length ? (
+        {option.details?.length && (!requiresAccount || option.checked) ? (
           <ul className="mt-2.5 list-disc space-y-1 pl-5 text-sm font-normal text-black">
             {option.details.map((detail) => (
               <li key={`${detail.label}-${detail.text}`}>
@@ -94,58 +95,105 @@ function PaymentOptionRow({
           </ul>
         ) : null}
 
-        {requiresAccount ? (
+        {showDestination ? (
           <div className="mt-4 flex flex-col gap-2">
-            <label className="text-sm text-black">Deposit Account</label>
-            <div className="relative">
-              <select
-                aria-label={`${option.label} deposit account`}
-                className={`${inputClass} appearance-none pr-12`}
-                value={accountDraft}
-                onChange={(event) => onAccountDraftChange(event.target.value)}
-              >
-                {DEMO_DEPOSIT_ACCOUNTS.map((account) => (
-                  <option key={account.id} value={account.label}>
-                    {account.label}
-                  </option>
-                ))}
-              </select>
-              <svg
-                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-black/55"
-                width="11"
-                height="6"
-                viewBox="0 0 11 6"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M1 1l4.5 4L10 1"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onSaveAccount}
-                disabled={!accountDraft.trim() || draftMatchesSaved}
-                className="ui-btn-secondary h-9 px-4 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Save account
-              </button>
-              {checkboxDisabled ? (
-                <p className="text-sm text-black/55">
-                  Save a deposit account to enable this option.
-                </p>
-              ) : accountSaved ? (
-                <p className="text-sm text-black/55">
-                  Using {option.accountLabel}
-                </p>
-              ) : null}
-            </div>
+            <label className="text-sm text-black">
+              Choose the destination of your payment
+            </label>
+            {accountSaved && draftMatchesSaved && accountDraft.trim() ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded border border-black/20 bg-input-grey px-3.5">
+                  <span className="min-w-0 truncate text-sm text-black">
+                    {accountDraft}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onAccountDraftChange("")}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-black/50 transition hover:bg-black/5 hover:text-black"
+                    aria-label="Disconnect account"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <span className="inline-flex h-9 shrink-0 items-center gap-1.5 px-1 text-sm font-semibold text-black">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M3.5 8.2 6.4 11 12.5 4.5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  Connected
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative min-w-0 flex-1">
+                  <select
+                    aria-label={`${option.label} payment destination`}
+                    className={`${inputClass} appearance-none pr-12 ${
+                      accountDraft ? "text-black" : "text-black/45"
+                    }`}
+                    value={accountDraft}
+                    onChange={(event) =>
+                      onAccountDraftChange(event.target.value)
+                    }
+                  >
+                    <option value="">Select an account...</option>
+                    {DEMO_DEPOSIT_ACCOUNTS.map((account) => (
+                      <option key={account.id} value={account.label}>
+                        {account.label}
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-black/55"
+                    width="11"
+                    height="6"
+                    viewBox="0 0 11 6"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M1 1l4.5 4L10 1"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <button
+                  type="button"
+                  onClick={onSaveAccount}
+                  disabled={!accountDraft.trim() || draftMatchesSaved}
+                  className="ui-btn-secondary h-9 shrink-0 px-4 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Confirm
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
@@ -166,15 +214,25 @@ export function PaymentOptionsSection({
   const [accountDrafts, setAccountDrafts] = useState<
     Partial<Record<PaymentMethodId, string>>
   >({});
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationEmail, setOrganizationEmail] = useState("");
 
   useEffect(() => {
+    const settings = loadOrganizationSettings();
+    const displayName = settings.useLegalNameOnInvoices
+      ? settings.businessName
+      : settings.tradingAsName.trim() || settings.businessName;
+    window.setTimeout(() => {
+      setOrganizationName(displayName);
+      setOrganizationEmail(settings.email);
+    }, 0);
+
     setAccountDrafts((prev) => {
       const next = { ...prev };
       for (const option of payments) {
         if (!needsDepositAccount(option.id)) continue;
-        if (next[option.id]) continue;
-        next[option.id] =
-          option.accountLabel || DEMO_DEPOSIT_ACCOUNTS[0]?.label || "";
+        if (next[option.id] !== undefined) continue;
+        next[option.id] = option.accountLabel || "";
       }
       return next;
     });
@@ -185,7 +243,9 @@ export function PaymentOptionsSection({
     if (!accountLabel) return;
 
     const nextPayments = payments.map((option) =>
-      option.id === id ? { ...option, accountLabel } : option,
+      option.id === id
+        ? { ...option, accountLabel, checked: true }
+        : option,
     );
     onChange?.(nextPayments);
 
@@ -198,6 +258,21 @@ export function PaymentOptionsSection({
     });
   }
 
+  function handleAccountDraftChange(id: PaymentMethodId, value: string) {
+    setAccountDrafts((prev) => ({ ...prev, [id]: value }));
+    const current = payments.find((option) => option.id === id);
+    if (
+      current?.accountLabel?.trim() &&
+      value.trim() !== current.accountLabel.trim()
+    ) {
+      onChange?.(
+        payments.map((option) =>
+          option.id === id ? { ...option, accountLabel: undefined } : option,
+        ),
+      );
+    }
+  }
+
   return (
     <SectionCard title="Payment Options">
       <div className="flex flex-col gap-2.5">
@@ -206,16 +281,15 @@ export function PaymentOptionsSection({
             key={option.id}
             option={option}
             accountDraft={
-              accountDrafts[option.id] ||
-              option.accountLabel ||
-              DEMO_DEPOSIT_ACCOUNTS[0]?.label ||
-              ""
+              accountDrafts[option.id] ?? option.accountLabel ?? ""
             }
             onAccountDraftChange={(value) =>
-              setAccountDrafts((prev) => ({ ...prev, [option.id]: value }))
+              handleAccountDraftChange(option.id, value)
             }
             onSaveAccount={() => saveAccount(option.id)}
             onToggle={onToggle}
+            organizationName={organizationName}
+            organizationEmail={organizationEmail}
           />
         ))}
         <TertiaryButton

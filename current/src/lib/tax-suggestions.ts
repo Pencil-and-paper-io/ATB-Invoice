@@ -1,7 +1,13 @@
 import {
   ALBERTA_TAX_OPTIONS,
+  findTaxOption,
   type AlbertaTaxOption,
 } from "@/lib/alberta-tax";
+import { OUTSIDE_CANADA_LOCATION } from "@/lib/canada";
+import {
+  loadOrganizationSettings,
+  orgSuppressesSalesTax,
+} from "@/lib/organization-settings";
 
 export type TaxSuggestions = {
   includeGst: boolean;
@@ -18,6 +24,66 @@ export const DEFAULT_TAX_SUGGESTIONS: TaxSuggestions = {
   pstRate: "8.00",
   suggestedLabel: "GST - 5%",
 };
+
+/** Rate options for customer Taxable defaults (excludes categories & GST-included). */
+export const CUSTOMER_TAXABLE_OPTIONS: AlbertaTaxOption[] =
+  ALBERTA_TAX_OPTIONS.filter(
+    (option) =>
+      !option.included &&
+      option.label !== "Zero-rated - 0%" &&
+      option.label !== "Tax Exempt" &&
+      option.label !== "No Tax",
+  );
+
+/** Non-taxable category options for customers (excludes line-level “No Tax”). */
+export const CUSTOMER_NON_TAXABLE_OPTIONS: AlbertaTaxOption[] =
+  ALBERTA_TAX_OPTIONS.filter(
+    (option) =>
+      option.label === "Zero-rated - 0%" || option.label === "Tax Exempt",
+  );
+
+export type NonTaxableSuggestion = {
+  label: string;
+  note: string;
+  suggestions: TaxSuggestions;
+};
+
+/**
+ * Pre-select Zero-rated for customers outside Canada, or Tax Exempt when the
+ * organization does not charge GST/HST. Otherwise defaults to Tax Exempt.
+ */
+export function suggestNonTaxableForCustomer(
+  province: string,
+): NonTaxableSuggestion {
+  const outsideCanada =
+    province.trim().toUpperCase() === OUTSIDE_CANADA_LOCATION.code;
+
+  if (outsideCanada) {
+    const option = findTaxOption("Zero-rated - 0%")!;
+    return {
+      label: option.label,
+      note: "Recommended based on customer's location (outside Canada — often zero-rated exports)",
+      suggestions: taxSuggestionsFromOption(option),
+    };
+  }
+
+  const org = loadOrganizationSettings();
+  if (orgSuppressesSalesTax(org) || org.taxStatus === "Tax-exempt") {
+    const option = findTaxOption("Tax Exempt")!;
+    return {
+      label: option.label,
+      note: "Recommended based on your organization profile (you are not charging GST/HST)",
+      suggestions: taxSuggestionsFromOption(option),
+    };
+  }
+
+  const option = findTaxOption("Tax Exempt")!;
+  return {
+    label: option.label,
+    note: "",
+    suggestions: taxSuggestionsFromOption(option),
+  };
+}
 
 export function buildSuggestedTaxLabel({
   includeGst,
@@ -91,12 +157,11 @@ export function syncSuggestedLabel(suggestions: Omit<TaxSuggestions, "suggestedL
 }
 
 export function formatTaxSuggestionsSummary(suggestions: TaxSuggestions) {
-  if (!suggestions.includeGst && !suggestions.includePst) {
-    return "No tax suggested";
+  if (suggestions.suggestedLabel.trim()) {
+    return suggestions.suggestedLabel;
   }
-  return (
-    suggestions.suggestedLabel ||
-    syncSuggestedLabel(suggestions) ||
-    "No tax suggested"
-  );
+  if (!suggestions.includeGst && !suggestions.includePst) {
+    return "No tax rate selected";
+  }
+  return syncSuggestedLabel(suggestions) || "No tax rate selected";
 }

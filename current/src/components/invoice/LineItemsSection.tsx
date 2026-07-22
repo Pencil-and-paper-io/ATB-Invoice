@@ -13,6 +13,7 @@ import {
   type TaxMode,
 } from "@/lib/alberta-tax";
 import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
+import { TAX_CATEGORY_CHIPS } from "@/lib/place-of-supply";
 import {
   formatMoney,
   makeBlankLineItem,
@@ -596,7 +597,10 @@ function LineItemsTotals({
             setEditing(null);
           }}
         />
-        <TotalsRow label="Tax (GST)" value={formatMoney(totals.gst)} />
+        <TotalsRow
+          label={`Tax (${totals.federalTaxLabel})`}
+          value={formatMoney(totals.gst)}
+        />
         {totals.pst > 0 ? (
           <TotalsRow label="Tax (PST)" value={formatMoney(totals.pst)} />
         ) : null}
@@ -842,6 +846,37 @@ function TaxField({
             placeholder="Start typing a tax…"
             autoComplete="off"
           />
+          <div className="mt-2 flex flex-wrap gap-2">
+            {TAX_CATEGORY_CHIPS.map((chip) => {
+              const active = value === chip.optionLabel;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  title={chip.hint}
+                  className={`rounded border px-2.5 py-1 text-xs font-semibold transition ${
+                    active
+                      ? "border-prime-blue bg-prime-blue/10 text-prime-blue"
+                      : "border-black/15 bg-white text-black/70 hover:border-black/30"
+                  }`}
+                  onClick={() => {
+                    onChange(chip.optionLabel);
+                    setOpen(false);
+                  }}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+          {TAX_CATEGORY_CHIPS.find((chip) => chip.optionLabel === value) ? (
+            <p className="mt-2 text-xs leading-4 text-black/50">
+              {
+                TAX_CATEGORY_CHIPS.find((chip) => chip.optionLabel === value)!
+                  .hint
+              }
+            </p>
+          ) : null}
           {open ? (
             <div
               className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg"

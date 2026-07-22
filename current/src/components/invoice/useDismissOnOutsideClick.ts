@@ -21,6 +21,13 @@ export function useDismissOnOutsideClick(
       const target = event.target as Node | null;
       if (!target || !ref.current) return;
       if (ref.current.contains(target)) return;
+      // Portaled dropdown menus render under document.body.
+      if (
+        target instanceof Element &&
+        target.closest("[data-portal-menu]")
+      ) {
+        return;
+      }
       onDismissRef.current();
     }
 

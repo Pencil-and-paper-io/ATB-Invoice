@@ -3,6 +3,7 @@ import {
   syncSuggestedLabel,
   type TaxSuggestions,
 } from "@/lib/tax-suggestions";
+import { orgSuppressesSalesTax } from "@/lib/organization-settings";
 
 const STORAGE_KEY = "atb-customer-profile-settings";
 
@@ -18,7 +19,21 @@ function canUseStorage() {
 function normalizeSuggestions(
   value: Partial<TaxSuggestions> | undefined,
 ): TaxSuggestions {
-  const base = { ...DEFAULT_TAX_SUGGESTIONS, ...(value ?? {}) };
+  if (!value) return { ...DEFAULT_TAX_SUGGESTIONS };
+  const hasSelection =
+    Boolean(value.suggestedLabel?.trim()) ||
+    value.includeGst === true ||
+    value.includePst === true;
+  if (!hasSelection) {
+    return {
+      includeGst: false,
+      gstRate: "",
+      includePst: false,
+      pstRate: "",
+      suggestedLabel: "",
+    };
+  }
+  const base = { ...DEFAULT_TAX_SUGGESTIONS, ...value };
   return {
     ...base,
     suggestedLabel: base.suggestedLabel || syncSuggestedLabel(base),
@@ -70,13 +85,10 @@ export function saveCustomerProfileSettings(
 /** Tax label to prefill on quote/invoice line items for this customer. */
 export function getCustomerDefaultTaxLabel(customerId: string | null | undefined) {
   if (!customerId) return "";
+  if (orgSuppressesSalesTax()) return "";
   const settings = loadCustomerProfileSettings(customerId);
   if (!settings) {
     return DEFAULT_TAX_SUGGESTIONS.suggestedLabel;
   }
-  if (settings.taxStatus === "Tax-exempt") return "";
-  return (
-    settings.taxSuggestions.suggestedLabel ||
-    syncSuggestedLabel(settings.taxSuggestions)
-  );
+  return settings.taxSuggestions.suggestedLabel.trim();
 }

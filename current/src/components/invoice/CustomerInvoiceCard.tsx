@@ -1,12 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { computeInvoiceTotals } from "@/lib/alberta-tax";
 import {
   draftInvoice,
   formatMoney,
   previewMeta,
 } from "@/lib/invoice-demo-data";
+import { loadOrganizationSettings } from "@/lib/organization-settings";
 import {
   formatQuoteDate,
   loadQuoteDetails,
@@ -45,12 +47,14 @@ function PartyBlock({
   address,
   phone,
   email,
+  gstHstNumber,
 }: {
   label: string;
   name: string;
   address: string;
   phone: string;
   email: string;
+  gstHstNumber?: string;
 }) {
   return (
     <div className="flex flex-1 flex-col gap-2.5">
@@ -58,6 +62,11 @@ function PartyBlock({
       <div>
         <p className="text-base font-bold text-black">{name}</p>
         <p className="text-sm text-black">{address}</p>
+        {gstHstNumber ? (
+          <p className="mt-1 text-sm text-black">
+            GST/HST #: {gstHstNumber}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center gap-2.5 text-sm text-black">
@@ -151,12 +160,40 @@ export function CustomerInvoiceCard({
   const [quoteDetails, setQuoteDetails] = useState<InvoiceDetailsState | null>(
     null,
   );
+  const [gstHstNumber, setGstHstNumber] = useState("");
 
   useEffect(() => {
     if (documentKind !== "quote") return;
     const loaded = loadQuoteDetails();
     window.setTimeout(() => setQuoteDetails(loaded), 0);
   }, [documentKind]);
+
+  useEffect(() => {
+    const org = loadOrganizationSettings();
+    window.setTimeout(() => {
+      setGstHstNumber(
+        org.gstRegistrationStatus === "registered" && org.gstHstNumber.trim()
+          ? org.gstHstNumber.trim()
+          : "",
+      );
+    }, 0);
+  }, []);
+
+  const previewTotals = useMemo(
+    () =>
+      computeInvoiceTotals(
+        draftInvoice.lineItems.map((item) => ({
+          unitPrice: item.unitPrice,
+          qty: item.qty,
+          discount: item.discount,
+          discountType: "fixed" as const,
+          total: item.total,
+          taxBadges: item.badges,
+        })),
+        "exclusive",
+      ),
+    [],
+  );
 
   const money = formatMoney(draftInvoice.totals.subtotal);
   const shadowClass =
@@ -283,7 +320,11 @@ export function CustomerInvoiceCard({
       </div>
 
       <div className="flex flex-col gap-5 px-4 py-5 sm:flex-row sm:px-[30px]">
-        <PartyBlock label="From" {...draftInvoice.business} />
+        <PartyBlock
+          label="From"
+          {...draftInvoice.business}
+          gstHstNumber={gstHstNumber}
+        />
         <PartyBlock label="Billed To" {...draftInvoice.customer} />
       </div>
 
@@ -298,8 +339,13 @@ export function CustomerInvoiceCard({
       <div className="flex flex-col">
         <SummaryRow label="Subtotal" value={money} />
         <SummaryRow label="Item Discount" value={money} />
-        <SummaryRow label="Tax (GST)" value={money} />
-        <SummaryRow label="Tax (PST)" value={money} />
+        <SummaryRow
+          label={`Tax (${previewTotals.federalTaxLabel})`}
+          value={money}
+        />
+        {previewTotals.pst > 0 ? (
+          <SummaryRow label="Tax (PST)" value={money} />
+        ) : null}
       </div>
 
       <DashedDivider />

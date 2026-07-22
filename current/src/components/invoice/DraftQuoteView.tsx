@@ -15,8 +15,10 @@ import {
   getCustomerCascadeDefaults,
   getInvoicePaymentOptions,
   loadOrganizationSettings,
+  orgMissingGstHstNumber,
   type InvoicePaymentOption,
 } from "@/lib/organization-settings";
+import { GST_HST_REGISTER_URL } from "@/lib/place-of-supply";
 import { getQuoteActionsForStatus } from "@/lib/quote-actions";
 import { loadQuoteDetails, persistQuoteDetails } from "@/lib/quote-details";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
@@ -34,6 +36,29 @@ import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
 import { getCustomerDefaultTaxLabel } from "@/lib/customer-profile-settings";
+
+function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    setMissing(chargingTax && orgMissingGstHstNumber());
+  }, [chargingTax]);
+  if (!missing) return null;
+  return (
+    <div className="mb-5 rounded-lg border border-[#E6B800]/40 bg-[#FFF8E1] px-4 py-3 text-sm text-black/80">
+      You&apos;re charging GST/HST but your GST/HST number isn&apos;t on file
+      yet.{" "}
+      <a
+        href={GST_HST_REGISTER_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-prime-blue underline underline-offset-2"
+      >
+        Register with the CRA
+      </a>
+      , then add the number in Organization Settings.
+    </div>
+  );
+}
 
 function buildQuoteDefaults(): InvoiceDetailsState {
   const today = todayIso();
@@ -133,6 +158,7 @@ export function DraftQuoteView() {
       <TopNav />
 
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
+        <GstMissingWarning chargingTax={Boolean(defaultTaxLabel)} />
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="type-page-title">Draft Quote</h1>
           <div className="flex flex-wrap items-center gap-2.5">

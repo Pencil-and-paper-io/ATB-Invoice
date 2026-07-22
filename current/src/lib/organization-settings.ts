@@ -1,3 +1,5 @@
+import type { GstRegistrationStatus } from "@/lib/place-of-supply";
+
 /**
  * Organization settings — source of defaults that cascade to new customers,
  * quotes, and invoices.
@@ -108,6 +110,13 @@ export type OrganizationSettings = {
   useLegalNameOnInvoices: boolean;
   tradingAsName: string;
   gstHstNumber: string;
+  /**
+   * CRA registration posture for GST/HST.
+   * small_supplier: under $30k, do not charge GST
+   * pending_number: must register but number not entered yet
+   * registered: has GST/HST number
+   */
+  gstRegistrationStatus: GstRegistrationStatus;
   contactName: string;
   email: string;
   phone: string;
@@ -147,7 +156,8 @@ export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   businessName: "Horlicks Company",
   useLegalNameOnInvoices: true,
   tradingAsName: "",
-  gstHstNumber: "",
+  gstHstNumber: "123456789 RT 0001",
+  gstRegistrationStatus: "registered",
   contactName: "",
   email: "invoicing@horlicks.com",
   phone: "1-403-257-0099",
@@ -184,6 +194,23 @@ export function isValidGstHstNumber(value: string) {
   return /^\d{9}\s*RT\s*\d{4}$/i.test(value.trim());
 }
 
+export function parseGstHstNumber(value: string): {
+  bn: string;
+  account: string;
+} {
+  const match = value.trim().match(/^(\d{0,9})\s*RT\s*(\d{0,4})$/i);
+  if (match) {
+    return { bn: match[1] ?? "", account: match[2] ?? "" };
+  }
+  const digits = value.replace(/[^\d]/g, "");
+  return { bn: digits.slice(0, 9), account: digits.slice(9, 13) };
+}
+
+export function formatGstHstNumber(bn: string, account: string) {
+  if (!bn && !account) return "";
+  return `${bn} RT ${account}`.trim();
+}
+
 function canUseStorage() {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
@@ -196,12 +223,9 @@ function normalizePaymentMethods(
 
   return defaults.map((fallback) => {
     const match = parsed.find((entry) => entry?.id === fallback.id);
-    const isAlwaysOn = fallback.id !== "interac";
     return {
       id: fallback.id,
-      enabled: isAlwaysOn
-        ? true
-        : Boolean(match?.enabled ?? fallback.enabled),
+      enabled: Boolean(match?.enabled ?? fallback.enabled),
       accountLabel:
         typeof match?.accountLabel === "string"
           ? match.accountLabel
@@ -312,11 +336,20 @@ export function loadOrganizationSettings(): OrganizationSettings {
       paymentPreferences = [enabledLabels[0]!];
     }
 
+    const gstRegistrationStatus = normalizeGstRegistrationStatus(
+      parsed.gstRegistrationStatus,
+      parsed.gstHstNumber,
+      parsed.taxStatus,
+    );
+
     return {
       ...DEFAULT_ORGANIZATION_SETTINGS,
       ...parsed,
       paymentMethods,
       paymentPreferences,
+      gstRegistrationStatus,
+      taxStatus:
+        gstRegistrationStatus === "small_supplier" ? "Tax-exempt" : parsed.taxStatus ?? DEFAULT_ORGANIZATION_SETTINGS.taxStatus,
     };
   } catch {
     return {
@@ -327,6 +360,40 @@ export function loadOrganizationSettings(): OrganizationSettings {
       ],
     };
   }
+}
+
+function normalizeGstRegistrationStatus(
+  value: unknown,
+  gstHstNumber: unknown,
+  taxStatus: unknown,
+): GstRegistrationStatus {
+  if (
+    value === "small_supplier" ||
+    value === "pending_number" ||
+    value === "registered"
+  ) {
+    return value;
+  }
+  if (typeof gstHstNumber === "string" && isValidGstHstNumber(gstHstNumber)) {
+    return "registered";
+  }
+  if (taxStatus === "Tax-exempt") return "small_supplier";
+  return "pending_number";
+}
+
+/** True when the business should not charge GST/HST (small supplier). */
+export function orgSuppressesSalesTax(
+  settings: OrganizationSettings = loadOrganizationSettings(),
+) {
+  return settings.gstRegistrationStatus === "small_supplier";
+}
+
+/** True when docs may charge tax but GST/HST number is not on file yet. */
+export function orgMissingGstHstNumber(
+  settings: OrganizationSettings = loadOrganizationSettings(),
+) {
+  if (settings.gstRegistrationStatus === "small_supplier") return false;
+  return !isValidGstHstNumber(settings.gstHstNumber);
 }
 
 export function saveOrganizationSettings(settings: OrganizationSettings) {
