@@ -718,7 +718,7 @@ function SortHeader({ label }: { label: string }) {
 const CUSTOMER_TABS = ["Account Summary", "Customer Settings"] as const;
 type CustomerTab = (typeof CUSTOMER_TABS)[number];
 
-const DOCUMENT_TABS = ["Quotes", "Invoices"] as const;
+const DOCUMENT_TABS = ["Quotes", "Invoices", "Notes"] as const;
 type DocumentTab = (typeof DOCUMENT_TABS)[number];
 
 /** Customer Details card order (filled cards keep this sequence above Add links). */
@@ -1147,7 +1147,7 @@ function CustomerFormInner() {
             {tab === "Account Summary" ? (
           <section className={sectionShellClass}>
             <div className={`px-7 pb-6 pt-7 ${staticCardClass}`}>
-              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-5">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
                     Invoices
@@ -1166,7 +1166,7 @@ function CustomerFormInner() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Paid
+                    Lifetime paid
                   </p>
                   <p className="mt-1 text-lg font-semibold text-[#1B7A4E]">
                     {formatMoney(accountSummary.paid)}
@@ -1180,10 +1180,16 @@ function CustomerFormInner() {
                     {formatMoney(accountSummary.outstanding)}
                   </p>
                 </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                    Overdue
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-status-danger">
+                    {formatMoney(accountSummary.overdue)}
+                  </p>
+                </div>
               </div>
             </div>
-
-            {accountSummaryNotes}
 
             <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
               <div className="flex flex-wrap gap-1 border-b border-black/10 px-5 py-3">
@@ -1206,7 +1212,24 @@ function CustomerFormInner() {
                 })}
               </div>
 
-              {documentTab === "Quotes" ? (
+              {documentTab === "Notes" ? (
+                <div className="px-5 py-5">
+                  {accountSummaryNotes ?? (
+                    <div className="text-center">
+                      <p className="type-body-muted">
+                        No internal notes for this customer.
+                      </p>
+                      {!archived ? (
+                        <div className="mt-3 flex justify-center">
+                          <TertiaryButton onClick={() => startEdit("notes")}>
+                            Add Internal Notes
+                          </TertiaryButton>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ) : documentTab === "Quotes" ? (
                 <>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-[1fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">

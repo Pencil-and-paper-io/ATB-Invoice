@@ -36,9 +36,9 @@ export type QuoteAction = {
 export const QUOTE_STATUS_ACTION_MATRIX: Record<QuoteStatus, QuoteActionKey[]> =
   {
     drafted: ["edit", "download", "duplicate", "delete"],
-    sent: ["resend", "download", "template", "duplicate", "void"],
-    viewed: ["resend", "download", "template", "duplicate", "void"],
-    rejected: ["download", "template", "duplicate"],
+    sent: ["resend", "download", "copy_link", "template", "duplicate", "void"],
+    viewed: ["resend", "download", "copy_link", "template", "duplicate", "void"],
+    rejected: ["download", "copy_link", "template", "duplicate"],
     expired: ["edit", "download", "template", "duplicate", "void"],
     void: ["download", "template", "duplicate"],
   };

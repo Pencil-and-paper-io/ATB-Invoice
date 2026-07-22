@@ -1,5 +1,5 @@
-import { PlaceholderPage } from "@/components/invoice/PlaceholderPage";
+import { DocumentDirectoryView } from "@/components/invoice/DocumentDirectoryView";
 
 export default function InvoicesPage() {
-  return <PlaceholderPage title="Invoices" />;
+  return <DocumentDirectoryView kind="invoices" />;
 }

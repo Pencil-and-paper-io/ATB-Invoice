@@ -13,6 +13,11 @@ import {
 } from "@/lib/document-numbers";
 import { getCustomerTaxRecommendation } from "@/lib/customer-profile-settings";
 import {
+  consumeQuoteAcceptance,
+  invoiceDetailsFromAcceptedQuote,
+} from "@/lib/quote-to-invoice";
+import { loadQuoteDetails } from "@/lib/quote-details";
+import {
   getCustomerCascadeDefaults,
   getInvoicePaymentOptions,
   loadOrganizationSettings,
@@ -23,6 +28,10 @@ import { GST_HST_REGISTER_URL } from "@/lib/place-of-supply";
 import { getActionsForStatus } from "@/lib/invoice-actions";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
 import { CustomerNotesSection } from "./CustomerNotesSection";
+import {
+  DocumentAutomationsSection,
+  type DocumentAutomationsState,
+} from "./DocumentAutomationsSection";
 import {
   InvoiceDetailsPanel,
   type InvoiceDetailsState,
@@ -35,6 +44,16 @@ import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
+
+function automationsFromCascade(): DocumentAutomationsState {
+  const cascade = getCustomerCascadeDefaults();
+  return {
+    autoSend: cascade.autoSend,
+    reminders: cascade.reminders,
+    reminderDays: cascade.reminderDays,
+    receipts: cascade.receipts,
+  };
+}
 
 function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
   const [missing, setMissing] = useState(false);
@@ -63,6 +82,9 @@ export function DraftInvoiceView() {
   const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
+  const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
+    automationsFromCascade(),
+  );
   const [details, setDetails] = useState<InvoiceDetailsState>({
     invoiceNumber: "",
     issueDate: "Send right away",
@@ -74,24 +96,49 @@ export function DraftInvoiceView() {
     serviceEnd: "",
   });
 
+  const searchParams = useSearchParams();
+  const fromQuote = searchParams.get("from") === "quote";
+  const [acceptedQuoteNumber, setAcceptedQuoteNumber] = useState<string | null>(
+    null,
+  );
+
   useEffect(() => {
     window.setTimeout(() => {
       const org = loadOrganizationSettings();
       setPayments(getInvoicePaymentOptions(org));
       const cascade = getCustomerCascadeDefaults(org);
-      setDetails((prev) => ({
-        ...prev,
-        invoiceNumber: prev.invoiceNumber || peekNextInvoiceNumber(),
-        dueDate: normalizeDueDateOption(cascade.paymentTerms),
-        serviceStart: prev.serviceStart || todayIso(),
-      }));
-      const taxRec = getCustomerTaxRecommendation(
-        defaultDraftCustomer?.id ?? null,
-      );
+      const acceptance = fromQuote ? consumeQuoteAcceptance() : null;
+      if (acceptance) {
+        const fromAccepted = invoiceDetailsFromAcceptedQuote(acceptance);
+        setDetails((prev) => ({
+          ...prev,
+          ...fromAccepted,
+          invoiceNumber: prev.invoiceNumber || fromAccepted.invoiceNumber,
+        }));
+        setAcceptedQuoteNumber(acceptance.quoteNumber);
+        if (fromAccepted.invoiceNumber.trim()) {
+          rememberDocumentNumber("invoice", fromAccepted.invoiceNumber);
+        }
+      } else {
+        const quoteNumber = fromQuote
+          ? loadQuoteDetails()?.invoiceNumber?.trim() || null
+          : null;
+        setDetails((prev) => ({
+          ...prev,
+          invoiceNumber: prev.invoiceNumber || peekNextInvoiceNumber(),
+          dueDate: normalizeDueDateOption(cascade.paymentTerms),
+          serviceStart: prev.serviceStart || todayIso(),
+          referenceNumber: quoteNumber || prev.referenceNumber || "",
+        }));
+        if (quoteNumber) setAcceptedQuoteNumber(quoteNumber);
+      }
+      setAutomations(automationsFromCascade());
+      const customerId = defaultDraftCustomer?.id ?? null;
+      const taxRec = getCustomerTaxRecommendation(customerId);
       setDefaultTaxLabel(taxRec?.label ?? "");
       setRecommendedTaxNote(taxRec?.note ?? "");
     }, 0);
-  }, []);
+  }, [fromQuote]);
 
   const {
     handleAction,
@@ -101,8 +148,6 @@ export function DraftInvoiceView() {
     downloadModal,
   } = useInvoiceActionHandler("drafted");
   const moreActions = getActionsForStatus("drafted", ["edit", "template"]);
-  const searchParams = useSearchParams();
-  const fromQuote = searchParams.get("from") === "quote";
 
   function togglePayment(id: InvoicePaymentOption["id"]) {
     setPayments((prev) =>
@@ -127,6 +172,7 @@ export function DraftInvoiceView() {
     const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
     setDefaultTaxLabel(taxRec?.label ?? "");
     setRecommendedTaxNote(taxRec?.note ?? "");
+    setAutomations(automationsFromCascade());
     if (!customer) return;
     const cascade = getCustomerCascadeDefaults();
     updateDetails({
@@ -142,8 +188,15 @@ export function DraftInvoiceView() {
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         {fromQuote ? (
           <div className="mb-5 rounded-lg border border-prime-blue/30 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
-            Created from an accepted quote. Review payment options and due date
-            before sending.
+            Created from accepted quote
+            {acceptedQuoteNumber ? (
+              <>
+                {" "}
+                <span className="font-semibold">{acceptedQuoteNumber}</span>
+              </>
+            ) : null}
+            . Reference # is set to the quote number. Review payment options and
+            due date before sending.
           </div>
         ) : null}
         <GstMissingWarning
@@ -186,6 +239,14 @@ export function DraftInvoiceView() {
               onToggle={togglePayment}
               onChange={updatePayments}
             />
+
+            <SectionCard title="Automations" className="gap-2.5">
+              <DocumentAutomationsSection
+                value={automations}
+                onChange={setAutomations}
+                documentKind="invoice"
+              />
+            </SectionCard>
 
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection />

@@ -7,6 +7,7 @@ import {
   getQuoteActionsForStatus,
   type QuoteStatus,
 } from "@/lib/quote-actions";
+import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
@@ -325,6 +326,7 @@ export function SentQuoteView({
           onClose={() => setShowDecision(false)}
           onAccept={() => {
             setShowDecision(false);
+            markQuoteAcceptedForInvoice();
             router.push("/?from=quote");
           }}
           onReject={() => {

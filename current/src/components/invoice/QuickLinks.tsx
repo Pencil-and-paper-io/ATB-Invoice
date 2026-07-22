@@ -88,6 +88,12 @@ const FLOW_ROOTS: FlowNode[] = [
                             description: "Payment recorded",
                           },
                           {
+                            id: "invoice-partial",
+                            label: "Partially Paid",
+                            href: "/sent/partially-paid",
+                            description: "Partial payment recorded",
+                          },
+                          {
                             id: "invoice-overdue",
                             label: "Overdue",
                             href: "/sent/overdue",

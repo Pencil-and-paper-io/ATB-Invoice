@@ -46,12 +46,26 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [showUncollectible, setShowUncollectible] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
-  const [confirm, setConfirm] = useState<"delete" | "void" | null>(null);
+  const [confirm, setConfirm] = useState<"delete" | "void" | "send_reminder" | null>(
+    null,
+  );
   const [reason, setReason] = useState<(typeof UNCOLLECTIBLE_REASON_CODES)[number]>(
     UNCOLLECTIBLE_REASON_CODES[0],
   );
   const [otherReason, setOtherReason] = useState("");
   const isDraft = status === "drafted";
+
+  async function copyDemoLink() {
+    try {
+      await navigator.clipboard.writeText("https://pay.atb.com/invoice/3001");
+      setFeedback({ kind: "info", message: "Invoice link copied." });
+    } catch {
+      setFeedback({
+        kind: "info",
+        message: "Invoice link ready (clipboard blocked in this browser).",
+      });
+    }
+  }
 
   function handleAction(key: string) {
     const action = key as InvoiceActionKey;
@@ -60,7 +74,7 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
       setShowUncollectible(true);
       return;
     }
-    if (action === "delete" || action === "void") {
+    if (action === "delete" || action === "void" || action === "send_reminder") {
       setConfirm(action);
       return;
     }
@@ -76,12 +90,15 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
       setShowDownload(true);
       return;
     }
+    if (action === "copy_link") {
+      void copyDemoLink();
+      return;
+    }
 
     const messages: Partial<Record<InvoiceActionKey, string>> = {
       template: "Saved as template (demo).",
       duplicate: "Invoice duplicated (demo).",
       resend: "Re-send opened (demo).",
-      copy_link: "Invoice link copied (demo).",
       send_test: "Test invoice sent (demo).",
       view_history: "Opening history (demo).",
     };
@@ -202,6 +219,20 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
         onConfirm={() => {
           setConfirm(null);
           router.push("/sent/void");
+        }}
+      />
+    ) : confirm === "send_reminder" ? (
+      <ConfirmModal
+        title="Send reminder?"
+        body="Send a payment reminder to this customer for the outstanding balance on this invoice."
+        confirmLabel="Send reminder"
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          setConfirm(null);
+          setFeedback({
+            kind: "info",
+            message: "Reminder sent (demo).",
+          });
         }}
       />
     ) : null;

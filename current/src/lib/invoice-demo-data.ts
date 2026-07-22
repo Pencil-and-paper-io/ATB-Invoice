@@ -216,6 +216,7 @@ export type SentViewVariant =
   | "sent"
   | "viewed"
   | "paid"
+  | "partially_paid"
   | "overdue"
   | "overdue_90"
   | "void"
@@ -277,6 +278,37 @@ export const sentVariantMeta: Record<
       },
       {
         id: "p4",
+        time: "July 3, 7:01pm",
+        text: "Invoice was created for $3,555.99",
+      },
+    ],
+  },
+  partially_paid: {
+    title: "Invoice Partially Paid",
+    amountLabel: "Balance Remaining",
+    badge: {
+      label: "Partially Paid",
+      className: "border-[#F0D58C] bg-[#FFF8E6] text-[#8A6A00]",
+    },
+    showRecordPayment: true,
+    activity: [
+      {
+        id: "pp1",
+        time: "July 9, 11:20am",
+        text: "Partial payment of $1,500.00 recorded — $2,055.99 remaining",
+      },
+      {
+        id: "pp2",
+        time: "July 4, 3:33pm",
+        text: "Invoice was viewed by the customer for the first time",
+      },
+      {
+        id: "pp3",
+        time: "July 4, 9:01am",
+        text: "You sent the invoice totalling $3,555.99 via email",
+      },
+      {
+        id: "pp4",
         time: "July 3, 7:01pm",
         text: "Invoice was created for $3,555.99",
       },
@@ -586,6 +618,7 @@ export function hrefForCustomerInvoice(status: string) {
   if (key === "draft") return "/";
   if (key === "viewed") return "/sent/viewed";
   if (key === "paid") return "/sent/paid";
+  if (key === "partially paid") return "/sent/partially-paid";
   if (key === "overdue") return "/sent/overdue";
   if (key === "uncollectible") return "/sent/uncollectible";
   if (key === "void") return "/sent/void";
@@ -610,7 +643,12 @@ export function getCustomerAccountSummary(customerId: string | null) {
     (sum, invoice) => sum + invoice.balanceOutstanding,
     0,
   );
-  const paid = Math.max(0, totalInvoiced - outstanding);
+  const paid = invoices
+    .filter((invoice) => invoice.status === "Paid")
+    .reduce((sum, invoice) => sum + invoice.amount, 0);
+  const overdue = invoices
+    .filter((invoice) => /overdue/i.test(invoice.status))
+    .reduce((sum, invoice) => sum + invoice.balanceOutstanding, 0);
   // Demo: Acme matches the account-summary mock (paid $0, outstanding less than total).
   if (customerId === "acme") {
     return {
@@ -618,12 +656,14 @@ export function getCustomerAccountSummary(customerId: string | null) {
       totalInvoiced: 6562.5,
       paid: 0,
       outstanding: 5775,
+      overdue: 2187.5,
     };
   }
   return {
     invoiceCount: invoices.length,
     totalInvoiced,
-    paid,
+    paid: Math.max(0, paid || totalInvoiced - outstanding),
     outstanding,
+    overdue,
   };
 }

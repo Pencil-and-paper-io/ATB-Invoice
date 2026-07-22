@@ -36,6 +36,20 @@ import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
 import { getCustomerTaxRecommendation } from "@/lib/customer-profile-settings";
+import {
+  DocumentAutomationsSection,
+  type DocumentAutomationsState,
+} from "./DocumentAutomationsSection";
+
+function automationsFromCascade(): DocumentAutomationsState {
+  const cascade = getCustomerCascadeDefaults();
+  return {
+    autoSend: cascade.autoSend,
+    reminders: cascade.reminders,
+    reminderDays: cascade.reminderDays,
+    receipts: cascade.receipts,
+  };
+}
 
 function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
   const [missing, setMissing] = useState(false);
@@ -90,6 +104,9 @@ export function DraftQuoteView() {
   const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
+  const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
+    automationsFromCascade(),
+  );
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -111,6 +128,7 @@ export function DraftQuoteView() {
       setDetails(next);
       persistQuoteDetails(next);
       rememberDocumentNumber("quote", next.invoiceNumber);
+      setAutomations(automationsFromCascade());
       const taxRec = getCustomerTaxRecommendation(
         defaultDraftCustomer?.id ?? null,
       );
@@ -129,6 +147,7 @@ export function DraftQuoteView() {
     const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
     setDefaultTaxLabel(taxRec?.label ?? "");
     setRecommendedTaxNote(taxRec?.note ?? "");
+    setAutomations(automationsFromCascade());
     if (!customer) return;
     const cascade = getCustomerCascadeDefaults();
     const expiryDays = Number(cascade.quoteExpiryDays) || 45;
@@ -203,6 +222,14 @@ export function DraftQuoteView() {
               onToggle={togglePayment}
               onChange={updatePayments}
             />
+
+            <SectionCard title="Automations" className="gap-2.5">
+              <DocumentAutomationsSection
+                value={automations}
+                onChange={setAutomations}
+                documentKind="quote"
+              />
+            </SectionCard>
 
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection documentKind="quote" />

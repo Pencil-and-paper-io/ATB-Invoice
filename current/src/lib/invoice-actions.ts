@@ -20,6 +20,7 @@ export type InvoiceActionKey =
   | "resend"
   | "copy_link"
   | "send_test"
+  | "send_reminder"
   | "mark_viewed"
   | "view_history";
 
@@ -39,6 +40,7 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   drafted: ["edit", "download", "duplicate", "delete"],
   sent: [
     "resend",
+    "send_reminder",
     "download",
     "copy_link",
     "send_test",
@@ -50,6 +52,7 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   ],
   viewed: [
     "resend",
+    "send_reminder",
     "download",
     "copy_link",
     "send_test",
@@ -59,6 +62,9 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "duplicate",
   ],
   partially_paid: [
+    "send_reminder",
+    "download",
+    "copy_link",
     "void",
     "template",
     "uncollectible",
@@ -68,6 +74,7 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   paid: ["download", "copy_link", "template", "view_history", "duplicate"],
   overdue_under_90: [
     "resend",
+    "send_reminder",
     "download",
     "copy_link",
     "send_test",
@@ -78,6 +85,7 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   ],
   overdue_over_90: [
     "resend",
+    "send_reminder",
     "download",
     "copy_link",
     "uncollectible",
@@ -103,6 +111,7 @@ const ACTION_META: Record<
   resend: { label: "Re-Send" },
   copy_link: { label: "Copy Invoice Link" },
   send_test: { label: "Send Test Invoice" },
+  send_reminder: { label: "Send Reminder" },
   mark_viewed: { label: "Mark As Viewed" },
   view_history: { label: "View History" },
 };

@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", match: (path: string) => path === "/dashboard" || path.startsWith("/dashboard/") },
-  { href: "/invoices", label: "Invoices", match: (path: string) => path === "/invoices" || path.startsWith("/invoices/") },
+  { href: "/quotes", label: "Quotes", match: (path: string) => path === "/quotes" || path.startsWith("/quotes/") || path.startsWith("/quote") },
+  { href: "/invoices", label: "Invoices", match: (path: string) => path === "/invoices" || path.startsWith("/invoices/") || path === "/" || path.startsWith("/sent") || path.startsWith("/preview") },
   { href: "/customers", label: "Customers", match: (path: string) => path === "/customers" || path.startsWith("/customers/") },
   { href: "/payments", label: "Payments", match: (path: string) => path === "/payments" || path.startsWith("/payments/") },
 ] as const;

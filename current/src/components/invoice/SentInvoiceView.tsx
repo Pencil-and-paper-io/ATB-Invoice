@@ -23,6 +23,7 @@ const VARIANT_STATUS: Record<SentViewVariant, InvoiceStatus> = {
   sent: "sent",
   viewed: "viewed",
   paid: "paid",
+  partially_paid: "partially_paid",
   overdue: "overdue_under_90",
   overdue_90: "overdue_over_90",
   void: "void",
@@ -71,6 +72,10 @@ export function SentInvoiceView({
   } = useInvoiceActionHandler(status);
   const [showPayment, setShowPayment] = useState(false);
   const moreActions = getActionsForStatus(status);
+  const balanceDue =
+    variant === "partially_paid"
+      ? Math.max(0, Number((previewMeta.amount - 1500).toFixed(2)))
+      : previewMeta.amount;
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -106,7 +111,7 @@ export function SentInvoiceView({
               </h2>
               <div className="flex flex-wrap items-center gap-2.5">
                 <p className="type-amount">
-                  {formatMoney(previewMeta.amount)}
+                  {formatMoney(balanceDue)}
                 </p>
                 <span
                   className={`inline-flex items-center rounded border px-2.5 py-1.5 text-base font-semibold ${meta.badge.className}`}
@@ -131,7 +136,10 @@ export function SentInvoiceView({
         </div>
       </main>
       {showPayment ? (
-        <RecordPaymentModal onClose={() => setShowPayment(false)} />
+        <RecordPaymentModal
+          balanceDue={balanceDue}
+          onClose={() => setShowPayment(false)}
+        />
       ) : null}
       {feedbackBanner}
       {uncollectibleModal}

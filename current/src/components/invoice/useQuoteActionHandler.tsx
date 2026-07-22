@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { QuoteActionKey, QuoteStatus } from "@/lib/quote-actions";
 import { duplicateQuoteDetails } from "@/lib/quote-details";
+import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import { DownloadPdfModal } from "./DownloadPdfModal";
 import { Modal } from "./ui";
 
@@ -47,6 +48,18 @@ export function useQuoteActionHandler(status: QuoteStatus) {
   );
   const isDraft = status === "drafted";
 
+  async function copyDemoLink() {
+    try {
+      await navigator.clipboard.writeText("https://pay.atb.com/quote/Q-118");
+      setFeedback({ kind: "info", message: "Quote link copied." });
+    } catch {
+      setFeedback({
+        kind: "info",
+        message: "Quote link ready (clipboard blocked in this browser).",
+      });
+    }
+  }
+
   function handleAction(key: string) {
     const action = key as QuoteActionKey;
 
@@ -59,6 +72,7 @@ export function useQuoteActionHandler(status: QuoteStatus) {
       return;
     }
     if (action === "mark_accepted") {
+      markQuoteAcceptedForInvoice();
       router.push("/?from=quote");
       return;
     }
@@ -75,11 +89,14 @@ export function useQuoteActionHandler(status: QuoteStatus) {
       router.push("/quote");
       return;
     }
+    if (action === "copy_link") {
+      void copyDemoLink();
+      return;
+    }
 
     const messages: Partial<Record<QuoteActionKey, string>> = {
       template: "Saved as template (demo).",
       resend: "Re-send opened (demo).",
-      copy_link: "Quote link copied (demo).",
       send_test: "Test quote sent (demo).",
       view_history: "Opening history (demo).",
     };
