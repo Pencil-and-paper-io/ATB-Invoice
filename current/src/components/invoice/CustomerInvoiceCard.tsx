@@ -167,7 +167,8 @@ export function CustomerInvoiceCard({
     documentKind === "quote"
       ? `QT - ${quoteDetails?.invoiceNumber ?? "0003"}`
       : previewMeta.invoiceNumber;
-  const showPayment = documentKind === "invoice";
+  const showPayment =
+    documentKind === "invoice" || documentKind === "quote";
 
   const validUntilValue = quoteDetails?.validUntil
     ? formatQuoteDate(quoteDetails.validUntil)

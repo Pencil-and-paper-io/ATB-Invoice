@@ -1,4 +1,9 @@
 import type { InvoiceDetailsState } from "@/components/invoice/InvoiceDetailsPanel";
+import {
+  allocateNextQuoteNumber,
+  incrementDocumentNumber,
+  todayIso,
+} from "@/lib/document-numbers";
 
 const STORAGE_KEY = "atb-invoice-quote-details";
 
@@ -22,18 +27,11 @@ export function persistQuoteDetails(details: InvoiceDetailsState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(details));
 }
 
-/** Bump the quote number (e.g. 0003 → 0004) and persist for a new draft. */
+/** Bump the quote number and persist for a new draft. */
 export function duplicateQuoteDetails(): InvoiceDetailsState {
-  const today = (() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  })();
-
+  const today = todayIso();
   const current = loadQuoteDetails() ?? {
-    invoiceNumber: "0003",
+    invoiceNumber: allocateNextQuoteNumber(),
     issueDate: today,
     dueDate: "Net 30",
     taxMode: "inclusive" as const,
@@ -51,14 +49,6 @@ export function duplicateQuoteDetails(): InvoiceDetailsState {
   };
   persistQuoteDetails(duplicated);
   return duplicated;
-}
-
-function incrementDocumentNumber(value: string) {
-  const match = value.match(/^(.*?)(\d+)$/);
-  if (!match) return `${value}-2`;
-  const [, prefix, digits] = match;
-  const next = String(Number(digits) + 1).padStart(digits.length, "0");
-  return `${prefix}${next}`;
 }
 
 export function formatQuoteDate(iso: string) {

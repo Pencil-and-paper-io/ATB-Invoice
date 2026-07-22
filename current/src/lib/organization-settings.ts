@@ -227,6 +227,8 @@ export type InvoicePaymentOption = {
   label: string;
   checked: boolean;
   details: PaymentReferenceDetail[];
+  /** Deposit account for Interac / EFT when required */
+  accountLabel?: string;
 };
 
 /** Build invoice payment rows from org enablement + shared reference copy. */
@@ -244,12 +246,18 @@ export function getInvoicePaymentOptions(
       (entry) => entry.id === method.id && entry.enabled,
     ),
   ).map((method) => {
+    const config = settings.paymentMethods.find(
+      (entry) => entry.id === method.id,
+    );
     const label = paymentMethodLabel(method.id);
+    const accountLabel = config?.accountLabel?.trim() || "";
+    const accountReady = !method.needsAccount || Boolean(accountLabel);
     return {
       id: method.id,
       label: method.invoiceLabel,
-      checked: preferenceLabels.has(label),
+      checked: accountReady && preferenceLabels.has(label),
       details: [...method.details],
+      accountLabel: accountLabel || undefined,
     };
   });
 }

@@ -50,6 +50,7 @@ type WizardState = {
   replyToEmail: string;
   paymentEnabled: Record<PaymentMethodId, boolean>;
   paymentAccounts: Record<"interac" | "eft", string>;
+  paymentAccountsSaved: Record<"interac" | "eft", boolean>;
   paymentTermsChoice: PaymentTermsChoice;
   customPaymentDays: string;
   quoteExpiryDays: string;
@@ -90,17 +91,19 @@ function CheckboxRow({
   label,
   children,
   disabled = false,
+  alwaysShowChildren = false,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: ReactNode;
   children?: ReactNode;
   disabled?: boolean;
+  alwaysShowChildren?: boolean;
 }) {
   return (
     <div
       className={`rounded-[10px] border border-black/10 px-4 py-3 ${
-        disabled ? "opacity-50" : ""
+        disabled && !alwaysShowChildren ? "opacity-50" : ""
       }`}
     >
       <label
@@ -123,7 +126,7 @@ function CheckboxRow({
           {label}
         </span>
       </label>
-      {checked && children ? (
+      {(alwaysShowChildren || checked) && children ? (
         <div className="mt-3 pl-7">{children}</div>
       ) : null}
     </div>
@@ -199,12 +202,16 @@ function DepositAccountBlock({
   onChange,
   organizationName,
   organizationEmail,
+  onSave,
+  saved = false,
 }: {
   ariaLabel: string;
   value: string;
   onChange: (value: string) => void;
   organizationName: string;
   organizationEmail: string;
+  onSave?: () => void;
+  saved?: boolean;
 }) {
   return (
     <div className="mt-3">
@@ -214,6 +221,23 @@ function DepositAccountBlock({
         value={value}
         onChange={onChange}
       />
+      {onSave ? (
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saved}
+            className="ui-btn-secondary h-9 px-4 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Save account
+          </button>
+          {!saved ? (
+            <p className="text-sm text-black/55">
+              Save a deposit account to enable this option.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <p className="type-body-muted mt-2">
         Requests are shown as coming from{" "}
         <span className="font-semibold text-black/70">
@@ -371,11 +395,13 @@ function settingsToWizard(settings: OrganizationSettings): WizardState {
     replyToEmail: settings.email || "",
     paymentEnabled: {
       interac:
-        settings.paymentMethods.find((method) => method.id === "interac")
-          ?.enabled ?? false,
+        (settings.paymentMethods.find((method) => method.id === "interac")
+          ?.enabled ??
+          false) && Boolean(accountFor("interac")),
       eft:
-        settings.paymentMethods.find((method) => method.id === "eft")
-          ?.enabled ?? true,
+        (settings.paymentMethods.find((method) => method.id === "eft")
+          ?.enabled ??
+          true) && Boolean(accountFor("eft")),
       cash:
         settings.paymentMethods.find((method) => method.id === "cash")
           ?.enabled ?? true,
@@ -384,8 +410,12 @@ function settingsToWizard(settings: OrganizationSettings): WizardState {
           ?.enabled ?? true,
     },
     paymentAccounts: {
-      interac: accountFor("interac"),
-      eft: accountFor("eft"),
+      interac: accountFor("interac") || DEMO_DEPOSIT_ACCOUNTS[0].label,
+      eft: accountFor("eft") || DEMO_DEPOSIT_ACCOUNTS[0].label,
+    },
+    paymentAccountsSaved: {
+      interac: Boolean(accountFor("interac")),
+      eft: Boolean(accountFor("eft")),
     },
     paymentTermsChoice,
     customPaymentDays,
@@ -886,17 +916,13 @@ export function OnboardingWizardView() {
               <div className="flex flex-col gap-3">
                 <CheckboxRow
                   checked={state.paymentEnabled.interac}
+                  disabled={!state.paymentAccountsSaved.interac}
+                  alwaysShowChildren
                   onChange={(checked) =>
                     patch({
                       paymentEnabled: {
                         ...state.paymentEnabled,
                         interac: checked,
-                      },
-                      paymentAccounts: {
-                        ...state.paymentAccounts,
-                        interac: checked
-                          ? state.paymentAccounts.interac || defaultChequing
-                          : state.paymentAccounts.interac,
                       },
                     })
                   }
@@ -914,26 +940,44 @@ export function OnboardingWizardView() {
                           ...state.paymentAccounts,
                           interac: value,
                         },
+                        paymentAccountsSaved: {
+                          ...state.paymentAccountsSaved,
+                          interac: false,
+                        },
+                        paymentEnabled: {
+                          ...state.paymentEnabled,
+                          interac: false,
+                        },
                       })
                     }
                     organizationName={organizationDisplayName}
                     organizationEmail={state.replyToEmail}
+                    onSave={() =>
+                      patch({
+                        paymentAccounts: {
+                          ...state.paymentAccounts,
+                          interac:
+                            state.paymentAccounts.interac || defaultChequing,
+                        },
+                        paymentAccountsSaved: {
+                          ...state.paymentAccountsSaved,
+                          interac: true,
+                        },
+                      })
+                    }
+                    saved={state.paymentAccountsSaved.interac}
                   />
                 </CheckboxRow>
 
                 <CheckboxRow
                   checked={state.paymentEnabled.eft}
+                  disabled={!state.paymentAccountsSaved.eft}
+                  alwaysShowChildren
                   onChange={(checked) =>
                     patch({
                       paymentEnabled: {
                         ...state.paymentEnabled,
                         eft: checked,
-                      },
-                      paymentAccounts: {
-                        ...state.paymentAccounts,
-                        eft: checked
-                          ? state.paymentAccounts.eft || defaultChequing
-                          : state.paymentAccounts.eft,
                       },
                     })
                   }
@@ -951,10 +995,31 @@ export function OnboardingWizardView() {
                           ...state.paymentAccounts,
                           eft: value,
                         },
+                        paymentAccountsSaved: {
+                          ...state.paymentAccountsSaved,
+                          eft: false,
+                        },
+                        paymentEnabled: {
+                          ...state.paymentEnabled,
+                          eft: false,
+                        },
                       })
                     }
                     organizationName={organizationDisplayName}
                     organizationEmail={state.replyToEmail}
+                    onSave={() =>
+                      patch({
+                        paymentAccounts: {
+                          ...state.paymentAccounts,
+                          eft: state.paymentAccounts.eft || defaultChequing,
+                        },
+                        paymentAccountsSaved: {
+                          ...state.paymentAccountsSaved,
+                          eft: true,
+                        },
+                      })
+                    }
+                    saved={state.paymentAccountsSaved.eft}
                   />
                 </CheckboxRow>
 

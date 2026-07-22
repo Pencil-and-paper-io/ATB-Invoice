@@ -2,10 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { draftInvoice } from "@/lib/invoice-demo-data";
+import { draftInvoice, type Customer } from "@/lib/invoice-demo-data";
 import {
+  normalizeDueDateOption,
+  peekNextInvoiceNumber,
+  rememberDocumentNumber,
+  todayIso,
+} from "@/lib/document-numbers";
+import { getCustomerDefaultTaxLabel } from "@/lib/customer-profile-settings";
+import {
+  getCustomerCascadeDefaults,
   getInvoicePaymentOptions,
   loadOrganizationSettings,
   type InvoicePaymentOption,
@@ -20,85 +28,40 @@ import {
 import { LineItemsSection } from "./LineItemsSection";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
+import { PaymentOptionsSection } from "./PaymentOptionsSection";
 import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
-import { ContactBlock, SectionCard, TertiaryButton, TextLink } from "./ui";
-
-function PaymentOptionRow({
-  option,
-  onToggle,
-}: {
-  option: InvoicePaymentOption;
-  onToggle: (id: InvoicePaymentOption["id"]) => void;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <div className="flex h-16 shrink-0 items-center">
-        <button
-          type="button"
-          onClick={() => onToggle(option.id)}
-          className={`flex h-5 w-5 items-center justify-center rounded-[3px] transition ${
-            option.checked
-              ? "border border-prime-blue bg-prime-blue"
-              : "border border-black/25 bg-transparent"
-          }`}
-          aria-pressed={option.checked}
-          aria-label={`Toggle ${option.label}`}
-        >
-          {option.checked ? (
-            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-hidden>
-              <path
-                d="M1 5.2 4.2 8.5 11 1.5"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : null}
-        </button>
-      </div>
-      <div
-        className={`min-w-0 flex-1 rounded-[10px] border px-[30px] py-5 transition ${
-          option.checked ? "border-midnight-ink" : "border-black/10"
-        }`}
-      >
-        <p className="text-base font-bold leading-6 text-black">{option.label}</p>
-        {option.checked && option.details?.length ? (
-          <ul className="mt-2.5 list-disc space-y-1 pl-5 text-sm text-black">
-            {option.details.map((detail) => (
-              <li key={`${detail.label}-${detail.text}`}>
-                <span className={detail.italic ? "italic" : undefined}>
-                  <span className="font-bold">{detail.label}:</span>{" "}
-                  {detail.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </div>
-  );
-}
+import { ContactBlock, SectionCard, TextLink } from "./ui";
 
 export function DraftInvoiceView() {
-  const router = useRouter();
   const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
+  const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [details, setDetails] = useState<InvoiceDetailsState>({
-    invoiceNumber: "3001",
+    invoiceNumber: "",
     issueDate: "Send right away",
     dueDate: "Net 30",
     taxMode: "inclusive",
     currency: "CAD",
     referenceNumber: "",
-    serviceStart: "",
+    serviceStart: todayIso(),
     serviceEnd: "",
   });
 
   useEffect(() => {
     window.setTimeout(() => {
-      setPayments(getInvoicePaymentOptions(loadOrganizationSettings()));
+      const org = loadOrganizationSettings();
+      setPayments(getInvoicePaymentOptions(org));
+      const cascade = getCustomerCascadeDefaults(org);
+      setDetails((prev) => ({
+        ...prev,
+        invoiceNumber: prev.invoiceNumber || peekNextInvoiceNumber(),
+        dueDate: normalizeDueDateOption(cascade.paymentTerms),
+        serviceStart: prev.serviceStart || todayIso(),
+      }));
+      setDefaultTaxLabel(
+        getCustomerDefaultTaxLabel(defaultDraftCustomer?.id ?? null),
+      );
     }, 0);
   }, []);
 
@@ -121,6 +84,27 @@ export function DraftInvoiceView() {
     );
   }
 
+  function updatePayments(next: InvoicePaymentOption[]) {
+    setPayments(next);
+  }
+
+  function updateDetails(next: InvoiceDetailsState) {
+    setDetails(next);
+    if (next.invoiceNumber.trim()) {
+      rememberDocumentNumber("invoice", next.invoiceNumber);
+    }
+  }
+
+  function handleCustomerChange(customer: Customer | null) {
+    setDefaultTaxLabel(getCustomerDefaultTaxLabel(customer?.id ?? null));
+    if (!customer) return;
+    const cascade = getCustomerCascadeDefaults();
+    updateDetails({
+      ...details,
+      dueDate: normalizeDueDateOption(cascade.paymentTerms),
+    });
+  }
+
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
@@ -128,21 +112,16 @@ export function DraftInvoiceView() {
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         {fromQuote ? (
           <div className="mb-5 rounded-lg border border-prime-blue/30 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
-            Created from an accepted quote. Set payment options and due date
-            before sending — quotes do not include those.
+            Created from an accepted quote. Review payment options and due date
+            before sending.
           </div>
         ) : null}
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="type-page-title">
-            Draft Invoice
-          </h1>
+          <h1 className="type-page-title">Draft Invoice</h1>
           <div className="flex flex-wrap items-center gap-2.5">
             <TemplatePicker />
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            <Link
-              href="/preview"
-              className="ui-btn-primary"
-            >
+            <Link href="/preview" className="ui-btn-primary">
               Save and Preview
             </Link>
           </div>
@@ -150,33 +129,24 @@ export function DraftInvoiceView() {
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_331px]">
           <div className="flex flex-col gap-2.5">
-            <BillToSection defaultCustomer={defaultDraftCustomer} />
+            <BillToSection
+              defaultCustomer={defaultDraftCustomer}
+              onCustomerChange={handleCustomerChange}
+            />
 
             <SectionCard title="Line Items" className="gap-2.5">
               <LineItemsSection
                 taxMode={details.taxMode}
                 currency={details.currency}
+                defaultTaxLabel={defaultTaxLabel}
               />
             </SectionCard>
 
-            <SectionCard title="Payment Options">
-              <div className="flex flex-col gap-2.5">
-                {payments.map((option) => (
-                  <PaymentOptionRow
-                    key={option.id}
-                    option={option}
-                    onToggle={togglePayment}
-                  />
-                ))}
-                <TertiaryButton
-                  onClick={() =>
-                    router.push("/organization#payment-options")
-                  }
-                >
-                  Add more payment options
-                </TertiaryButton>
-              </div>
-            </SectionCard>
+            <PaymentOptionsSection
+              payments={payments}
+              onToggle={togglePayment}
+              onChange={updatePayments}
+            />
 
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection />
@@ -185,7 +155,10 @@ export function DraftInvoiceView() {
 
           <aside className="flex flex-col gap-[15px]">
             <SectionCard title="Details">
-              <InvoiceDetailsPanel details={details} onChange={setDetails} />
+              <InvoiceDetailsPanel
+                details={details}
+                onChange={updateDetails}
+              />
             </SectionCard>
 
             <SectionCard title="Note to Self" className="gap-2.5">

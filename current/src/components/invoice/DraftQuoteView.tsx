@@ -3,7 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { draftInvoice } from "@/lib/invoice-demo-data";
+import { draftInvoice, type Customer } from "@/lib/invoice-demo-data";
+import {
+  addDaysToIso,
+  allocateNextQuoteNumber,
+  normalizeDueDateOption,
+  rememberDocumentNumber,
+  todayIso,
+} from "@/lib/document-numbers";
+import {
+  getCustomerCascadeDefaults,
+  getInvoicePaymentOptions,
+  loadOrganizationSettings,
+  type InvoicePaymentOption,
+} from "@/lib/organization-settings";
 import { getQuoteActionsForStatus } from "@/lib/quote-actions";
 import { loadQuoteDetails, persistQuoteDetails } from "@/lib/quote-details";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
@@ -15,57 +28,105 @@ import {
 import { LineItemsSection } from "./LineItemsSection";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
+import { PaymentOptionsSection } from "./PaymentOptionsSection";
 import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
+import { getCustomerDefaultTaxLabel } from "@/lib/customer-profile-settings";
+
+function buildQuoteDefaults(): InvoiceDetailsState {
+  const today = todayIso();
+  const cascade = getCustomerCascadeDefaults();
+  const expiryDays = Number(cascade.quoteExpiryDays) || 45;
+  return {
+    invoiceNumber: allocateNextQuoteNumber(),
+    issueDate: today,
+    dueDate: normalizeDueDateOption(cascade.paymentTerms),
+    taxMode: "inclusive",
+    currency: "CAD",
+    validUntil: addDaysToIso(today, expiryDays),
+    serviceStart: today,
+    serviceEnd: "",
+  };
+}
 
 export function DraftQuoteView() {
-  const today = (() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  })();
-  const [details, setDetails] = useState<InvoiceDetailsState>({
-    invoiceNumber: "0003",
-    issueDate: today,
+  const [details, setDetails] = useState<InvoiceDetailsState>(() => ({
+    invoiceNumber: "",
+    issueDate: todayIso(),
     dueDate: "Net 30",
     taxMode: "inclusive",
     currency: "CAD",
     validUntil: "",
-    serviceStart: today,
+    serviceStart: todayIso(),
     serviceEnd: "",
-  });
+  }));
+  const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
+  const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
 
   useEffect(() => {
-    const saved = loadQuoteDetails();
-    if (saved) {
-      window.setTimeout(() => setDetails(saved), 0);
-    } else {
-      // Seed storage so the preview reflects the defaults before any edits.
-      persistQuoteDetails({
-        invoiceNumber: "0003",
-        issueDate: today,
-        dueDate: "Net 30",
-        taxMode: "inclusive",
-        currency: "CAD",
-        validUntil: "",
-        serviceStart: today,
-        serviceEnd: "",
-      });
-    }
-  }, [today]);
+    window.setTimeout(() => {
+      setPayments(getInvoicePaymentOptions(loadOrganizationSettings()));
+      const cascade = getCustomerCascadeDefaults();
+      const expiryDays = Number(cascade.quoteExpiryDays) || 45;
+      const saved = loadQuoteDetails();
+      const base = saved ?? buildQuoteDefaults();
+      const quoteDate = /^\d{4}-\d{2}-\d{2}$/.test(base.issueDate)
+        ? base.issueDate
+        : todayIso();
+      const next: InvoiceDetailsState = {
+        ...base,
+        dueDate: normalizeDueDateOption(cascade.paymentTerms),
+        validUntil:
+          base.validUntil || addDaysToIso(quoteDate, expiryDays),
+        serviceStart: base.serviceStart || todayIso(),
+      };
+      setDetails(next);
+      persistQuoteDetails(next);
+      rememberDocumentNumber("quote", next.invoiceNumber);
+      setDefaultTaxLabel(
+        getCustomerDefaultTaxLabel(defaultDraftCustomer?.id ?? null),
+      );
+    }, 0);
+  }, []);
 
   function updateDetails(next: InvoiceDetailsState) {
     setDetails(next);
     persistQuoteDetails(next);
+    rememberDocumentNumber("quote", next.invoiceNumber);
+  }
+
+  function handleCustomerChange(customer: Customer | null) {
+    setDefaultTaxLabel(getCustomerDefaultTaxLabel(customer?.id ?? null));
+    if (!customer) return;
+    const cascade = getCustomerCascadeDefaults();
+    const expiryDays = Number(cascade.quoteExpiryDays) || 45;
+    const quoteDate = /^\d{4}-\d{2}-\d{2}$/.test(details.issueDate)
+      ? details.issueDate
+      : todayIso();
+    updateDetails({
+      ...details,
+      dueDate: normalizeDueDateOption(cascade.paymentTerms),
+      validUntil: addDaysToIso(quoteDate, expiryDays),
+    });
   }
 
   const { handleAction, feedbackBanner, confirmModal, downloadModal } =
     useQuoteActionHandler("drafted");
   const moreActions = getQuoteActionsForStatus("drafted", ["edit", "template"]);
+
+  function togglePayment(id: InvoicePaymentOption["id"]) {
+    setPayments((prev) =>
+      prev.map((option) =>
+        option.id === id ? { ...option, checked: !option.checked } : option,
+      ),
+    );
+  }
+
+  function updatePayments(next: InvoicePaymentOption[]) {
+    setPayments(next);
+  }
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -73,16 +134,11 @@ export function DraftQuoteView() {
 
       <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="type-page-title">
-            Draft Quote
-          </h1>
+          <h1 className="type-page-title">Draft Quote</h1>
           <div className="flex flex-wrap items-center gap-2.5">
             <TemplatePicker />
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            <Link
-              href="/quote/preview"
-              className="ui-btn-primary"
-            >
+            <Link href="/quote/preview" className="ui-btn-primary">
               Save and Preview
             </Link>
           </div>
@@ -90,14 +146,24 @@ export function DraftQuoteView() {
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_331px]">
           <div className="flex flex-col gap-2.5">
-            <BillToSection defaultCustomer={defaultDraftCustomer} />
+            <BillToSection
+              defaultCustomer={defaultDraftCustomer}
+              onCustomerChange={handleCustomerChange}
+            />
 
             <SectionCard title="Line Items" className="gap-2.5">
               <LineItemsSection
                 taxMode={details.taxMode}
                 currency={details.currency}
+                defaultTaxLabel={defaultTaxLabel}
               />
             </SectionCard>
+
+            <PaymentOptionsSection
+              payments={payments}
+              onToggle={togglePayment}
+              onChange={updatePayments}
+            />
 
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection documentKind="quote" />

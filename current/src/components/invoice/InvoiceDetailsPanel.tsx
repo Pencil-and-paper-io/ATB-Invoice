@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type TaxMode } from "@/lib/alberta-tax";
-import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
 
 const ISSUE_DATE_PRESETS = [
   "Send right away",
@@ -139,17 +138,6 @@ function TaxSettingField({
   );
 }
 
-function CadCurrencyBadge() {
-  return (
-    <div className="flex flex-col gap-2.5">
-      <span className="text-sm text-black">Currency</span>
-      <p className="rounded border border-black/15 bg-input-grey px-2.5 py-2.5 text-sm font-semibold text-midnight-ink">
-        {LOCKED_CURRENCY_BADGE}
-      </p>
-    </div>
-  );
-}
-
 function formatCalendarLabel(iso: string) {
   const [year, month, day] = iso.split("-").map(Number);
   if (!year || !month || !day) return iso;
@@ -166,11 +154,19 @@ function CalendarDateField({
   value,
   onChange,
   optional = false,
+  required = false,
+  min,
+  max,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   optional?: boolean;
+  required?: boolean;
+  min?: string;
+  max?: string;
+  error?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
@@ -180,6 +176,7 @@ function CalendarDateField({
     <div ref={ref} className="relative flex flex-col gap-2.5">
       <span className="text-sm text-black">
         {label}
+        {required ? <span className="type-danger"> *</span> : null}
         {optional ? (
           <span className="text-black/40"> (optional)</span>
         ) : null}
@@ -196,12 +193,15 @@ function CalendarDateField({
         </span>
         <CaretIcon />
       </button>
+      {error ? <p className="type-danger text-xs">{error}</p> : null}
       {open ? (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-black/10 bg-white p-3 shadow-lg">
           <input
             type="date"
             className={inputClass}
             value={iso}
+            min={min}
+            max={max}
             onChange={(event) => {
               onChange(event.target.value);
               if (event.target.value) setOpen(false);
@@ -389,6 +389,57 @@ export function InvoiceDetailsPanel({
   documentKind?: "invoice" | "quote";
 }) {
   const isQuote = documentKind === "quote";
+  const quoteDateIso = /^\d{4}-\d{2}-\d{2}$/.test(details.issueDate)
+    ? details.issueDate
+    : "";
+  const serviceStart = details.serviceStart ?? "";
+  const serviceEnd = details.serviceEnd ?? "";
+  const validUntil = details.validUntil ?? "";
+
+  const serviceStartError =
+    !serviceStart.trim() ? "Service start date is required." : null;
+  const serviceEndError =
+    serviceStart &&
+    serviceEnd &&
+    /^\d{4}-\d{2}-\d{2}$/.test(serviceStart) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(serviceEnd) &&
+    serviceEnd < serviceStart
+      ? "End date can’t be before the start date."
+      : null;
+  const validUntilError =
+    isQuote &&
+    quoteDateIso &&
+    validUntil &&
+    /^\d{4}-\d{2}-\d{2}$/.test(validUntil) &&
+    validUntil < quoteDateIso
+      ? "Expiry can’t be before the quote date."
+      : null;
+
+  function patch(partial: Partial<InvoiceDetailsState>) {
+    const next = { ...details, ...partial };
+
+    if (
+      next.serviceStart &&
+      next.serviceEnd &&
+      /^\d{4}-\d{2}-\d{2}$/.test(next.serviceStart) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(next.serviceEnd) &&
+      next.serviceEnd < next.serviceStart
+    ) {
+      next.serviceEnd = next.serviceStart;
+    }
+
+    if (
+      isQuote &&
+      /^\d{4}-\d{2}-\d{2}$/.test(next.issueDate) &&
+      next.validUntil &&
+      /^\d{4}-\d{2}-\d{2}$/.test(next.validUntil) &&
+      next.validUntil < next.issueDate
+    ) {
+      next.validUntil = next.issueDate;
+    }
+
+    onChange(next);
+  }
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -400,7 +451,7 @@ export function InvoiceDetailsPanel({
           className={inputClass}
           value={details.invoiceNumber}
           onChange={(event) =>
-            onChange({ ...details, invoiceNumber: event.target.value })
+            patch({ invoiceNumber: event.target.value })
           }
           aria-label={isQuote ? "Estimate number" : "Invoice number"}
         />
@@ -408,70 +459,63 @@ export function InvoiceDetailsPanel({
 
       <IssueDateField
         value={details.issueDate}
-        onChange={(issueDate) => onChange({ ...details, issueDate })}
+        onChange={(issueDate) => patch({ issueDate })}
         label={isQuote ? "Estimate Date" : "Issue Date"}
         calendarOnly={isQuote}
       />
 
       {isQuote ? (
-        <>
-          <CalendarDateField
-            label="Valid Until"
-            value={details.validUntil ?? ""}
-            onChange={(validUntil) => onChange({ ...details, validUntil })}
+        <CalendarDateField
+          label="Valid Until"
+          value={validUntil}
+          onChange={(value) => patch({ validUntil: value })}
+          min={quoteDateIso || undefined}
+          error={validUntilError}
+        />
+      ) : null}
+
+      <DueDateField
+        value={details.dueDate}
+        onChange={(dueDate) => patch({ dueDate })}
+      />
+
+      {!isQuote ? (
+        <label className="flex flex-col gap-2.5">
+          <span className="text-sm text-black">
+            Reference #{" "}
+            <span className="text-black/40">(PO / contract / quote)</span>
+          </span>
+          <input
+            className={inputClass}
+            value={details.referenceNumber ?? ""}
+            onChange={(event) =>
+              patch({ referenceNumber: event.target.value })
+            }
+            placeholder="Optional"
           />
-          <CalendarDateField
-            label="Service start"
-            value={details.serviceStart ?? ""}
-            onChange={(serviceStart) => onChange({ ...details, serviceStart })}
-          />
-          <CalendarDateField
-            label="Service end"
-            value={details.serviceEnd ?? ""}
-            onChange={(serviceEnd) => onChange({ ...details, serviceEnd })}
-            optional
-          />
-        </>
-      ) : (
-        <>
-          <DueDateField
-            value={details.dueDate}
-            onChange={(dueDate) => onChange({ ...details, dueDate })}
-          />
-          <label className="flex flex-col gap-2.5">
-            <span className="text-sm text-black">
-              Reference #{" "}
-              <span className="text-black/40">(PO / contract / quote)</span>
-            </span>
-            <input
-              className={inputClass}
-              value={details.referenceNumber ?? ""}
-              onChange={(event) =>
-                onChange({ ...details, referenceNumber: event.target.value })
-              }
-              placeholder="Optional"
-            />
-          </label>
-          <CalendarDateField
-            label="Service start"
-            value={details.serviceStart ?? ""}
-            onChange={(serviceStart) => onChange({ ...details, serviceStart })}
-          />
-          <CalendarDateField
-            label="Service end"
-            value={details.serviceEnd ?? ""}
-            onChange={(serviceEnd) => onChange({ ...details, serviceEnd })}
-            optional
-          />
-        </>
-      )}
+        </label>
+      ) : null}
+
+      <CalendarDateField
+        label="Service start"
+        value={serviceStart}
+        onChange={(value) => patch({ serviceStart: value })}
+        required
+        error={serviceStartError}
+      />
+      <CalendarDateField
+        label="Service end"
+        value={serviceEnd}
+        onChange={(value) => patch({ serviceEnd: value })}
+        optional
+        min={serviceStart || undefined}
+        error={serviceEndError}
+      />
 
       <TaxSettingField
         mode={details.taxMode}
-        onChange={(taxMode) => onChange({ ...details, taxMode })}
+        onChange={(taxMode) => patch({ taxMode })}
       />
-
-      <CadCurrencyBadge />
     </div>
   );
 }

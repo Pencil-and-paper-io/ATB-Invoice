@@ -597,7 +597,9 @@ function LineItemsTotals({
           }}
         />
         <TotalsRow label="Tax (GST)" value={formatMoney(totals.gst)} />
-        <TotalsRow label="Tax (PST)" value={formatMoney(totals.pst)} />
+        {totals.pst > 0 ? (
+          <TotalsRow label="Tax (PST)" value={formatMoney(totals.pst)} />
+        ) : null}
       </div>
 
       <div className="my-1 h-px bg-black/10" />
@@ -1298,10 +1300,13 @@ export function LineItemsSection({
   initialItems = [],
   taxMode = "exclusive",
   currency = getInvoiceCurrency(),
+  defaultTaxLabel = "",
 }: {
   initialItems?: LineItem[];
   taxMode?: TaxMode;
   currency?: string;
+  /** Prefill from customer profile tax settings; editable per line. */
+  defaultTaxLabel?: string;
 }) {
   const [items, setItems] = useState<LineItem[]>(initialItems);
   const [editingId, setEditingId] = useState<EditingId>(null);
@@ -1309,6 +1314,7 @@ export function LineItemsSection({
     null,
   );
   const [savedItems, setSavedItems] = useState<SavedLineItem[]>([]);
+  const previousDefaultTax = useRef(defaultTaxLabel);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -1319,13 +1325,51 @@ export function LineItemsSection({
   }, []);
 
   useEffect(() => {
+    const previous = previousDefaultTax.current;
+    previousDefaultTax.current = defaultTaxLabel;
+
+    function isTaxBadge(label: string) {
+      return !label.toLowerCase().startsWith("discount") && !label.toLowerCase().includes("off");
+    }
+
+    setItems((prev) =>
+      prev.map((item) => {
+        const taxBadge = item.badges.find((badge) => isTaxBadge(badge.label));
+        const otherBadges = item.badges.filter(
+          (badge) => !isTaxBadge(badge.label),
+        );
+        // Replace only when empty or still matching the previous customer default.
+        const shouldReplace =
+          !taxBadge ||
+          (previous && taxBadge.label === previous) ||
+          taxBadge.label === defaultTaxLabel;
+        if (!shouldReplace && taxBadge) return item;
+        return {
+          ...item,
+          badges: defaultTaxLabel
+            ? [{ label: defaultTaxLabel }, ...otherBadges]
+            : otherBadges,
+        };
+      }),
+    );
+
+    setNewItem((prev) => {
+      if (!prev) return prev;
+      if (prev.tax && previous && prev.tax !== previous && prev.tax !== defaultTaxLabel) {
+        return prev;
+      }
+      return { ...prev, tax: defaultTaxLabel };
+    });
+  }, [defaultTaxLabel]);
+
+  useEffect(() => {
     if (items.length > 0 || editingId === "new" || newItem) return;
     const blank = makeBlankLineItem(`item-${Date.now()}`);
     window.setTimeout(() => {
-      setNewItem({ ...blank, qty: 1, tax: "" });
+      setNewItem({ ...blank, qty: 1, tax: defaultTaxLabel });
       setEditingId("new");
     }, 0);
-  }, [items, editingId, newItem]);
+  }, [items, editingId, newItem, defaultTaxLabel]);
 
   function closeEditor() {
     setEditingId(null);
@@ -1334,7 +1378,7 @@ export function LineItemsSection({
 
   function startAdd() {
     const blank = makeBlankLineItem(`item-${Date.now()}`);
-    setNewItem({ ...blank, qty: 1, tax: "" });
+    setNewItem({ ...blank, qty: 1, tax: defaultTaxLabel });
     setEditingId("new");
   }
 
@@ -1425,6 +1469,7 @@ export function LineItemsSection({
 
       {editingId === "new" && newItem ? (
         <LineItemForm
+          key={`new-${newItem.id}-${newItem.tax ?? ""}`}
           initial={newItem}
           isNew
           currency={currency}

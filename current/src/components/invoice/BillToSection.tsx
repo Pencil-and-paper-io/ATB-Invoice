@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { customers, isCustomerArchived, type Customer } from "@/lib/invoice-demo-data";
-import { ContactBlock, SectionCard, TextLink } from "./ui";
+import { ContactBlock, SectionCard } from "./ui";
 
 const CREATE_CUSTOMER_HREF = "/customers/new";
+
+function customerOptionLabel(customer: Customer) {
+  return `${customer.name} (${customer.email})`;
+}
 
 function CustomerDropdown({
   onSelect,
@@ -13,8 +17,10 @@ function CustomerDropdown({
   onSelect: (customer: Customer) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [activeCustomers, setActiveCustomers] = useState(customers);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -34,20 +40,48 @@ function CustomerDropdown({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return activeCustomers;
+    return activeCustomers.filter(
+      (customer) =>
+        customer.name.toLowerCase().includes(q) ||
+        customer.email.toLowerCase().includes(q) ||
+        customer.phone.toLowerCase().includes(q),
+    );
+  }, [activeCustomers, query]);
+
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex w-full items-center justify-between rounded border border-black/20 bg-input-grey px-4 py-3 text-left text-sm text-midnight-ink transition hover:border-prime-blue focus:border-prime-blue focus:bg-input-grey"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="text-black/50">Select customer...</span>
-        <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
-          <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
-      </button>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search customers…"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="w-full rounded border border-black/20 bg-input-grey px-4 py-3 pr-10 text-left text-sm text-midnight-ink outline-none transition hover:border-prime-blue focus:border-prime-blue focus:bg-input-grey"
+        />
+        <button
+          type="button"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-black/45"
+          aria-label={open ? "Close customer list" : "Open customer list"}
+          onClick={() => {
+            setOpen((prev) => !prev);
+            inputRef.current?.focus();
+          }}
+        >
+          <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
+            <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </button>
+      </div>
 
       {open ? (
         <div
@@ -55,25 +89,31 @@ function CustomerDropdown({
           role="listbox"
         >
           <ul className="max-h-64 overflow-auto py-1">
-            {activeCustomers.map((customer) => (
-              <li key={customer.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelect(customer);
-                    setOpen(false);
-                  }}
-                  className="flex w-full flex-col px-4 py-2.5 text-left transition hover:bg-black/[0.04]"
-                  role="option"
-                  aria-selected="false"
-                >
-                  <span className="text-sm font-semibold text-black">
-                    {customer.name}
-                  </span>
-                  <span className="text-xs text-black/50">{customer.email}</span>
-                </button>
+            {filtered.length ? (
+              filtered.map((customer) => (
+                <li key={customer.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(customer);
+                      setQuery("");
+                      setOpen(false);
+                    }}
+                    className="flex w-full flex-col px-4 py-2.5 text-left transition hover:bg-black/[0.04]"
+                    role="option"
+                    aria-selected="false"
+                  >
+                    <span className="text-sm font-semibold text-black">
+                      {customerOptionLabel(customer)}
+                    </span>
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li className="px-4 py-3 text-sm text-black/50">
+                No customers match “{query.trim()}”
               </li>
-            ))}
+            )}
           </ul>
           <div className="border-t border-black/10">
             <Link
@@ -100,12 +140,19 @@ function CustomerDropdown({
 
 export function BillToSection({
   defaultCustomer,
+  onCustomerChange,
 }: {
   defaultCustomer?: Customer | null;
+  onCustomerChange?: (customer: Customer | null) => void;
 }) {
   const [customer, setCustomer] = useState<Customer | null>(
     defaultCustomer ?? null,
   );
+
+  function selectCustomer(next: Customer | null) {
+    setCustomer(next);
+    onCustomerChange?.(next);
+  }
 
   return (
     <SectionCard title="Bill to">
@@ -120,14 +167,16 @@ export function BillToSection({
           <div className="mt-2.5">
             <Link
               href={`${CREATE_CUSTOMER_HREF}?id=${customer.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-fit text-sm text-prime-blue underline underline-offset-2 transition hover:opacity-80"
             >
-              Edit Customer Details
+              Edit Customer Profile
             </Link>
           </div>
           <button
             type="button"
-            onClick={() => setCustomer(null)}
+            onClick={() => selectCustomer(null)}
             className="absolute right-2.5 top-2.5 text-black/50 transition hover:text-black"
             aria-label="Remove customer"
           >
@@ -142,7 +191,7 @@ export function BillToSection({
           </button>
         </div>
       ) : (
-        <CustomerDropdown onSelect={setCustomer} />
+        <CustomerDropdown onSelect={selectCustomer} />
       )}
     </SectionCard>
   );
@@ -150,4 +199,3 @@ export function BillToSection({
 
 export { CREATE_CUSTOMER_HREF };
 export const defaultDraftCustomer = customers[0];
-export { TextLink };
