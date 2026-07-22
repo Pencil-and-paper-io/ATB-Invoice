@@ -18,6 +18,7 @@ import {
   GST_HST_REGISTER_URL,
   GST_REGISTRATION_OPTIONS,
 } from "@/lib/place-of-supply";
+import { TAX_SETTING_OPTIONS } from "@/lib/tax-suggestions";
 import {
   DepositAccountBlock,
   paymentRequestSubtitle,
@@ -122,25 +123,6 @@ function sectionIdFromDeepLink(
 }
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
-
-const TAX_SETTING_OPTIONS: {
-  value: (typeof TAX_OPTIONS)[number];
-  label: string;
-  details: string;
-}[] = [
-  {
-    value: "Taxable",
-    label: "Taxable",
-    details:
-      "Choose this if you usually charge GST/HST on the goods or services you sell. Most vendors that sell taxable supplies (products, consulting, trades, and similar commercial services) fall here. New customers will inherit this as their default.",
-  },
-  {
-    value: "Tax-exempt",
-    label: "Tax-exempt",
-    details:
-      "Choose this if GST/HST does not apply to what you sell — show tax as blank/N/A (not $0.00). Common exempt vendors include most healthcare and dental practices, many educational providers, child care for ages 14 and under, most financial services, and long-term residential landlords. If you’re unsure, check CRA guidance or your accountant.",
-  },
-];
 
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
@@ -1812,7 +1794,7 @@ export function OrganizationSettingsView() {
                               </span>
                             </label>
                             <p className="mt-1.5 pl-6 text-sm leading-5 text-black/70">
-                              {option.details}
+                              {option.orgDetails}
                             </p>
                           </div>
                         ))}

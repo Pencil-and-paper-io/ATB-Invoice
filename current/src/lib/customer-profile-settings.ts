@@ -117,12 +117,12 @@ export function getCustomerTaxRecommendation(
   if (settings.taxStatus === "Tax-exempt") {
     return {
       label,
-      note: `Recommended based on this customer's tax setting (Non-taxable · ${label})`,
+      note: `Recommended based on this customer's tax setting (Tax-exempt · ${label})`,
     };
   }
 
   return {
     label,
-    note: `Recommended based on this customer's tax setting (${label})`,
+    note: `Recommended based on this customer's tax setting (Taxable · ${label})`,
   };
 }

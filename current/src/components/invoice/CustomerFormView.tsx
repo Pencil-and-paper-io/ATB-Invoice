@@ -42,11 +42,12 @@ import { ORGANIZATION_DEFAULTS } from "@/lib/org-defaults";
 import {
   CUSTOMER_NON_TAXABLE_OPTIONS,
   CUSTOMER_TAXABLE_OPTIONS,
-  DEFAULT_TAX_SUGGESTIONS,
+  TAX_SETTING_OPTIONS,
+  suggestCustomerTaxCascade,
   suggestNonTaxableForCustomer,
+  suggestTaxableForCustomer,
   type TaxSuggestions,
 } from "@/lib/tax-suggestions";
-import { suggestTaxFromProvince } from "@/lib/place-of-supply";
 import {
   loadCustomerProfileSettings,
   saveCustomerProfileSettings,
@@ -57,23 +58,6 @@ import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
-
-const TAX_RADIO_OPTIONS: {
-  value: (typeof TAX_OPTIONS)[number];
-  label: string;
-  tip: string;
-}[] = [
-  {
-    value: "Tax-exempt",
-    label: "Non-taxable",
-    tip: "GST/HST does not apply — leave tax blank/N/A (not $0.00). Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
-  },
-  {
-    value: "Taxable",
-    label: "Taxable",
-    tip: "Choose this when you usually charge sales tax (GST/HST and/or PST/QST) on goods or services for this customer.",
-  },
-];
 
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
@@ -108,6 +92,7 @@ type SectionKey =
   | "contact"
   | "tags"
   | "settings"
+  | "tax"
   | "paymentPreferences"
   | "automations"
   | "notes";
@@ -147,16 +132,14 @@ type CustomerFormState = {
 function emptyCustomerForm(
   cascade = ORGANIZATION_DEFAULTS,
 ): CustomerFormState {
+  const taxCascade = suggestCustomerTaxCascade("");
   return {
     businessName: "",
     email: "",
     phone: "",
     currency: LOCKED_CURRENCY,
-    taxStatus: cascade.taxStatus,
-    taxSuggestions:
-      cascade.taxStatus === "Taxable"
-        ? { ...DEFAULT_TAX_SUGGESTIONS }
-        : suggestNonTaxableForCustomer("").suggestions,
+    taxStatus: taxCascade.taxStatus,
+    taxSuggestions: { ...taxCascade.suggestions },
     quoteExpiryDays: cascade.quoteExpiryDays,
     paymentTerms: cascade.paymentTerms,
     paymentPreferences: [...cascade.paymentPreferences],
@@ -501,6 +484,13 @@ function ViewFieldList({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-4">{children}</div>;
 }
 
+/** Horizontal label/value pairs for compact view-mode rows (matches org settings). */
+function ViewFieldRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+  );
+}
+
 function ViewCard({
   title,
   onEdit,
@@ -680,6 +670,7 @@ function formFromCustomerId(id: string | null): CustomerFormState {
   const [province = "", ...postalRest] = provincePostal.split(/\s+/);
   const postalCode = postalRest.join(" ");
   const profile = loadCustomerProfileSettings(id);
+  const taxCascade = suggestCustomerTaxCascade(province);
 
   return {
     ...base,
@@ -691,10 +682,10 @@ function formFromCustomerId(id: string | null): CustomerFormState {
     province,
     postalCode,
     currency: LOCKED_CURRENCY,
-    taxStatus: profile?.taxStatus ?? base.taxStatus,
+    taxStatus: profile?.taxStatus ?? taxCascade.taxStatus,
     taxSuggestions: profile?.taxSuggestions
       ? { ...profile.taxSuggestions }
-      : { ...base.taxSuggestions },
+      : { ...taxCascade.suggestions },
     tags: [...customer.tags],
     // Demo: show compact identity strip with alternate contact when present.
     ...(id === "acme"
@@ -816,7 +807,7 @@ function CustomerFormInner() {
     const section = editing;
     setSaved(draft);
     setEditing(null);
-    if (customerId && section === "settings") {
+    if (customerId && (section === "settings" || section === "tax")) {
       saveCustomerProfileSettings(customerId, {
         taxStatus: draft.taxStatus,
         taxSuggestions: draft.taxSuggestions,
@@ -875,6 +866,7 @@ function CustomerFormInner() {
     if (createDraft.email.trim() && !isValidEmail(createDraft.email)) return;
 
     const province = createDraft.province.trim();
+    const taxCascade = suggestCustomerTaxCascade(province);
 
     const next: CustomerFormState = {
       ...saved,
@@ -884,6 +876,8 @@ function CustomerFormInner() {
       province,
       shippingProvince: isCanadianProvince(province) ? province : "",
       currency: LOCKED_CURRENCY,
+      taxStatus: taxCascade.taxStatus,
+      taxSuggestions: { ...taxCascade.suggestions },
     };
     setSaved(next);
     setDraft(next);
@@ -1343,7 +1337,7 @@ function CustomerFormInner() {
 
             {editing === "settings" ? (
               <SectionEditor
-                title="Settings"
+                title="Invoice and Quote Details"
                 onClose={closeEdit}
                 onSave={saveSection}
               >
@@ -1388,110 +1382,16 @@ function CustomerFormInner() {
                       }
                     />
                   </div>
-                  <div className="sm:col-span-2">
-                    <FieldLabel>{FIELD.taxSetting}</FieldLabel>
-                    <div
-                      className="mt-1 flex flex-col gap-3"
-                      role="radiogroup"
-                      aria-label={FIELD.taxSetting}
-                    >
-                      {TAX_RADIO_OPTIONS.map((option) => (
-                        <div key={option.value}>
-                          <label className="flex items-start gap-2.5 text-sm text-black">
-                            <input
-                              type="radio"
-                              name="customer-tax-status"
-                              className="mt-0.5 h-4 w-4 accent-prime-blue"
-                              checked={draft.taxStatus === option.value}
-                              onChange={() => {
-                                if (option.value === "Tax-exempt") {
-                                  const nonTaxable = suggestNonTaxableForCustomer(
-                                    draft.province,
-                                  );
-                                  patchDraft({
-                                    taxStatus: option.value,
-                                    taxSuggestions: nonTaxable.suggestions,
-                                  });
-                                  return;
-                                }
-
-                                const place = suggestTaxFromProvince(
-                                  draft.province,
-                                );
-                                patchDraft({
-                                  taxStatus: "Taxable",
-                                  taxSuggestions:
-                                    place?.suggestions ?? {
-                                      ...DEFAULT_TAX_SUGGESTIONS,
-                                    },
-                                });
-                              }}
-                            />
-                            <span className="inline-flex items-center gap-1.5">
-                              {option.label}
-                              <InfoTooltip text={option.tip} />
-                            </span>
-                          </label>
-                          {option.value === "Taxable" &&
-                          draft.taxStatus === "Taxable" ? (
-                            <div className="mt-1.5 pl-6">
-                              <TaxSuggestionsEditor
-                                value={draft.taxSuggestions}
-                                options={CUSTOMER_TAXABLE_OPTIONS}
-                                recommendedLabel={
-                                  suggestTaxFromProvince(draft.province)
-                                    ?.taxLabel
-                                }
-                                recommendedNote="Recommended based on customer's province"
-                                onChange={(taxSuggestions) =>
-                                  patchDraft({ taxSuggestions })
-                                }
-                              />
-                            </div>
-                          ) : null}
-                          {option.value === "Tax-exempt" &&
-                          draft.taxStatus === "Tax-exempt" ? (
-                            <div className="mt-1.5 pl-6">
-                              {(() => {
-                                const nonTaxable =
-                                  suggestNonTaxableForCustomer(draft.province);
-                                const showRecommended = Boolean(
-                                  nonTaxable.note,
-                                );
-                                return (
-                                  <TaxSuggestionsEditor
-                                    value={draft.taxSuggestions}
-                                    options={CUSTOMER_NON_TAXABLE_OPTIONS}
-                                    placeholder="Select a tax category..."
-                                    ariaLabel="Non-taxable category"
-                                    showSelectedHint
-                                    recommendedLabel={
-                                      showRecommended
-                                        ? nonTaxable.label
-                                        : undefined
-                                    }
-                                    recommendedNote={
-                                      showRecommended
-                                        ? nonTaxable.note
-                                        : undefined
-                                    }
-                                    onChange={(taxSuggestions) =>
-                                      patchDraft({ taxSuggestions })
-                                    }
-                                  />
-                                );
-                              })()}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </SectionEditor>
             ) : (
-              <ViewCard title="Settings" onEdit={archived ? undefined : () => startEdit("settings")}>
-                <ViewFieldList>
+              <ViewCard
+                title="Invoice and Quote Details"
+                onEdit={
+                  archived ? undefined : () => startEdit("settings")
+                }
+              >
+                <ViewFieldRow>
                   <ViewField
                     label={FIELD.quoteExpiry}
                     value={
@@ -1504,19 +1404,152 @@ function CustomerFormInner() {
                     label={FIELD.paymentTerms}
                     value={saved.paymentTerms.trim() || null}
                   />
-                  <ViewField
-                    label={FIELD.taxSetting}
-                    value={(() => {
-                      const status =
-                        saved.taxStatus === "Tax-exempt"
-                          ? "Non-taxable"
-                          : saved.taxStatus.trim() || null;
-                      if (!status) return null;
-                      const detail = saved.taxSuggestions.suggestedLabel.trim();
-                      return detail ? `${status} (${detail})` : status;
-                    })()}
-                  />
-                </ViewFieldList>
+                </ViewFieldRow>
+              </ViewCard>
+            )}
+
+            {editing === "tax" ? (
+              <SectionEditor
+                title="Tax Info"
+                onClose={closeEdit}
+                onSave={saveSection}
+              >
+                <FieldLabel>{FIELD.taxSetting}</FieldLabel>
+                <p className="type-body-muted mb-3">
+                  This starts from your organization default. Change it if this
+                  customer needs different rules.
+                </p>
+                <div
+                  className="flex flex-col gap-3"
+                  role="radiogroup"
+                  aria-label={FIELD.taxSetting}
+                >
+                  {TAX_SETTING_OPTIONS.map((option) => (
+                    <div key={option.value}>
+                      <label className="flex items-start gap-2.5 text-sm text-black">
+                        <input
+                          type="radio"
+                          name="customer-tax-status"
+                          className="mt-0.5 h-4 w-4 accent-prime-blue"
+                          checked={draft.taxStatus === option.value}
+                          onChange={() => {
+                            if (option.value === "Tax-exempt") {
+                              const nonTaxable = suggestNonTaxableForCustomer(
+                                draft.province,
+                              );
+                              patchDraft({
+                                taxStatus: option.value,
+                                taxSuggestions: nonTaxable.suggestions,
+                              });
+                              return;
+                            }
+
+                            const taxable = suggestTaxableForCustomer(
+                              draft.province,
+                            );
+                            patchDraft({
+                              taxStatus: "Taxable",
+                              taxSuggestions: taxable.suggestions,
+                            });
+                          }}
+                        />
+                        <span className="font-semibold">{option.label}</span>
+                      </label>
+                      <p className="mt-1.5 pl-6 text-sm leading-5 text-black/70">
+                        {option.customerDetails}
+                      </p>
+                      {option.value === "Taxable" &&
+                      draft.taxStatus === "Taxable" ? (
+                        <div className="mt-1.5 pl-6">
+                          {(() => {
+                            const taxable = suggestTaxableForCustomer(
+                              draft.province,
+                            );
+                            return (
+                              <TaxSuggestionsEditor
+                                value={draft.taxSuggestions}
+                                options={CUSTOMER_TAXABLE_OPTIONS}
+                                recommendedLabel={taxable.label}
+                                recommendedNote={taxable.note}
+                                onChange={(taxSuggestions) =>
+                                  patchDraft({ taxSuggestions })
+                                }
+                              />
+                            );
+                          })()}
+                        </div>
+                      ) : null}
+                      {option.value === "Tax-exempt" &&
+                      draft.taxStatus === "Tax-exempt" ? (
+                        <div className="mt-1.5 pl-6">
+                          {(() => {
+                            const nonTaxable =
+                              suggestNonTaxableForCustomer(draft.province);
+                            const showRecommended = Boolean(nonTaxable.note);
+                            return (
+                              <TaxSuggestionsEditor
+                                value={draft.taxSuggestions}
+                                options={CUSTOMER_NON_TAXABLE_OPTIONS}
+                                placeholder="Select a tax category..."
+                                ariaLabel="Tax category"
+                                recommendedLabel={
+                                  showRecommended
+                                    ? nonTaxable.label
+                                    : undefined
+                                }
+                                recommendedNote={
+                                  showRecommended
+                                    ? nonTaxable.note
+                                    : undefined
+                                }
+                                onChange={(taxSuggestions) =>
+                                  patchDraft({ taxSuggestions })
+                                }
+                              />
+                            );
+                          })()}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </SectionEditor>
+            ) : (
+              <ViewCard
+                title="Tax Info"
+                onEdit={archived ? undefined : () => startEdit("tax")}
+              >
+                {(() => {
+                  const statusLabel =
+                    TAX_SETTING_OPTIONS.find(
+                      (option) => option.value === saved.taxStatus,
+                    )?.label ?? saved.taxStatus.trim();
+                  const status = statusLabel || null;
+                  const detail = saved.taxSuggestions.suggestedLabel.trim();
+                  if (!status) {
+                    return (
+                      <p className="type-body-muted">No tax setting set.</p>
+                    );
+                  }
+                  if (detail) {
+                    return (
+                      <ViewFieldRow>
+                        <ViewField label={FIELD.taxSetting} value={status} />
+                        <ViewField
+                          label={
+                            saved.taxStatus === "Tax-exempt"
+                              ? "Tax category"
+                              : "Tax rate"
+                          }
+                          value={detail}
+                        />
+                      </ViewFieldRow>
+                    );
+                  }
+                  return (
+                    <p className="type-body whitespace-nowrap">{status}</p>
+                  );
+                })()}
               </ViewCard>
             )}
 
@@ -1584,50 +1617,32 @@ function CustomerFormInner() {
               >
                 {saved.paymentPreferences.length ? (
                   <ul className="flex flex-col gap-3">
-                    {saved.paymentPreferences.map((option) => {
-                      const method = CORE_PAYMENT_METHODS.find(
-                        (entry) => entry.label === option,
-                      );
-                      const costSummary = method?.details
-                        .filter((detail) =>
-                          detail.label.startsWith("Cost to"),
-                        )
-                        .map((detail) => `${detail.label}: ${detail.text}`)
-                        .join(" · ");
-                      return (
-                        <li key={option} className="flex items-start gap-2.5">
-                          <span
-                            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
-                            aria-hidden
+                    {saved.paymentPreferences.map((option) => (
+                      <li key={option} className="flex items-start gap-2.5">
+                        <span
+                          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
+                          aria-hidden
+                        >
+                          <svg
+                            width="14"
+                            height="10"
+                            viewBox="0 0 14 10"
+                            fill="none"
                           >
-                            <svg
-                              width="14"
-                              height="10"
-                              viewBox="0 0 14 10"
-                              fill="none"
-                            >
-                              <path
-                                d="M1 5.2 4.8 8.8 13 1.5"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-black">
-                              {option}
-                            </p>
-                            {costSummary ? (
-                              <p className="mt-0.5 text-sm text-black/55">
-                                {costSummary}
-                              </p>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
+                            <path
+                              d="M1 5.2 4.8 8.8 13 1.5"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                        <p className="text-sm font-semibold text-black">
+                          {option}
+                        </p>
+                      </li>
+                    ))}
                   </ul>
                 ) : (
                   <p className="type-body-muted">No payment preferences set.</p>
@@ -1688,10 +1703,10 @@ function CustomerFormInner() {
                 title="Default Automations"
                 onEdit={archived ? undefined : () => startEdit("automations")}
               >
-                <ViewFieldList>
+                <ViewFieldRow>
                   <ViewField
                     label={FIELD.autoSend}
-                    value={saved.autoSend ? "On" : null}
+                    value={saved.autoSend ? "On" : "Off"}
                   />
                   <ViewField
                     label={FIELD.reminders}
@@ -1700,14 +1715,14 @@ function CustomerFormInner() {
                         ? saved.reminderDays.trim()
                           ? `On · ${saved.reminderDays} days before`
                           : "On"
-                        : null
+                        : "Off"
                     }
                   />
                   <ViewField
                     label={FIELD.receipts}
-                    value={saved.receipts ? "On" : null}
+                    value={saved.receipts ? "On" : "Off"}
                   />
-                </ViewFieldList>
+                </ViewFieldRow>
               </ViewCard>
             )}
           </section>
@@ -1830,7 +1845,7 @@ function CustomerFormInner() {
                           hideTitle
                           onEdit={archived ? undefined : () => startEdit("business")}
                         >
-                          <ViewFieldList>
+                          <ViewFieldRow>
                             <ViewField
                               label={FIELD.businessLegalName}
                               value={saved.businessName.trim() || null}
@@ -1854,7 +1869,7 @@ function CustomerFormInner() {
                               label={FIELD.phoneNumber}
                               value={saved.phone.trim() || null}
                             />
-                          </ViewFieldList>
+                          </ViewFieldRow>
                         </ViewCard>
                       ),
                   },
@@ -2032,7 +2047,7 @@ function CustomerFormInner() {
                           hideTitle
                           onEdit={archived ? undefined : () => startEdit("contact")}
                         >
-                          <ViewFieldList>
+                          <ViewFieldRow>
                             <ViewField
                               label={FIELD.contactName}
                               value={saved.contactName.trim() || null}
@@ -2053,7 +2068,7 @@ function CustomerFormInner() {
                                 ) : null
                               }
                             />
-                          </ViewFieldList>
+                          </ViewFieldRow>
                         </ViewCard>
                       ),
                   },
