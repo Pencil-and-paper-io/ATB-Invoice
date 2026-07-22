@@ -47,6 +47,38 @@ export const customers: Customer[] = [
     email: "invoices@cedarcontracting.ca",
     tags: ["Wholesale", "Net-30"],
   },
+  {
+    id: "delta",
+    name: "Delta Design Studio",
+    address: "610 8 Ave SW Calgary, AB T2P 1G5",
+    phone: "1-403-555-0190",
+    email: "accounts@deltadesign.ca",
+    tags: ["VIP", "Retail"],
+  },
+  {
+    id: "evergreen",
+    name: "Evergreen Landscaping Inc",
+    address: "4501 17 Ave SE Calgary, AB T2A 0V1",
+    phone: "1-587-555-0133",
+    email: "payables@evergreenland.ca",
+    tags: ["Contractor", "Net-30"],
+  },
+  {
+    id: "falcon",
+    name: "Falcon HVAC Services",
+    address: "2335 30 Ave NE Calgary, AB T2E 7C7",
+    phone: "1-403-555-0168",
+    email: "billing@falconhvac.ca",
+    tags: ["Wholesale"],
+  },
+  {
+    id: "glacier",
+    name: "Glacier Peak Consulting",
+    address: "1000 7 Ave SW Calgary, AB T2P 5L5",
+    phone: "1-825-555-0111",
+    email: "finance@glacierpeak.ca",
+    tags: ["VIP", "Net-30"],
+  },
 ];
 
 export function makeBlankLineItem(id: string): LineItem {
@@ -533,9 +565,20 @@ export function archiveCustomer(customerId: string) {
   return next;
 }
 
+export function unarchiveCustomer(customerId: string) {
+  const next = loadArchivedCustomerIds().filter((id) => id !== customerId);
+  persistArchivedCustomerIds(next);
+  return next;
+}
+
 export function isCustomerArchived(customerId: string | null) {
   if (!customerId) return false;
   return loadArchivedCustomerIds().includes(customerId);
+}
+
+export function getActiveCustomers() {
+  const archived = new Set(loadArchivedCustomerIds());
+  return customers.filter((customer) => !archived.has(customer.id));
 }
 
 export function hrefForCustomerInvoice(status: string) {

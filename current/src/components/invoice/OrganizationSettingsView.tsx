@@ -439,11 +439,17 @@ function PaymentOptionDetails({
   );
 }
 
-function InteracEnableFlag({ onEnableOption }: { onEnableOption?: () => void }) {
+function PaymentEnableFlag({
+  paymentNoun,
+  onEnableOption,
+}: {
+  paymentNoun: string;
+  onEnableOption?: () => void;
+}) {
   return (
-    <div className="mt-3 rounded-md border border-prime-blue/20 bg-prime-blue/15 px-3 py-2.5 text-sm text-midnight-ink">
+    <div className="mt-3 rounded-md border border-prime-blue/20 bg-prime-blue/5 px-3 py-2.5 text-sm text-midnight-ink">
       <p>
-        Choose where you want e-transfer payments sent in order to{" "}
+        Choose where you want {paymentNoun} payments sent in order to{" "}
         {onEnableOption ? (
           <button
             type="button"
@@ -579,12 +585,18 @@ function PaymentOptionRow({
   );
 }
 
-function EnableInteracModal({
+function EnableDepositAccountModal({
+  title,
+  titleId,
+  description,
   account,
   onAccountChange,
   onClose,
   onConfirm,
 }: {
+  title: string;
+  titleId: string;
+  description: string;
   account: string;
   onAccountChange: (value: string) => void;
   onClose: () => void;
@@ -592,8 +604,8 @@ function EnableInteracModal({
 }) {
   return (
     <Modal
-      title="Enable Interac e-Transfer"
-      titleId="enable-interac-title"
+      title={title}
+      titleId={titleId}
       onClose={onClose}
       zClass="z-[230]"
       cancelLabel="Cancel"
@@ -603,9 +615,7 @@ function EnableInteracModal({
       confirmDisabled={!account}
       maxWidthClass="max-w-md"
     >
-      <p className="type-body-muted">
-        Choose which account should receive Interac e-Transfer payments.
-      </p>
+      <p className="type-body-muted">{description}</p>
       <div className="mt-5">
         <FieldLabel>Deposit account</FieldLabel>
         <SelectField
@@ -1457,7 +1467,8 @@ export function OrganizationSettingsView() {
                             isDefault={false}
                             checkboxDisabled
                             footer={
-                              <InteracEnableFlag
+                              <PaymentEnableFlag
+                                paymentNoun="e-transfer"
                                 onEnableOption={beginEnableInterac}
                               />
                             }
@@ -1475,7 +1486,9 @@ export function OrganizationSettingsView() {
                             togglePaymentDefault(method.id)
                           }
                           accountLabel={
-                            isInterac ? method.accountLabel || undefined : undefined
+                            isInterac
+                              ? method.accountLabel || undefined
+                              : undefined
                           }
                           onRemoveAccount={
                             isInterac && method.accountLabel
@@ -1526,7 +1539,8 @@ export function OrganizationSettingsView() {
                           }
                           footer={
                             isInterac && !method.enabled ? (
-                              <InteracEnableFlag
+                              <PaymentEnableFlag
+                                paymentNoun="e-transfer"
                                 onEnableOption={beginEnableInterac}
                               />
                             ) : null
@@ -1905,7 +1919,10 @@ export function OrganizationSettingsView() {
       ) : null}
 
       {interacEnableOpen ? (
-        <EnableInteracModal
+        <EnableDepositAccountModal
+          title="Enable Interac e-Transfer"
+          titleId="enable-interac-title"
+          description="Choose which account should receive Interac e-Transfer payments."
           account={interacAccountDraft}
           onAccountChange={setInteracAccountDraft}
           onClose={() => setInteracEnableOpen(false)}

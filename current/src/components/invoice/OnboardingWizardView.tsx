@@ -103,15 +103,23 @@ function CheckboxRow({
         disabled ? "opacity-50" : ""
       }`}
     >
-      <label className="flex cursor-pointer items-start gap-3">
+      <label
+        className={`flex items-start gap-3 ${
+          disabled ? "cursor-not-allowed" : "cursor-pointer"
+        }`}
+      >
         <input
           type="checkbox"
           checked={checked}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-black/25 accent-prime-blue"
+          className="mt-0.5 h-4 w-4 rounded border-black/25 accent-prime-blue disabled:opacity-50"
         />
-        <span className="inline-flex flex-wrap items-center gap-2 text-sm font-semibold text-black">
+        <span
+          className={`inline-flex flex-wrap items-center gap-2 text-sm font-semibold ${
+            disabled ? "text-black/40" : "text-black"
+          }`}
+        >
           {label}
         </span>
       </label>
@@ -182,6 +190,42 @@ function PaymentMethodDetails({
         </li>
       ))}
     </ul>
+  );
+}
+
+function DepositAccountBlock({
+  ariaLabel,
+  value,
+  onChange,
+  organizationName,
+  organizationEmail,
+}: {
+  ariaLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  organizationName: string;
+  organizationEmail: string;
+}) {
+  return (
+    <div className="mt-3">
+      <FieldLabel>Deposit Account</FieldLabel>
+      <DepositAccountSelect
+        ariaLabel={ariaLabel}
+        value={value}
+        onChange={onChange}
+      />
+      <p className="type-body-muted mt-2">
+        Requests are shown as coming from{" "}
+        <span className="font-semibold text-black/70">
+          {organizationName || "—"}
+        </span>{" "}
+        using{" "}
+        <span className="font-semibold text-black/70">
+          {organizationEmail || "—"}
+        </span>
+        .
+      </p>
+    </div>
   );
 }
 
@@ -532,8 +576,12 @@ export function OnboardingWizardView() {
   function onLogoFile(file: File | null) {
     setLogoError("");
     if (!file) return;
-    if (!["image/png", "image/jpeg", "image/jpg"].includes(file.type)) {
-      setLogoError("Use a .png or .jpeg file.");
+    if (
+      !["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
+        file.type,
+      )
+    ) {
+      setLogoError("Use a .png, .jpeg, or .webp file.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -558,6 +606,10 @@ export function OnboardingWizardView() {
   const cashMeta = CORE_PAYMENT_METHODS.find((method) => method.id === "cash");
   const heading = SETUP_STEPS[step];
   const gstParts = parseGstHstNumber(state.gstHstNumber);
+  const organizationDisplayName = state.useLegalNameOnInvoices
+    ? state.businessName
+    : state.tradingAsName.trim() || state.businessName;
+  const defaultChequing = DEMO_DEPOSIT_ACCOUNTS[0].label;
 
   if (finishing) {
     return (
@@ -645,9 +697,9 @@ export function OnboardingWizardView() {
                         aria-label="CRA-registered business name"
                       />
                       <p className="type-danger">
-                        Only edit this if it doesn&apos;t reflect what your
-                        CRA-registered name is. This must match your
-                        CRA-registered name exactly.
+                        This must match your business&apos;s exact Canada Revenue
+                        Agency (CRA) registration. Only change the pre-filled
+                        name if it&apos;s incorrect.
                       </p>
                     </div>
                   ) : (
@@ -666,7 +718,8 @@ export function OnboardingWizardView() {
                     </button>
                   )}
                   <p className="type-body text-black">
-                    Do you want to use this name on your invoices?
+                    Do you want to use this name on the top of your invoices and
+                    in your customer communications?
                   </p>
                   <div className="flex flex-col gap-2">
                     <label className="flex items-center gap-2 text-sm">
@@ -706,6 +759,11 @@ export function OnboardingWizardView() {
                         }
                         placeholder="Shown on invoice headers"
                       />
+                      <p className="type-body-muted mt-2">
+                        Note: To keep you CRA compliant, we will still show a
+                        footnote on your invoices automatically with your legal
+                        business name.
+                      </p>
                     </div>
                   ) : null}
                 </ContentBox>
@@ -834,6 +892,12 @@ export function OnboardingWizardView() {
                         ...state.paymentEnabled,
                         interac: checked,
                       },
+                      paymentAccounts: {
+                        ...state.paymentAccounts,
+                        interac: checked
+                          ? state.paymentAccounts.interac || defaultChequing
+                          : state.paymentAccounts.interac,
+                      },
                     })
                   }
                   label="Interac e-Transfer Request"
@@ -841,21 +905,20 @@ export function OnboardingWizardView() {
                   {interacMeta ? (
                     <PaymentMethodDetails details={interacMeta.details} />
                   ) : null}
-                  <div className="mt-3">
-                    <FieldLabel>Deposit Account</FieldLabel>
-                    <DepositAccountSelect
-                      ariaLabel="Interac deposit account"
-                      value={state.paymentAccounts.interac}
-                      onChange={(value) =>
-                        patch({
-                          paymentAccounts: {
-                            ...state.paymentAccounts,
-                            interac: value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
+                  <DepositAccountBlock
+                    ariaLabel="Interac deposit account"
+                    value={state.paymentAccounts.interac || defaultChequing}
+                    onChange={(value) =>
+                      patch({
+                        paymentAccounts: {
+                          ...state.paymentAccounts,
+                          interac: value,
+                        },
+                      })
+                    }
+                    organizationName={organizationDisplayName}
+                    organizationEmail={state.replyToEmail}
+                  />
                 </CheckboxRow>
 
                 <CheckboxRow
@@ -866,6 +929,12 @@ export function OnboardingWizardView() {
                         ...state.paymentEnabled,
                         eft: checked,
                       },
+                      paymentAccounts: {
+                        ...state.paymentAccounts,
+                        eft: checked
+                          ? state.paymentAccounts.eft || defaultChequing
+                          : state.paymentAccounts.eft,
+                      },
                     })
                   }
                   label="EFT (Direct Deposit)"
@@ -873,21 +942,20 @@ export function OnboardingWizardView() {
                   {eftMeta ? (
                     <PaymentMethodDetails details={eftMeta.details} />
                   ) : null}
-                  <div className="mt-3">
-                    <FieldLabel>Deposit Account</FieldLabel>
-                    <DepositAccountSelect
-                      ariaLabel="EFT deposit account"
-                      value={state.paymentAccounts.eft}
-                      onChange={(value) =>
-                        patch({
-                          paymentAccounts: {
-                            ...state.paymentAccounts,
-                            eft: value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
+                  <DepositAccountBlock
+                    ariaLabel="EFT deposit account"
+                    value={state.paymentAccounts.eft || defaultChequing}
+                    onChange={(value) =>
+                      patch({
+                        paymentAccounts: {
+                          ...state.paymentAccounts,
+                          eft: value,
+                        },
+                      })
+                    }
+                    organizationName={organizationDisplayName}
+                    organizationEmail={state.replyToEmail}
+                  />
                 </CheckboxRow>
 
                 <CheckboxRow
@@ -1053,10 +1121,14 @@ export function OnboardingWizardView() {
             {step === 3 ? (
               <>
                 <ContentBox title="Company Logo">
+                  <p className="type-body-muted">
+                    This logo will be visible on your invoice. Select a file that
+                    is at least 250x250.
+                  </p>
                   <label className="flex cursor-pointer flex-col items-center justify-center rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center transition hover:border-prime-blue">
                     <input
                       type="file"
-                      accept="image/png,image/jpeg"
+                      accept="image/png,image/jpeg,image/webp"
                       className="sr-only"
                       onChange={(event) =>
                         onLogoFile(event.target.files?.[0] ?? null)
@@ -1074,16 +1146,12 @@ export function OnboardingWizardView() {
                       Choose file / drag & drop
                     </span>
                     <span className="mt-1 text-xs text-black/45">
-                      .png or .jpeg · max 5MB
+                      .png, .jpeg, or .webp · max 5MB
                     </span>
                   </label>
                   {logoError ? (
                     <p className="type-danger">{logoError}</p>
                   ) : null}
-                  <p className="type-body-muted">
-                    This logo will be visible on your invoice. Select a file that
-                    is at least 250x250.
-                  </p>
                 </ContentBox>
 
                 <ContentBox title="Brand Color">

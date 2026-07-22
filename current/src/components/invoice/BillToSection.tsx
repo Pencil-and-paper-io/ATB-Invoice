@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { customers, type Customer } from "@/lib/invoice-demo-data";
+import { customers, isCustomerArchived, type Customer } from "@/lib/invoice-demo-data";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
 
 const CREATE_CUSTOMER_HREF = "/customers/new";
@@ -13,7 +13,16 @@ function CustomerDropdown({
   onSelect: (customer: Customer) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [activeCustomers, setActiveCustomers] = useState(customers);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    window.setTimeout(() => {
+      setActiveCustomers(
+        customers.filter((customer) => !isCustomerArchived(customer.id)),
+      );
+    }, 0);
+  }, []);
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -46,7 +55,7 @@ function CustomerDropdown({
           role="listbox"
         >
           <ul className="max-h-64 overflow-auto py-1">
-            {customers.map((customer) => (
+            {activeCustomers.map((customer) => (
               <li key={customer.id}>
                 <button
                   type="button"

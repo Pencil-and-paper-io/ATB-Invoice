@@ -25,6 +25,7 @@ export const CORE_PAYMENT_METHODS: readonly {
     invoiceLabel: "Interac e-Transfer Request",
     needsAccount: true,
     details: [
+      { label: "Time", text: "Funds arrive in minutes, once accepted" },
       { label: "Cost to you", text: "$1.50 per request" },
       { label: "Cost to customer", text: "Free" },
       {
@@ -39,6 +40,7 @@ export const CORE_PAYMENT_METHODS: readonly {
     invoiceLabel: "EFT (Direct Deposit)",
     needsAccount: true,
     details: [
+      { label: "Time", text: "Funds arrive in 3–5 business days" },
       {
         label: "Cost to you",
         text: "Up to $1.50 per EFT deposit; check your specific account terms.",
@@ -61,6 +63,7 @@ export const CORE_PAYMENT_METHODS: readonly {
     invoiceLabel: "Cash",
     needsAccount: false,
     details: [
+      { label: "Time", text: "Funds arrive on hand-off" },
       {
         label: "Cost to you",
         text: "Up to $2.50 per $1,000 cash; check your specific account terms.",
@@ -77,6 +80,7 @@ export const CORE_PAYMENT_METHODS: readonly {
     invoiceLabel: "Cheque",
     needsAccount: false,
     details: [
+      { label: "Time", text: "Funds arrive when the cheque clears" },
       {
         label: "Cost to you",
         text: "Up to $1.00 per cheque; check your specific account terms.",

@@ -19,6 +19,7 @@ import {
   hrefForCustomerInvoice,
   hrefForCustomerQuote,
   isCustomerArchived,
+  unarchiveCustomer,
 } from "@/lib/invoice-demo-data";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
@@ -29,10 +30,10 @@ import {
 } from "@/lib/organization-settings";
 import {
   CA_PROVINCES_TERRITORIES,
-  CUSTOMER_TAG_OPTIONS,
   LOCKED_CURRENCY,
   provinceLabel,
 } from "@/lib/canada";
+import { loadCustomerTags } from "@/lib/customer-tags";
 import { ORGANIZATION_DEFAULTS } from "@/lib/org-defaults";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -404,10 +405,19 @@ function ViewCard({
   hideTitle = false,
 }: {
   title: string;
-  onEdit: () => void;
+  onEdit?: () => void;
   children: ReactNode;
   hideTitle?: boolean;
 }) {
+  if (!onEdit) {
+    return (
+      <div className={`relative w-full px-7 pb-5 pt-7 text-left ${staticCardClass}`}>
+        {hideTitle ? null : <BoxTitle title={title} tone="view" />}
+        <div>{children}</div>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -651,6 +661,7 @@ function CustomerFormInner() {
     "delete" | "archive" | null
   >(null);
   const [archived, setArchived] = useState(false);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
   const createMenuRef = useRef<HTMLDivElement>(null);
   useDismissOnOutsideClick(
     createMenuRef,
@@ -673,10 +684,16 @@ function CustomerFormInner() {
       setCreateDraft({ businessName: "", email: "", phone: "" });
       setArchived(isCustomerArchived(customerId));
       setLifecycleConfirm(null);
+      setTagOptions(loadCustomerTags());
     }, 0);
   }, [customerId]);
 
+  useEffect(() => {
+    if (archived) setEditing(null);
+  }, [archived]);
+
   function startEdit(section: SectionKey) {
+    if (archived) return;
     setDraft(saved);
     setEditing(section);
   }
@@ -845,7 +862,7 @@ function CustomerFormInner() {
     <ViewCard
       title="Internal Notes"
       hideTitle
-      onEdit={() => startEdit("notes")}
+      onEdit={archived ? undefined : () => startEdit("notes")}
     >
       <p className="type-body whitespace-pre-wrap leading-5">
         {saved.internalNotes}
@@ -856,13 +873,15 @@ function CustomerFormInner() {
   /** Shared notes UI for Customer Details (includes Add when empty). */
   const internalNotesBlock =
     internalNotesEditor ??
-    (notesEmpty ? (
-      <TertiaryButton onClick={() => startEdit("notes")}>
-        Add Internal Notes
-      </TertiaryButton>
-    ) : (
-      internalNotesView
-    ));
+    (notesEmpty
+      ? archived
+        ? null
+        : (
+            <TertiaryButton onClick={() => startEdit("notes")}>
+              Add Internal Notes
+            </TertiaryButton>
+          )
+      : internalNotesView);
 
   /** Account Summary: show notes only when present or actively editing — no Add CTA. */
   const accountSummaryNotes = internalNotesEditor ?? internalNotesView;
@@ -879,6 +898,12 @@ function CustomerFormInner() {
           showCreateModal ? "pointer-events-none select-none opacity-40" : ""
         }`}
       >
+        {archived ? (
+          <div className="mb-6 rounded-lg border border-black/10 bg-sunshine-yellow/40 px-4 py-3 text-sm font-semibold text-midnight-ink">
+            ⚠️ This customer is archived. Their historical record is locked for
+            compliance.
+          </div>
+        ) : null}
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <h1 className="type-page-title">
@@ -890,7 +915,20 @@ function CustomerFormInner() {
               </span>
             ) : null}
           </div>
-          {!showCreateModal ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {archived && customerId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  unarchiveCustomer(customerId);
+                  setArchived(false);
+                }}
+                className="ui-btn-secondary h-11 px-5"
+              >
+                Unarchive Client
+              </button>
+            ) : null}
+            {!showCreateModal && !archived ? (
             <div ref={createMenuRef} className="relative shrink-0">
               <button
                 type="button"
@@ -963,7 +1001,8 @@ function CustomerFormInner() {
                 </ul>
               ) : null}
             </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         <div className="mb-6 border-b border-black/15">
@@ -1246,7 +1285,7 @@ function CustomerFormInner() {
                 </div>
               </SectionEditor>
             ) : (
-              <ViewCard title="Settings" onEdit={() => startEdit("settings")}>
+              <ViewCard title="Settings" onEdit={archived ? undefined : () => startEdit("settings")}>
                 <ViewFieldList>
                   <ViewField
                     label={FIELD.taxSetting}
@@ -1331,7 +1370,7 @@ function CustomerFormInner() {
             ) : (
               <ViewCard
                 title="Payment Preferences"
-                onEdit={() => startEdit("paymentPreferences")}
+                onEdit={archived ? undefined : () => startEdit("paymentPreferences")}
               >
                 <ViewFieldList>
                   {saved.paymentPreferences.length
@@ -1409,7 +1448,7 @@ function CustomerFormInner() {
             ) : (
               <ViewCard
                 title="Default Automations"
-                onEdit={() => startEdit("automations")}
+                onEdit={archived ? undefined : () => startEdit("automations")}
               >
                 <ViewFieldList>
                   <ViewField
@@ -1435,7 +1474,7 @@ function CustomerFormInner() {
             )}
           </section>
 
-          {showLifecycleActions ? (
+          {showLifecycleActions && !archived ? (
             <div className="mt-8 border-t border-black/10 pt-6">
               {canDeleteCustomer ? (
                 <>
@@ -1461,10 +1500,9 @@ function CustomerFormInner() {
                   <button
                     type="button"
                     onClick={() => setLifecycleConfirm("archive")}
-                    disabled={archived}
-                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
                   >
-                    {archived ? "Archived" : "Archive customer"}
+                    Archive customer
                   </button>
                 </>
               ) : null}
@@ -1543,14 +1581,16 @@ function CustomerFormInner() {
                           </div>
                         </SectionEditor>
                       ) : businessEmpty ? (
-                        <TertiaryButton onClick={() => startEdit("business")}>
-                          Add Business Details
-                        </TertiaryButton>
+                        archived ? null : (
+                          <TertiaryButton onClick={() => startEdit("business")}>
+                            Add Business Details
+                          </TertiaryButton>
+                        )
                       ) : (
                         <ViewCard
                           title="Business Details"
                           hideTitle
-                          onEdit={() => startEdit("business")}
+                          onEdit={archived ? undefined : () => startEdit("business")}
                         >
                           <ViewFieldList>
                             <ViewField
@@ -1658,14 +1698,16 @@ function CustomerFormInner() {
                           ) : null}
                         </SectionEditor>
                       ) : addressEmpty ? (
-                        <TertiaryButton onClick={() => startEdit("address")}>
-                          Add Address
-                        </TertiaryButton>
+                        archived ? null : (
+                          <TertiaryButton onClick={() => startEdit("address")}>
+                            Add Address
+                          </TertiaryButton>
+                        )
                       ) : (
                         <ViewCard
                           title="Address"
                           hideTitle
-                          onEdit={() => startEdit("address")}
+                          onEdit={archived ? undefined : () => startEdit("address")}
                         >
                           <ViewFieldList>
                             <ViewField
@@ -1741,14 +1783,16 @@ function CustomerFormInner() {
                           </div>
                         </SectionEditor>
                       ) : contactEmpty ? (
-                        <TertiaryButton onClick={() => startEdit("contact")}>
-                          Add Contact Info
-                        </TertiaryButton>
+                        archived ? null : (
+                          <TertiaryButton onClick={() => startEdit("contact")}>
+                            Add Contact Info
+                          </TertiaryButton>
+                        )
                       ) : (
                         <ViewCard
                           title="Contact Info"
                           hideTitle
-                          onEdit={() => startEdit("contact")}
+                          onEdit={archived ? undefined : () => startEdit("contact")}
                         >
                           <ViewFieldList>
                             <ViewField
@@ -1790,7 +1834,7 @@ function CustomerFormInner() {
                             Contractor).
                           </p>
                           <div className="flex flex-col gap-2.5">
-                            {CUSTOMER_TAG_OPTIONS.map((tag) => (
+                            {tagOptions.map((tag) => (
                               <CheckboxRow
                                 key={tag}
                                 checked={draft.tags.includes(tag)}
@@ -1801,14 +1845,16 @@ function CustomerFormInner() {
                           </div>
                         </SectionEditor>
                       ) : tagsEmpty ? (
-                        <TertiaryButton onClick={() => startEdit("tags")}>
-                          Add Tags
-                        </TertiaryButton>
+                        archived ? null : (
+                          <TertiaryButton onClick={() => startEdit("tags")}>
+                            Add Tags
+                          </TertiaryButton>
+                        )
                       ) : (
                         <ViewCard
                           title="Tags"
                           hideTitle
-                          onEdit={() => startEdit("tags")}
+                          onEdit={archived ? undefined : () => startEdit("tags")}
                         >
                           <div className="flex flex-wrap gap-2">
                             {saved.tags.map((tag) => (
@@ -1840,6 +1886,7 @@ function CustomerFormInner() {
                     CUSTOMER_DETAIL_ORDER.indexOf(b.key)
                   );
                 })
+                .filter((slot) => slot.node != null)
                 .map((slot) => (
                   <div key={slot.key}>{slot.node}</div>
                 ))}
