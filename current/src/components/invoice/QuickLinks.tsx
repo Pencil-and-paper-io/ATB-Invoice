@@ -19,13 +19,13 @@ const FLOW_ROOTS: FlowNode[] = [
     id: "quote-draft",
     label: "Draft Quote",
     href: "/quote",
-    description: "Editable quote — no payment options",
+    description: "Editable quote builder",
     children: [
       {
         id: "quote-preview",
         label: "Preview Quote",
         href: "/quote/preview",
-        description: "Customer-facing quote preview",
+        description: "Owner preview before send",
         children: [
           {
             id: "quote-sent",
@@ -40,16 +40,42 @@ const FLOW_ROOTS: FlowNode[] = [
                 description: "Customer opened link or marked manually",
               },
               {
+                id: "client-review",
+                label: "Client portal · Review",
+                href: "/quote/review",
+                description: "US2.4 stub — Accept & Sign / Decline",
+                children: [
+                  {
+                    id: "client-accepted",
+                    label: "Client · Accepted",
+                    href: "/quote/review/accepted",
+                    description: "Post-accept client confirmation",
+                  },
+                  {
+                    id: "client-declined",
+                    label: "Client · Declined",
+                    href: "/quote/review/declined",
+                    description: "Read-only rejected portal state",
+                  },
+                ],
+              },
+              {
+                id: "quote-accepted",
+                label: "Quote Accepted (owner)",
+                href: "/quote/accepted",
+                description: "Owner view after accept → draft invoice",
+              },
+              {
                 id: "quote-rejected",
                 label: "Quote Rejected",
                 href: "/quote/rejected",
-                description: "Customer declined",
+                description: "Declined by client or marked offline",
               },
               {
                 id: "quote-expired",
                 label: "Quote Expired",
                 href: "/quote/expired",
-                description: "Past Valid Until (stub)",
+                description: "Past Valid Until",
               },
               {
                 id: "quote-void",
@@ -59,7 +85,7 @@ const FLOW_ROOTS: FlowNode[] = [
               },
               {
                 id: "invoice-draft",
-                label: "Draft Invoice",
+                label: "Draft Invoice (from quote)",
                 href: "/?from=quote",
                 description: "Created when a quote is accepted",
                 children: [
@@ -85,13 +111,13 @@ const FLOW_ROOTS: FlowNode[] = [
                             id: "invoice-paid",
                             label: "Paid",
                             href: "/sent/paid",
-                            description: "Payment recorded",
+                            description: "Full payment recorded",
                           },
                           {
                             id: "invoice-partial",
                             label: "Partially Paid",
                             href: "/sent/partially-paid",
-                            description: "Partial payment recorded",
+                            description: "Partial payment · balance open",
                           },
                           {
                             id: "invoice-overdue",
@@ -103,7 +129,7 @@ const FLOW_ROOTS: FlowNode[] = [
                             id: "invoice-overdue-90",
                             label: "Overdue 90+",
                             href: "/sent/overdue-90",
-                            description: "Over 90 days",
+                            description: "Write-off candidate",
                           },
                           {
                             id: "invoice-void",
@@ -130,6 +156,24 @@ const FLOW_ROOTS: FlowNode[] = [
     ],
   },
 ];
+
+const DIRECTORY_LINKS = [
+  {
+    href: "/quotes",
+    label: "Quotes directory",
+    description: "Global quote list · search & status filter",
+  },
+  {
+    href: "/invoices",
+    label: "Invoices directory",
+    description: "Global invoice list · search & status filter",
+  },
+  {
+    href: "/",
+    label: "Draft invoice (blank)",
+    description: "Standalone create — not from quote",
+  },
+] as const;
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/" || href.startsWith("/?")) return pathname === "/";
@@ -266,15 +310,44 @@ export function QuickLinks() {
           </div>
 
           <div className="mb-3 rounded-lg border border-dashed border-black/15 bg-[#FFF8E6] px-3 py-2 text-[11px] leading-4 text-black/70">
-            Accepting a quote creates a draft invoice.{" "}
+            Accepting a quote creates a draft invoice. See{" "}
             <Link
               href="/status"
               onClick={() => setOpen(false)}
               className="font-semibold text-prime-blue underline"
             >
-              View plan status
+              plan status
             </Link>{" "}
-            for what is in vs deferred.
+            and{" "}
+            <span className="font-semibold">MUST-HAVE-REMAINING-UX.md</span> for
+            gaps.
+          </div>
+
+          <div className="mb-3">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40">
+              Directories
+            </p>
+            <div className="space-y-2">
+              {DIRECTORY_LINKS.map((link) => (
+                <Link
+                  key={link.href + link.label}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className={`block rounded-lg border px-3.5 py-3 transition ${
+                    isActivePath(pathname, link.href)
+                      ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
+                      : "border-black/10 bg-white hover:border-black/25"
+                  }`}
+                >
+                  <span className="text-sm font-semibold text-black">
+                    {link.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-black/55">
+                    {link.description}
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
 
           <div className="mb-3">

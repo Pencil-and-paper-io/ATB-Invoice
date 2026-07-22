@@ -142,14 +142,14 @@ Ratings and epic averages live in the scorecard. This doc lists **what still nee
 
 ## Prototype permutation map (Quick Links)
 
-Owner-facing status routes used for demos (see `current/src/components/invoice/QuickLinks.tsx`):
+Owner-facing and client stub routes (see `current/src/components/invoice/QuickLinks.tsx`):
 
 | Kind | Routes |
 |---|---|
-| Quote | `/quote` → `/quote/preview` → `/quote/sent` → viewed / rejected / expired / void → `/?from=quote` |
-| Client portal (stubs) | `/quote/review` → accepted / declined |
-| Invoice | `/` → `/preview` → `/sent` → viewed / paid / partially-paid / overdue / overdue-90 / void / uncollectible |
 | Directories | `/quotes`, `/invoices` |
+| Quote (owner) | `/quote` → `/quote/preview` → `/quote/sent` → viewed / **accepted** / rejected / expired / void → `/?from=quote` |
+| Client portal (stubs) | `/quote/review` → `/quote/review/accepted` · `/quote/review/declined` |
+| Invoice | `/` → `/preview` → `/sent` → viewed / paid / **partially-paid** / overdue / overdue-90 / void / uncollectible |
 
 ---
 
