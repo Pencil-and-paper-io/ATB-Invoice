@@ -629,10 +629,10 @@ export function hrefForCustomerQuote(status: string) {
   const key = status.toLowerCase();
   if (key === "draft") return "/quote";
   if (key === "viewed") return "/quote/viewed";
+  if (key === "accepted") return "/quote/accepted";
   if (key === "rejected") return "/quote/rejected";
   if (key === "expired") return "/quote/expired";
   if (key === "void") return "/quote/void";
-  if (key === "accepted") return "/?from=quote";
   return "/quote/sent";
 }
 
