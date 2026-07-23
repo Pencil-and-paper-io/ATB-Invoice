@@ -1,0 +1,21 @@
+<svg width="400" height="200" viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M-8.74228e-06 200L0 0L100 100L-8.74228e-06 200Z" fill="#FF7F30"/>
+<mask id="mask0_3044_1568" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="100" y="0" width="100" height="200">
+<path d="M100 0C155.228 0 200 44.7715 200 100C200 155.228 155.228 200 100 200V0Z" fill="#FCDC3E"/>
+</mask>
+<g mask="url(#mask0_3044_1568)">
+<circle cx="100" cy="100" r="100" fill="#FCDC3E"/>
+</g>
+<mask id="mask1_3044_1568" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="200" y="0" width="100" height="200">
+<path d="M300 0C244.772 0 200 44.7715 200 100C200 155.228 244.772 200 300 200V0Z" fill="#FCDC3E"/>
+</mask>
+<g mask="url(#mask1_3044_1568)">
+<circle cx="100" cy="100" r="100" transform="matrix(-1 0 0 1 400 0)" fill="#FCDC3E"/>
+</g>
+<mask id="mask2_3044_1568" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="300" y="0" width="100" height="200">
+<path d="M300 0C355.228 0 400 44.7715 400 100C400 155.228 355.228 200 300 200V0Z" fill="#9DE3FF"/>
+</mask>
+<g mask="url(#mask2_3044_1568)">
+<circle cx="300" cy="100" r="100" fill="#9DE3FF"/>
+</g>
+</svg>

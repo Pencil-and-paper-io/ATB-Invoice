@@ -1,3 +1,5 @@
+import { loadCustomCustomers } from "@/lib/custom-customers";
+
 export type DiscountType = "percent" | "fixed";
 
 export type LineItem = {
@@ -479,6 +481,39 @@ export const customerInvoices: CustomerInvoiceRow[] = [
     status: "Partially Paid",
     customerId: "acme",
   },
+  {
+    id: "inv-acme-4",
+    number: "2998",
+    milestonePhase: null,
+    dateIssued: "Jan 8, 2026",
+    dueDate: "Feb 8, 2026",
+    amount: 960,
+    balanceOutstanding: 960,
+    status: "Viewed",
+    customerId: "acme",
+  },
+  {
+    id: "inv-cedar-1",
+    number: "2880",
+    milestonePhase: null,
+    dateIssued: "Dec 1, 2025",
+    dueDate: "Dec 31, 2025",
+    amount: 1500,
+    balanceOutstanding: 0,
+    status: "Paid",
+    customerId: "cedar",
+  },
+  {
+    id: "inv-delta-1",
+    number: "2755",
+    milestonePhase: null,
+    dateIssued: "Sep 15, 2025",
+    dueDate: "Oct 15, 2025",
+    amount: 2200,
+    balanceOutstanding: 2200,
+    status: "Uncollectible",
+    customerId: "delta",
+  },
   // Scenario B: drafts only (Beta) — archive, cannot delete
   {
     id: "inv-beta-1",
@@ -521,6 +556,33 @@ export const customerQuotes: CustomerQuoteRow[] = [
     amount: 990,
     status: "Draft",
     customerId: "acme",
+  },
+  {
+    id: "quo-acme-4",
+    number: "Q-109",
+    dateCreated: "Feb 14, 2026",
+    expiryDate: "Mar 14, 2026",
+    amount: 2400,
+    status: "Viewed",
+    customerId: "acme",
+  },
+  {
+    id: "quo-cedar-1",
+    number: "Q-088",
+    dateCreated: "Dec 2, 2025",
+    expiryDate: "Jan 2, 2026",
+    amount: 3100,
+    status: "Rejected",
+    customerId: "cedar",
+  },
+  {
+    id: "quo-delta-1",
+    number: "Q-072",
+    dateCreated: "Nov 10, 2025",
+    expiryDate: "Dec 10, 2025",
+    amount: 1250,
+    status: "Expired",
+    customerId: "delta",
   },
   {
     id: "quo-beta-1",
@@ -608,9 +670,20 @@ export function isCustomerArchived(customerId: string | null) {
   return loadArchivedCustomerIds().includes(customerId);
 }
 
+export function getAllCustomers(): Customer[] {
+  const custom = loadCustomCustomers();
+  const demoIds = new Set(customers.map((customer) => customer.id));
+  return [...customers, ...custom.filter((entry) => !demoIds.has(entry.id))];
+}
+
+export function findCustomer(id: string | null | undefined) {
+  if (!id) return undefined;
+  return getAllCustomers().find((customer) => customer.id === id);
+}
+
 export function getActiveCustomers() {
   const archived = new Set(loadArchivedCustomerIds());
-  return customers.filter((customer) => !archived.has(customer.id));
+  return getAllCustomers().filter((customer) => !archived.has(customer.id));
 }
 
 export function hrefForCustomerInvoice(status: string) {

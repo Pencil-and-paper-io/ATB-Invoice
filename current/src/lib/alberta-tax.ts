@@ -70,7 +70,7 @@ export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
   {
     label: "Tax Exempt",
     rate: null,
-    hint: "GST/HST does not apply — leave tax blank/N/A (not $0.00). Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
+    hint: "GST/HST does not apply. Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
   },
   {
     label: "No Tax",

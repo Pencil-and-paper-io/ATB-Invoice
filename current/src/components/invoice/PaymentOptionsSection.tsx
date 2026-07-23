@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   DEMO_DEPOSIT_ACCOUNTS,
@@ -10,6 +9,7 @@ import {
   type PaymentMethodId,
 } from "@/lib/organization-settings";
 import { UI_CLASS } from "@/lib/design-tokens";
+import { AddPaymentOptionsModal } from "./AddPaymentOptionsModal";
 import { SectionCard, TertiaryButton } from "./ui";
 
 const inputClass = UI_CLASS.input;
@@ -218,12 +218,12 @@ export function PaymentOptionsSection({
   onToggle: (id: InvoicePaymentOption["id"]) => void;
   onChange?: (next: InvoicePaymentOption[]) => void;
 }) {
-  const router = useRouter();
   const [accountDrafts, setAccountDrafts] = useState<
     Partial<Record<PaymentMethodId, string>>
   >({});
   const [organizationName, setOrganizationName] = useState("");
   const [organizationEmail, setOrganizationEmail] = useState("");
+  const [addOptionsOpen, setAddOptionsOpen] = useState(false);
 
   useEffect(() => {
     const settings = loadOrganizationSettings();
@@ -300,12 +300,27 @@ export function PaymentOptionsSection({
             organizationEmail={organizationEmail}
           />
         ))}
-        <TertiaryButton
-          onClick={() => router.push("/organization#payment-options")}
-        >
+        <TertiaryButton onClick={() => setAddOptionsOpen(true)}>
           Add more payment options
         </TertiaryButton>
       </div>
+
+      {addOptionsOpen ? (
+        <AddPaymentOptionsModal
+          currentPayments={payments}
+          onClose={() => setAddOptionsOpen(false)}
+          onSaved={(next) => {
+            setAddOptionsOpen(false);
+            onChange?.(next);
+            const settings = loadOrganizationSettings();
+            const displayName = settings.useLegalNameOnInvoices
+              ? settings.businessName
+              : settings.tradingAsName.trim() || settings.businessName;
+            setOrganizationName(displayName);
+            setOrganizationEmail(settings.email);
+          }}
+        />
+      ) : null}
     </SectionCard>
   );
 }

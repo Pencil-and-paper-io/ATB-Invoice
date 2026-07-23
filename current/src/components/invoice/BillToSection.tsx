@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { customers, isCustomerArchived, type Customer } from "@/lib/invoice-demo-data";
+import {
+  customers,
+  getActiveCustomers,
+  type Customer,
+} from "@/lib/invoice-demo-data";
+import { CreateCustomerModal } from "./CreateCustomerModal";
 import { ContactBlock, SectionCard } from "./ui";
 
 const CREATE_CUSTOMER_HREF = "/customers/new";
@@ -13,20 +18,25 @@ function customerOptionLabel(customer: Customer) {
 
 function CustomerDropdown({
   onSelect,
+  onCreateNew,
 }: {
   onSelect: (customer: Customer) => void;
+  onCreateNew: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [activeCustomers, setActiveCustomers] = useState(customers);
+  const [activeCustomers, setActiveCustomers] = useState<Customer[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!open) return;
+    setActiveCustomers(getActiveCustomers());
+  }, [open]);
+
+  useEffect(() => {
     window.setTimeout(() => {
-      setActiveCustomers(
-        customers.filter((customer) => !isCustomerArchived(customer.id)),
-      );
+      setActiveCustomers(getActiveCustomers());
     }, 0);
   }, []);
 
@@ -116,9 +126,14 @@ function CustomerDropdown({
             )}
           </ul>
           <div className="border-t border-black/10">
-            <Link
-              href={CREATE_CUSTOMER_HREF}
-              className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-prime-blue transition hover:bg-prime-blue/5"
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setQuery("");
+                onCreateNew();
+              }}
+              className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-prime-blue transition hover:bg-prime-blue/5"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
@@ -130,7 +145,7 @@ function CustomerDropdown({
                 />
               </svg>
               + Create new customer
-            </Link>
+            </button>
           </div>
         </div>
       ) : null}
@@ -148,6 +163,7 @@ export function BillToSection({
   const [customer, setCustomer] = useState<Customer | null>(
     defaultCustomer ?? null,
   );
+  const [createOpen, setCreateOpen] = useState(false);
 
   function selectCustomer(next: Customer | null) {
     setCustomer(next);
@@ -191,8 +207,21 @@ export function BillToSection({
           </button>
         </div>
       ) : (
-        <CustomerDropdown onSelect={selectCustomer} />
+        <CustomerDropdown
+          onSelect={selectCustomer}
+          onCreateNew={() => setCreateOpen(true)}
+        />
       )}
+
+      {createOpen ? (
+        <CreateCustomerModal
+          onClose={() => setCreateOpen(false)}
+          onCreated={(next) => {
+            setCreateOpen(false);
+            selectCustomer(next);
+          }}
+        />
+      ) : null}
     </SectionCard>
   );
 }

@@ -18,6 +18,8 @@ export function InfoTooltip({ text }: { text: string }) {
         className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/25 text-[10px] font-semibold leading-none text-black/50 transition hover:border-prime-blue hover:text-prime-blue"
         aria-label="More information"
         aria-describedby={open ? id : undefined}
+        onClick={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
@@ -124,6 +126,7 @@ export function Modal({
   confirmChildren,
   footer,
   maxWidthClass = "max-w-md",
+  paddingClass = "p-8 sm:p-10",
   zClass = "z-[100]",
   closeOnBackdrop = true,
   role = "dialog",
@@ -144,6 +147,7 @@ export function Modal({
   confirmChildren?: ReactNode;
   footer?: ReactNode;
   maxWidthClass?: string;
+  paddingClass?: string;
   zClass?: string;
   closeOnBackdrop?: boolean;
   role?: "dialog" | "alertdialog";
@@ -179,11 +183,11 @@ export function Modal({
       }}
     >
       <div
-        className={`relative max-h-[90vh] w-full ${maxWidthClass} overflow-y-auto rounded-xl border border-black/15 bg-white p-8 shadow-2xl sm:p-10`}
+        className={`relative max-h-[90vh] w-full ${maxWidthClass} overflow-y-auto rounded-xl border border-black/15 bg-white shadow-2xl ${paddingClass}`}
       >
         <EditCloseButton
           onClick={onClose}
-          className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70 sm:right-6 sm:top-6"
+          className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70 sm:right-7 sm:top-7"
         />
         {aboveTitle ? (
           <div className="mb-5 flex justify-center">{aboveTitle}</div>
@@ -237,6 +241,25 @@ function PlusIcon() {
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** White filled circle with dark plus — for primary (blue) create CTAs. */
+export function CreatePlusIcon({ className }: { className?: string } = {}) {
+  return (
+    <span
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-prime-blue ${className ?? ""}`}
+      aria-hidden
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path
+          d="M6 2.5v7M2.5 6h7"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
   );
 }
 

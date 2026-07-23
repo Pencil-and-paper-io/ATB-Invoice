@@ -24,29 +24,43 @@ import {
   type GstRegistrationStatus,
 } from "@/lib/place-of-supply";
 import { ONBOARDING_JUST_COMPLETED_KEY } from "@/components/invoice/OnboardingCompleteModal";
-import { PencilIcon } from "@/components/invoice/ui";
+import {
+  OnboardingWelcomeHero,
+  ONBOARDING_SKIPPED_WELCOME_KEY,
+} from "@/components/invoice/OnboardingWelcomeHero";
+import { TermsAndConditionsView, TERMS_ACCEPTED_KEY } from "@/components/invoice/TermsAndConditionsView";
+import { TopNav } from "@/components/invoice/TopNav";
+import { EditCloseButton, PencilIcon } from "@/components/invoice/ui";
 
 const SETUP_STEPS = [
   {
-    title: "Let's set up your business identity",
-    subtitle: null,
+    title: "Your Info",
+    subtitle: "How do you want your contact info to appear as?",
+  },
+  {
+    title: "Display Name",
+    subtitle: "Do you want to use this name in your communications?",
+  },
+  {
+    title: "Sales Tax",
+    subtitle: "Do you have a GST/HST number?",
   },
   {
     title: "Payment Options",
-    subtitle: "Choose how you want to receive payments.",
-  },
-  {
-    title: "Invoicing & Quotes",
-    subtitle:
-      "Set payment terms, quote validity, and starting document numbers.",
-  },
-  {
-    title: "Branding",
-    subtitle: "Add your logo and brand color.",
+    subtitle: "How would you like to receive your funds?",
   },
 ] as const;
 
+/** Step header icons (Your Info, Display Name, Sales Tax, Payment Options). */
+const STEP_ICONS = [
+  "/onboard-icon-people.png",
+  "/onboard-icon-join.png",
+  "/onboard-moments-icon.png",
+  "/onboard-icon-connect.png",
+] as const;
+
 type StepIndex = 0 | 1 | 2 | 3;
+type OnboardingPhase = "terms" | "welcome" | "wizard";
 
 type PaymentTermsChoice = "receipt" | "7" | "15" | "30" | "custom";
 
@@ -182,86 +196,14 @@ function PaymentMethodDetails({
   );
 }
 
-function InvoiceBrandPreview({
-  brandColor,
-  logoDataUrl,
-}: {
-  brandColor: string;
-  logoDataUrl: string | null;
-}) {
-  const color = /^#[0-9A-Fa-f]{6}$/i.test(brandColor) ? brandColor : "#FF7F30";
-
-  return (
-    <div
-      className="w-full max-w-[180px] overflow-hidden rounded-md border border-black/10 bg-white shadow-sm"
-      aria-hidden
-    >
-      <div className="h-2 w-full" style={{ backgroundColor: color }} />
-      <div className="space-y-2.5 px-3 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-black/[0.04]">
-            {logoDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoDataUrl}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <div className="h-4 w-4 rounded-sm bg-black/15" />
-            )}
-          </div>
-          <div className="flex flex-1 flex-col items-end gap-1 pt-0.5">
-            <div className="h-1.5 w-10 rounded-sm bg-black/15" />
-            <div className="h-1.5 w-14 rounded-sm bg-black/10" />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <div className="h-1.5 w-full rounded-sm bg-black/10" />
-          <div className="h-1.5 w-[80%] rounded-sm bg-black/10" />
-          <div className="h-1.5 w-[60%] rounded-sm bg-black/10" />
-        </div>
-        <div className="space-y-1.5 border-t border-dashed border-black/10 pt-2">
-          <div className="flex justify-between gap-2">
-            <div className="h-1.5 w-12 rounded-sm bg-black/10" />
-            <div className="h-1.5 w-8 rounded-sm bg-black/10" />
-          </div>
-          <div className="flex justify-between gap-2">
-            <div className="h-1.5 w-16 rounded-sm bg-black/10" />
-            <div className="h-1.5 w-6 rounded-sm bg-black/10" />
-          </div>
-          <div className="flex justify-between gap-2">
-            <div className="h-1.5 w-10 rounded-sm bg-black/10" />
-            <div className="h-1.5 w-10 rounded-sm bg-black/15" />
-          </div>
-        </div>
-      </div>
-      <div className="h-2 w-full" style={{ backgroundColor: color }} />
-    </div>
-  );
-}
-
-function ContentBox({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[10px] border border-black/10 bg-white px-6 py-5">
-      <h3 className="type-headline-6 text-black">{title}</h3>
-      <div className="mt-4 flex flex-col gap-4">{children}</div>
-    </div>
-  );
-}
-
 function DashedProgress({
   current,
   total,
+  onDark = false,
 }: {
   current: number;
   total: number;
+  onDark?: boolean;
 }) {
   return (
     <div
@@ -280,8 +222,12 @@ function DashedProgress({
             key={index}
             className={`h-1.5 flex-1 rounded-full ${
               complete || active
-                ? "bg-midnight-ink"
-                : "bg-black/10"
+                ? onDark
+                  ? "bg-white"
+                  : "bg-midnight-ink"
+                : onDark
+                  ? "bg-white/30"
+                  : "bg-black/10"
             }`}
           />
         );
@@ -359,7 +305,11 @@ function paymentTermsFromWizard(state: WizardState) {
   }
 }
 
-function persistWizard(state: WizardState) {
+function persistWizard(
+  state: WizardState,
+  options: { completed?: boolean } = {},
+) {
+  const completed = options.completed ?? true;
   const current = loadOrganizationSettings();
   const paymentMethods = CORE_PAYMENT_METHODS.map((method) => {
     const enabled = state.paymentEnabled[method.id];
@@ -380,13 +330,13 @@ function persistWizard(state: WizardState) {
 
   const next: OrganizationSettings = {
     ...current,
-    businessName: state.businessName.trim(),
+    businessName: state.businessName.trim() || current.businessName,
     useLegalNameOnInvoices: state.useLegalNameOnInvoices,
     tradingAsName: state.useLegalNameOnInvoices
       ? ""
       : state.tradingAsName.trim(),
     contactName: state.contactName.trim(),
-    email: state.replyToEmail.trim(),
+    email: state.replyToEmail.trim() || current.email,
     brandColor: state.brandColor,
     logoDataUrl: state.logoDataUrl,
     paymentMethods,
@@ -404,21 +354,18 @@ function persistWizard(state: WizardState) {
         : "",
     quoteStartNumber: state.quoteStartNumber.trim() || "QT-1001",
     invoiceStartNumber: state.invoiceStartNumber.trim() || "INV-1001",
-    onboardingCompleted: true,
+    onboardingCompleted: completed ? true : current.onboardingCompleted,
   };
 
   saveOrganizationSettings(next);
 }
 
-function isPositiveDocNumber(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  const digits = trimmed.replace(/[^\d]/g, "");
-  return Boolean(digits) && Number(digits) > 0;
-}
-
 export function OnboardingWizardView() {
   const router = useRouter();
+  // Always start as "terms" so SSR and the first client paint match; then
+  // sync from localStorage after mount to avoid hydration mismatches.
+  const [phase, setPhase] = useState<OnboardingPhase>("terms");
+  const [hydrated, setHydrated] = useState(false);
   const [step, setStep] = useState<StepIndex>(0);
   const [finishing, setFinishing] = useState(false);
   const [editingBusinessName, setEditingBusinessName] = useState(false);
@@ -427,21 +374,32 @@ export function OnboardingWizardView() {
   const [state, setState] = useState<WizardState>(() =>
     settingsToWizard(loadOrganizationSettings()),
   );
-  const [logoError, setLogoError] = useState("");
 
   useEffect(() => {
     window.setTimeout(() => {
+      try {
+        if (window.localStorage.getItem(TERMS_ACCEPTED_KEY) === "1") {
+          setPhase("welcome");
+        }
+      } catch {
+        /* keep terms */
+      }
       setState(settingsToWizard(loadOrganizationSettings()));
+      setHydrated(true);
     }, 0);
   }, []);
 
   useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
+    if (phase !== "wizard" || finishing) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        persistWizard(state, { completed: false });
+        router.push("/dashboard");
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [phase, finishing, state, router]);
 
   function patch(partial: Partial<WizardState>) {
     setState((prev) => ({ ...prev, ...partial }));
@@ -449,10 +407,16 @@ export function OnboardingWizardView() {
 
   const stepValid = useMemo(() => {
     if (step === 0) {
+      return true;
+    }
+    if (step === 1) {
       if (!state.businessName.trim()) return false;
       if (!state.useLegalNameOnInvoices && !state.tradingAsName.trim()) {
         return false;
       }
+      return true;
+    }
+    if (step === 2) {
       if (
         state.gstRegistrationStatus === "registered" &&
         !isValidGstHstNumber(state.gstHstNumber)
@@ -461,7 +425,7 @@ export function OnboardingWizardView() {
       }
       return true;
     }
-    if (step === 1) {
+    if (step === 3) {
       if (
         state.paymentEnabled.interac &&
         !state.paymentAccountsSaved.interac
@@ -473,27 +437,11 @@ export function OnboardingWizardView() {
       }
       return true;
     }
-    if (step === 2) {
-      if (
-        state.paymentTermsChoice === "custom" &&
-        !state.customPaymentDays.trim()
-      ) {
-        return false;
-      }
-      if (!state.quoteExpiryDays.trim()) return false;
-      return (
-        isPositiveDocNumber(state.quoteStartNumber) &&
-        isPositiveDocNumber(state.invoiceStartNumber)
-      );
-    }
-    if (step === 3) {
-      return true;
-    }
     return true;
   }, [state, step]);
 
   function goNext() {
-    if (step === 1) {
+    if (step === 3) {
       const needsInteracConfirm =
         state.paymentEnabled.interac && !state.paymentAccountsSaved.interac;
       const needsEftConfirm =
@@ -503,10 +451,8 @@ export function OnboardingWizardView() {
         return;
       }
       setShowPaymentConfirmError(false);
-    }
-    if (step === 3) {
       if (finishing) return;
-      persistWizard(state);
+      persistWizard(state, { completed: true });
       setFinishing(true);
       try {
         window.sessionStorage.setItem(ONBOARDING_JUST_COMPLETED_KEY, "1");
@@ -525,32 +471,32 @@ export function OnboardingWizardView() {
 
   function goBack() {
     if (finishing) return;
-    if (step > 0 && step < 4) {
+    if (step > 0) {
       setStep((prev) => (prev - 1) as StepIndex);
     }
   }
 
-  function onLogoFile(file: File | null) {
-    setLogoError("");
-    if (!file) return;
-    if (
-      !["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
-        file.type,
-      )
-    ) {
-      setLogoError("Use a .png, .jpeg, or .webp file.");
-      return;
+  function onDoThisLater() {
+    try {
+      window.sessionStorage.setItem(ONBOARDING_SKIPPED_WELCOME_KEY, "1");
+    } catch {
+      /* ignore */
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setLogoError("Logo must be 5MB or smaller.");
-      return;
+    router.push("/dashboard");
+  }
+
+  function closeFlow(options?: { saveWizard?: boolean; skippedWelcome?: boolean }) {
+    if (options?.saveWizard) {
+      persistWizard(state, { completed: false });
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : null;
-      patch({ logoDataUrl: result });
-    };
-    reader.readAsDataURL(file);
+    if (options?.skippedWelcome) {
+      try {
+        window.sessionStorage.setItem(ONBOARDING_SKIPPED_WELCOME_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+    router.push("/dashboard");
   }
 
   const interacMeta = CORE_PAYMENT_METHODS.find(
@@ -567,54 +513,98 @@ export function OnboardingWizardView() {
     ? state.businessName
     : state.tradingAsName.trim() || state.businessName;
 
+  const dashboardShell = (
+    <div className="min-h-screen bg-page-grey text-black">
+      <TopNav />
+      <main className="mx-auto max-w-5xl px-6 py-16">
+        <h1 className="type-headline-2 text-midnight-ink">Dashboard</h1>
+        <p className="mt-4 text-base text-black/55">
+          This page is a placeholder and is not built yet.
+        </p>
+      </main>
+    </div>
+  );
+
+  if (!hydrated) {
+    return dashboardShell;
+  }
+
+  if (phase === "terms") {
+    return (
+      <>
+        {dashboardShell}
+        <TermsAndConditionsView
+          onAccepted={() => setPhase("welcome")}
+          onClose={() => closeFlow()}
+        />
+      </>
+    );
+  }
+
+  if (phase === "welcome") {
+    return (
+      <>
+        {dashboardShell}
+        <OnboardingWelcomeHero
+          onStart={() => setPhase("wizard")}
+          onLater={onDoThisLater}
+          onClose={() => closeFlow({ skippedWelcome: true })}
+        />
+      </>
+    );
+  }
+
   if (finishing) {
     return (
-      <div className="fixed inset-0 z-[180] flex items-center justify-center bg-prime-blue">
-        <div className="absolute inset-0 bg-black/20" aria-hidden />
-        <div
-          role="status"
-          aria-live="polite"
-          className="relative z-10 flex flex-col items-center gap-4 rounded-2xl bg-white px-10 py-12 shadow-2xl"
-        >
+      <>
+        {dashboardShell}
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/35 px-4">
           <div
-            className="h-10 w-10 animate-spin rounded-full border-[3px] border-black/10 border-t-prime-blue"
-            aria-hidden
-          />
-          <p className="type-body text-black/70">Saving your setup…</p>
+            role="status"
+            aria-live="polite"
+            className="relative z-10 flex flex-col items-center gap-4 rounded-xl border border-black/15 bg-white px-10 py-12 shadow-2xl"
+          >
+            <div
+              className="h-10 w-10 animate-spin rounded-full border-[3px] border-black/10 border-t-prime-blue"
+              aria-hidden
+            />
+            <p className="type-body text-black/70">Saving your setup…</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-prime-blue">
-      <div className="absolute inset-0 bg-black/20" aria-hidden />
+    <>
+      {dashboardShell}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="onboarding-title"
-        className="relative z-10 flex h-[96%] w-[96%] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="fixed inset-0 z-[180] flex flex-col items-center justify-center gap-5 bg-black/35 px-4 py-6"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            closeFlow({ saveWizard: true });
+          }
+        }}
       >
-        <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto">
-          <div className="flex w-full max-w-[800px] flex-1 flex-col px-6 pb-8 pt-0 sm:px-10">
-            <div className="flex w-full shrink-0 justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="onboarding-title"
+          className="relative flex h-[min(760px,88vh)] w-full max-w-[960px] flex-col overflow-hidden rounded-xl border border-black/15 bg-white shadow-2xl"
+        >
+          <EditCloseButton
+            onClick={() => closeFlow({ saveWizard: true })}
+            className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
+          />
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-8 pt-10 sm:px-16 sm:pt-12">
+            <div className="flex w-full shrink-0 flex-col items-center text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/onboard-welcome.png"
+                src={STEP_ICONS[step]}
                 alt=""
-                className="h-auto w-[80px] max-w-[20%] object-contain sm:w-[96px]"
+                className="mb-8 h-14 w-14 object-contain sm:mb-10 sm:h-16 sm:w-16"
               />
-            </div>
-
-            {step === 0 ? (
-              <h2 className="type-headline-2 mt-6 mb-4 shrink-0 text-center text-black">
-                Welcome to Invoicing
-              </h2>
-            ) : null}
-
-            <div
-              className={`shrink-0 text-center ${step === 0 ? "" : "mt-6"}`}
-            >
               <h3
                 id="onboarding-title"
                 className="type-headline-3 text-black"
@@ -622,267 +612,259 @@ export function OnboardingWizardView() {
                 {heading.title}
               </h3>
               {heading.subtitle ? (
-                <p className="type-headline-6 mt-3 text-black/55">
+                <p className="type-headline-4 mt-4 max-w-xl text-black">
                   {heading.subtitle}
                 </p>
               ) : null}
             </div>
 
-            <div className="mt-8 flex flex-col gap-4">
+            <div className="mx-auto mt-10 flex w-full max-w-[560px] flex-1 flex-col gap-6">
             {step === 0 ? (
-              <>
-                <ContentBox title="Invoice Display Name">
-                  <p className="type-body text-black">
-                    We found the name registered under Canada Revenue Agency as
-                  </p>
-                  {editingBusinessName ? (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        id="business-name"
-                        className={inputClass}
-                        value={state.businessName}
-                        onChange={(event) =>
-                          patch({ businessName: event.target.value })
-                        }
-                        onBlur={() => {
-                          if (state.businessName.trim()) {
-                            setEditingBusinessName(false);
-                          }
-                        }}
-                        autoFocus
-                        aria-label="CRA-registered business name"
-                      />
-                      <p className="type-danger">
-                        This must match your business&apos;s exact Canada Revenue
-                        Agency (CRA) registration. Only change the pre-filled
-                        name if it&apos;s incorrect.
-                      </p>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEditingBusinessName(true)}
-                      className="flex w-full items-center justify-between gap-3 rounded border border-black/20 bg-white px-3 py-2.5 text-left transition hover:border-prime-blue"
-                      aria-label="Edit CRA-registered business name"
-                    >
-                      <span className="type-body font-semibold text-black/55">
-                        {state.businessName || "—"}
-                      </span>
-                      <span className="shrink-0 text-black/35" aria-hidden>
-                        <PencilIcon />
-                      </span>
-                    </button>
-                  )}
-                  <p className="type-body text-black">
-                    Do you want to use this name on the top of your invoices and
-                    in your customer communications?
-                  </p>
+              <div className="flex flex-col gap-6">
+                <div>
+                  <FieldLabel htmlFor="contact-name">Contact Name</FieldLabel>
+                  <input
+                    id="contact-name"
+                    className={inputClass}
+                    value={state.contactName}
+                    onChange={(event) =>
+                      patch({ contactName: event.target.value })
+                    }
+                    placeholder="Who customers reply to"
+                  />
+                </div>
+                <div>
+                  <FieldLabel htmlFor="reply-email">Reply-To Email</FieldLabel>
+                  <input
+                    id="reply-email"
+                    type="email"
+                    className={inputClass}
+                    value={state.replyToEmail}
+                    onChange={(event) =>
+                      patch({ replyToEmail: event.target.value })
+                    }
+                    placeholder="name@business.com"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {step === 1 ? (
+              <div className="flex flex-col gap-6">
+                <p className="type-body text-black">
+                  We found the name registered under Canada Revenue Agency as
+                </p>
+                {editingBusinessName ? (
                   <div className="flex flex-col gap-2">
+                    <input
+                      id="business-name"
+                      className={inputClass}
+                      value={state.businessName}
+                      onChange={(event) =>
+                        patch({ businessName: event.target.value })
+                      }
+                      onBlur={() => {
+                        if (state.businessName.trim()) {
+                          setEditingBusinessName(false);
+                        }
+                      }}
+                      autoFocus
+                      aria-label="CRA-registered business name"
+                    />
+                    <p className="type-danger">
+                      This must match your business&apos;s exact Canada Revenue
+                      Agency (CRA) registration. Only change the pre-filled name
+                      if it&apos;s incorrect.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingBusinessName(true)}
+                    className="flex w-full items-center justify-between gap-3 rounded border border-black/20 bg-white px-3 py-2.5 text-left transition hover:border-prime-blue"
+                    aria-label="Edit CRA-registered business name"
+                  >
+                    <span className="type-body font-semibold text-black/55">
+                      {state.businessName || "—"}
+                    </span>
+                    <span className="shrink-0 text-black/35" aria-hidden>
+                      <PencilIcon />
+                    </span>
+                  </button>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="legal-name-toggle"
+                      checked={state.useLegalNameOnInvoices}
+                      onChange={() =>
+                        patch({ useLegalNameOnInvoices: true })
+                      }
+                    />
+                    Yes, use my legal business name (default)
+                  </label>
+                  <div>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="radio"
                         name="legal-name-toggle"
-                        checked={state.useLegalNameOnInvoices}
+                        checked={!state.useLegalNameOnInvoices}
                         onChange={() =>
-                          patch({ useLegalNameOnInvoices: true })
+                          patch({ useLegalNameOnInvoices: false })
                         }
                       />
-                      Yes, use my legal business name (default)
+                      No, I want to use a different name
                     </label>
-                    <div>
-                      <label className="flex items-center gap-2 text-sm">
+                    {!state.useLegalNameOnInvoices ? (
+                      <div className="mt-1.5 pl-6">
+                        <FieldLabel htmlFor="trading-as">
+                          Trading As / Operating Name
+                        </FieldLabel>
                         <input
-                          type="radio"
-                          name="legal-name-toggle"
-                          checked={!state.useLegalNameOnInvoices}
-                          onChange={() =>
-                            patch({ useLegalNameOnInvoices: false })
+                          id="trading-as"
+                          className={inputClass}
+                          value={state.tradingAsName}
+                          onChange={(event) =>
+                            patch({ tradingAsName: event.target.value })
                           }
+                          placeholder="Shown on invoice headers"
                         />
-                        No, I want to use a different name
-                      </label>
-                      {!state.useLegalNameOnInvoices ? (
-                        <div className="mt-1.5 pl-6">
-                          <FieldLabel htmlFor="trading-as">
-                            Trading As / Operating Name
-                          </FieldLabel>
-                          <input
-                            id="trading-as"
-                            className={inputClass}
-                            value={state.tradingAsName}
-                            onChange={(event) =>
-                              patch({ tradingAsName: event.target.value })
-                            }
-                            placeholder="Shown on invoice headers"
-                          />
-                          <p className="type-body-muted mt-2">
-                            Note: To keep you CRA compliant, we will still show a
-                            footnote on your invoices automatically with your
-                            legal business name.
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </ContentBox>
-
-                <ContentBox title="Contact Details">
-                  <p className="type-body text-black">
-                    How do you want your information to appear as?
-                  </p>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <FieldLabel htmlFor="contact-name">Contact Name</FieldLabel>
-                      <input
-                        id="contact-name"
-                        className={inputClass}
-                        value={state.contactName}
-                        onChange={(event) =>
-                          patch({ contactName: event.target.value })
-                        }
-                        placeholder="Who customers reply to"
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel htmlFor="reply-email">Reply-To Email</FieldLabel>
-                      <input
-                        id="reply-email"
-                        type="email"
-                        className={inputClass}
-                        value={state.replyToEmail}
-                        onChange={(event) =>
-                          patch({ replyToEmail: event.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
-                </ContentBox>
-
-                <ContentBox title="Sales Tax">
-                  <p className="type-body mb-3 text-black">
-                    A GST/HST number is needed to charge tax on your invoices
-                    once your business has earned $30,000 or more.
-                  </p>
-                  <div className="flex flex-col gap-3">
-                    {GST_REGISTRATION_OPTIONS.map((option) => (
-                      <div key={option.value}>
-                        <label className="flex items-start gap-2 text-sm leading-5 text-black">
-                          <input
-                            type="radio"
-                            name="gst-registration"
-                            className="mt-0.5 accent-prime-blue"
-                            checked={
-                              state.gstRegistrationStatus === option.value
-                            }
-                            onChange={() => {
-                              setGstHstShowError(false);
-                              patch({
-                                gstRegistrationStatus: option.value,
-                                gstHstNumber:
-                                  option.value === "registered"
-                                    ? state.gstHstNumber
-                                    : "",
-                              });
-                            }}
-                          />
-                          <span>{option.label}</span>
-                        </label>
-                        {option.value === "pending_number" &&
-                        state.gstRegistrationStatus === "pending_number" ? (
-                          <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
-                            You need a GST/HST number once you exceed $30,000 in
-                            revenue.{" "}
-                            <a
-                              href={GST_HST_REGISTER_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-prime-blue underline underline-offset-2"
-                            >
-                              Register with the CRA
-                            </a>
-                            , then add this in later in your organization
-                            settings.
-                          </p>
-                        ) : null}
-                        {option.value === "registered" &&
-                        state.gstRegistrationStatus === "registered" ? (
-                          <div className="mt-1.5 pl-6">
-                            <div
-                              className="flex flex-nowrap items-center gap-2"
-                              onBlur={(event) => {
-                                const next = event.relatedTarget as Node | null;
-                                if (
-                                  next &&
-                                  event.currentTarget.contains(next)
-                                ) {
-                                  return;
-                                }
-                                setGstHstShowError(true);
-                              }}
-                            >
-                              <input
-                                id="gst-hst-bn"
-                                inputMode="numeric"
-                                maxLength={9}
-                                className={`${inputClass} !w-[9.5rem] shrink-0`}
-                                value={gstParts.bn}
-                                onChange={(event) => {
-                                  const bn = event.target.value
-                                    .replace(/[^\d]/g, "")
-                                    .slice(0, 9);
-                                  setGstHstShowError(false);
-                                  patch({
-                                    gstHstNumber: formatGstHstNumber(
-                                      bn,
-                                      gstParts.account,
-                                    ),
-                                  });
-                                }}
-                                placeholder="123456789"
-                                aria-label="GST/HST business number, 9 digits"
-                              />
-                              <span className="shrink-0 type-body text-black">
-                                RT
-                              </span>
-                              <input
-                                id="gst-hst-account"
-                                inputMode="numeric"
-                                maxLength={4}
-                                className={`${inputClass} !w-[5.5rem] shrink-0`}
-                                value={gstParts.account}
-                                onChange={(event) => {
-                                  const account = event.target.value
-                                    .replace(/[^\d]/g, "")
-                                    .slice(0, 4);
-                                  setGstHstShowError(false);
-                                  patch({
-                                    gstHstNumber: formatGstHstNumber(
-                                      gstParts.bn,
-                                      account,
-                                    ),
-                                  });
-                                }}
-                                placeholder="0001"
-                                aria-label="GST/HST account number, 4 digits"
-                              />
-                            </div>
-                            {gstHstShowError &&
-                            !isValidGstHstNumber(state.gstHstNumber) ? (
-                              <p className="type-danger mt-2">
-                                Enter a valid CRA number (9 digits + RT + 4
-                                digits).
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
+                        <p className="type-body-muted mt-2">
+                          Note: To keep you CRA compliant, we will still show a
+                          footnote on your invoices automatically with your
+                          legal business name.
+                        </p>
                       </div>
-                    ))}
+                    ) : null}
                   </div>
-                </ContentBox>
-              </>
+                </div>
+              </div>
             ) : null}
 
-            {step === 1 ? (
+            {step === 2 ? (
+              <div className="flex flex-col gap-3">
+                {GST_REGISTRATION_OPTIONS.map((option) => (
+                  <div key={option.value}>
+                    <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                      <input
+                        type="radio"
+                        name="gst-registration"
+                        className="mt-0.5 accent-prime-blue"
+                        checked={state.gstRegistrationStatus === option.value}
+                        onChange={() => {
+                          setGstHstShowError(false);
+                          patch({
+                            gstRegistrationStatus: option.value,
+                            gstHstNumber:
+                              option.value === "registered"
+                                ? state.gstHstNumber
+                                : "",
+                          });
+                        }}
+                      />
+                      <span className="inline-flex items-start gap-1.5">
+                        <span>{option.label}</span>
+                        {option.tip ? (
+                          <span
+                            className="mt-0.5 inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[10px] font-bold text-black/55"
+                            title={option.tip}
+                            aria-label={option.tip}
+                          >
+                            i
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                    {option.value === "pending_number" &&
+                    state.gstRegistrationStatus === "pending_number" ? (
+                      <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
+                        You need a GST/HST number once you exceed $30,000 in
+                        revenue.{" "}
+                        <a
+                          href={GST_HST_REGISTER_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-prime-blue underline underline-offset-2"
+                        >
+                          Register with the CRA
+                        </a>
+                        , then add this in later in your organization settings.
+                      </p>
+                    ) : null}
+                    {option.value === "registered" &&
+                    state.gstRegistrationStatus === "registered" ? (
+                      <div className="mt-1.5 pl-6">
+                        <div
+                          className="flex flex-nowrap items-center gap-2"
+                          onBlur={(event) => {
+                            const next = event.relatedTarget as Node | null;
+                            if (next && event.currentTarget.contains(next)) {
+                              return;
+                            }
+                            setGstHstShowError(true);
+                          }}
+                        >
+                          <input
+                            id="gst-hst-bn"
+                            inputMode="numeric"
+                            maxLength={9}
+                            className={`${inputClass} !w-[9.5rem] shrink-0`}
+                            value={gstParts.bn}
+                            onChange={(event) => {
+                              const bn = event.target.value
+                                .replace(/[^\d]/g, "")
+                                .slice(0, 9);
+                              setGstHstShowError(false);
+                              patch({
+                                gstHstNumber: formatGstHstNumber(
+                                  bn,
+                                  gstParts.account,
+                                ),
+                              });
+                            }}
+                            placeholder="123456789"
+                            aria-label="GST/HST business number, 9 digits"
+                          />
+                          <span className="shrink-0 type-body text-black">
+                            RT
+                          </span>
+                          <input
+                            id="gst-hst-account"
+                            inputMode="numeric"
+                            maxLength={4}
+                            className={`${inputClass} !w-[5.5rem] shrink-0`}
+                            value={gstParts.account}
+                            onChange={(event) => {
+                              const account = event.target.value
+                                .replace(/[^\d]/g, "")
+                                .slice(0, 4);
+                              setGstHstShowError(false);
+                              patch({
+                                gstHstNumber: formatGstHstNumber(
+                                  gstParts.bn,
+                                  account,
+                                ),
+                              });
+                            }}
+                            placeholder="0001"
+                            aria-label="GST/HST account number, 4 digits"
+                          />
+                        </div>
+                        {gstHstShowError &&
+                        !isValidGstHstNumber(state.gstHstNumber) ? (
+                          <p className="type-danger mt-2">
+                            Enter a valid CRA number (9 digits + RT + 4 digits).
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {step === 3 ? (
               <div className="flex flex-col gap-3">
                 <CheckboxRow
                   checked={state.paymentEnabled.interac}
@@ -1055,222 +1037,43 @@ export function OnboardingWizardView() {
                 />
               </div>
             ) : null}
+            </div>
+          </div>
 
-            {step === 2 ? (
-              <>
-                <ContentBox title="Payment Terms">
-                  <div className="flex flex-col gap-2">
-                    {(
-                      [
-                        ["receipt", "Due on receipt"],
-                        ["7", "7 days"],
-                        ["15", "15 days"],
-                        ["30", "30 days"],
-                        ["custom", "Custom"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <label
-                        key={value}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="radio"
-                          name="payment-terms"
-                          checked={state.paymentTermsChoice === value}
-                          onChange={() =>
-                            patch({ paymentTermsChoice: value })
-                          }
-                        />
-                        {label}
-                        {value === "custom" ? (
-                          <input
-                            inputMode="numeric"
-                            className={`${inputClass} ml-2 h-9 max-w-[100px]`}
-                            placeholder="days"
-                            value={state.customPaymentDays}
-                            onChange={(event) =>
-                              patch({
-                                customPaymentDays: event.target.value.replace(
-                                  /[^\d]/g,
-                                  "",
-                                ),
-                                paymentTermsChoice: "custom",
-                              })
-                            }
-                          />
-                        ) : null}
-                      </label>
-                    ))}
-                  </div>
-                </ContentBox>
-
-                <ContentBox title="Quote Validity">
-                  <p className="type-body text-black">
-                    How long do you want quotes to be valid before they expire?
-                    You can always edit this later.
-                  </p>
-                  <div className="relative max-w-[200px]">
-                    <input
-                      id="quote-expiry"
-                      inputMode="numeric"
-                      className={`${inputClass} pr-14`}
-                      value={state.quoteExpiryDays}
-                      onChange={(event) =>
-                        patch({
-                          quoteExpiryDays: event.target.value.replace(
-                            /[^\d]/g,
-                            "",
-                          ),
-                        })
-                      }
-                      aria-label="Quote validity in days"
-                    />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
-                      days
-                    </span>
-                  </div>
-                </ContentBox>
-
-                <ContentBox title="Document Numbers">
-                  <div>
-                    <FieldLabel htmlFor="quote-start">
-                      Starting Quote Number
-                    </FieldLabel>
-                    <input
-                      id="quote-start"
-                      className={inputClass}
-                      value={state.quoteStartNumber}
-                      onChange={(event) =>
-                        patch({ quoteStartNumber: event.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel htmlFor="invoice-start">
-                      Starting Invoice Number
-                    </FieldLabel>
-                    <input
-                      id="invoice-start"
-                      className={inputClass}
-                      value={state.invoiceStartNumber}
-                      onChange={(event) =>
-                        patch({ invoiceStartNumber: event.target.value })
-                      }
-                    />
-                  </div>
-                  <p className="type-body-muted">
-                    Numbers must be positive and non-zero. Defaults: QT-1001 and
-                    INV-1001.
-                  </p>
-                </ContentBox>
-              </>
-            ) : null}
-
-            {step === 3 ? (
-              <>
-                <ContentBox title="Company Logo">
-                  <p className="type-body-muted">
-                    This logo will be visible on your invoice. Select a file that
-                    is at least 250x250.
-                  </p>
-                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-[10px] border border-dashed border-black/20 bg-page-grey px-4 py-8 text-center transition hover:border-prime-blue">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="sr-only"
-                      onChange={(event) =>
-                        onLogoFile(event.target.files?.[0] ?? null)
-                      }
-                    />
-                    {state.logoDataUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={state.logoDataUrl}
-                        alt="Logo preview"
-                        className="mb-3 max-h-16 object-contain"
-                      />
-                    ) : null}
-                    <span className="text-sm font-semibold text-prime-blue">
-                      Choose file / drag & drop
-                    </span>
-                    <span className="mt-1 text-xs text-black/45">
-                      .png, .jpeg, or .webp · max 5MB
-                    </span>
-                  </label>
-                  {logoError ? (
-                    <p className="type-danger">{logoError}</p>
-                  ) : null}
-                </ContentBox>
-
-                <ContentBox title="Brand Color">
-                  <p className="type-body-muted">
-                    This will be used to embellish your invoice.
-                  </p>
-                  <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={
-                          /^#[0-9A-Fa-f]{6}$/i.test(state.brandColor)
-                            ? state.brandColor
-                            : "#FF7F30"
-                        }
-                        onChange={(event) =>
-                          patch({ brandColor: event.target.value })
-                        }
-                        className="h-11 w-14 cursor-pointer rounded border border-black/15 bg-white p-1"
-                        aria-label="Brand color picker"
-                      />
-                      <input
-                        id="brand-color"
-                        className={`${inputClass} max-w-[140px] font-mono uppercase`}
-                        value={state.brandColor}
-                        onChange={(event) =>
-                          patch({ brandColor: event.target.value })
-                        }
-                      />
-                    </div>
-                    <InvoiceBrandPreview
-                      brandColor={state.brandColor}
-                      logoDataUrl={state.logoDataUrl}
-                    />
-                  </div>
-                </ContentBox>
-              </>
-            ) : null}
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/10 px-10 py-5 sm:px-16">
+            <button
+              type="button"
+              onClick={() => closeFlow({ saveWizard: true })}
+              className={`${UI_CLASS.btnSecondary} h-11 px-5`}
+            >
+              Save and Close
+            </button>
+            <div className="flex items-center gap-4">
+              {step > 0 ? (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="type-link text-sm font-semibold text-black/55"
+                >
+                  Back
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={!stepValid || finishing}
+                className={`${UI_CLASS.btnPrimary} h-11 px-6 disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                {step === 3 ? "Finish setup" : "Continue"}
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex shrink-0 justify-center border-t border-black/10 bg-white">
-            <div className="flex w-full max-w-[800px] flex-col gap-4 px-6 py-4 sm:px-10">
-              <DashedProgress current={step} total={SETUP_STEPS.length} />
-              <div
-                className={`flex items-center gap-3 ${
-                  step === 0 ? "justify-end" : "justify-between"
-                }`}
-              >
-                {step > 0 ? (
-                  <button
-                    type="button"
-                    onClick={goBack}
-                    className="type-link text-sm font-semibold text-black/55"
-                  >
-                    Back
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={goNext}
-                  disabled={step === 1 ? finishing : !stepValid || finishing}
-                  className={`${UI_CLASS.btnPrimary} h-11 px-6 disabled:cursor-not-allowed disabled:opacity-40`}
-                >
-                  {step === 3 ? "Finish setup" : "Continue"}
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="w-full max-w-[960px] px-2">
+          <DashedProgress current={step} total={SETUP_STEPS.length} onDark />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

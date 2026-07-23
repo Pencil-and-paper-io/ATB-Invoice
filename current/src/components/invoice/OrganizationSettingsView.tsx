@@ -275,50 +275,39 @@ function ViewCard({
   onEdit,
   children,
   id,
-  asDiv = false,
 }: {
   title: string;
   tip?: string;
   onEdit: () => void;
   children: ReactNode;
   id?: string;
-  /** Use a div shell when children include links/buttons (avoids nested interactive). */
+  /** @deprecated Kept for call-site compat; cards always use a div shell. */
   asDiv?: boolean;
 }) {
   const shellClass = `relative w-full scroll-mt-8 px-7 pb-5 pt-7 text-left ${hoverCardClass}`;
 
-  if (asDiv) {
-    return (
-      <div
-        id={id}
-        role="button"
-        tabIndex={0}
-        onClick={onEdit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onEdit();
-          }
-        }}
-        className={`${shellClass} cursor-pointer`}
-      >
-        <BoxTitle title={title} tip={tip} tone="view" />
-        <div className="pr-8">{children}</div>
-        <span className="absolute right-4 top-4 text-black/30" aria-hidden>
-          <PencilIcon />
-        </span>
-      </div>
-    );
-  }
-
+  // Always a <div>: titles may include InfoTooltip (<button>), and nesting
+  // <button> inside <button> breaks hydration.
   return (
-    <button id={id} type="button" onClick={onEdit} className={shellClass}>
+    <div
+      id={id}
+      role="group"
+      tabIndex={0}
+      onClick={onEdit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onEdit();
+        }
+      }}
+      className={`${shellClass} cursor-pointer`}
+    >
       <BoxTitle title={title} tip={tip} tone="view" />
       <div className="pr-8">{children}</div>
       <span className="absolute right-4 top-4 text-black/30" aria-hidden>
         <PencilIcon />
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -1658,7 +1647,18 @@ export function OrganizationSettingsView() {
                                 });
                               }}
                             />
-                            <span>{option.label}</span>
+                            <span className="inline-flex items-start gap-1.5">
+                              <span>{option.label}</span>
+                              {option.tip ? (
+                                <span
+                                  className="mt-0.5 inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[10px] font-bold text-black/55"
+                                  title={option.tip}
+                                  aria-label={option.tip}
+                                >
+                                  i
+                                </span>
+                              ) : null}
+                            </span>
                           </label>
                           {option.value === "pending_number" &&
                           draft.gstRegistrationStatus === "pending_number" ? (

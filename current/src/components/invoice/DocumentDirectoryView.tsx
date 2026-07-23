@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   customers,
   customerInvoices,
@@ -13,220 +13,181 @@ import {
   type CustomerQuoteRow,
 } from "@/lib/invoice-demo-data";
 import { TopNav } from "./TopNav";
+import { CreatePlusIcon } from "./ui";
+import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
+import {
+  ColumnContextMenu,
+  DirectoryColumnHeader,
+  DirectoryToolbar,
+  DIRECTORY_BODY_ROW,
+  DIRECTORY_HEADER_ROW,
+  MoneyCell,
+  SearchField,
+  SortHeaderButton,
+  StatusToggleTabs,
+  useDirectoryColumns,
+  type DirectoryColumnDef,
+} from "./directory-table";
 import { UI_CLASS } from "@/lib/design-tokens";
 
 type DirectoryKind = "invoices" | "quotes";
+type SortDir = "asc" | "desc";
+
+const QUOTE_STATUS_TABS = [
+  "All",
+  "Draft",
+  "Sent",
+  "Viewed",
+  "Accepted",
+  "Rejected",
+  "Expired",
+] as const;
+
+const INVOICE_STATUS_TABS = [
+  "All",
+  "Draft",
+  "Sent",
+  "Viewed",
+  "Partially Paid",
+  "Paid",
+  "Overdue",
+  "Uncollectible",
+] as const;
+
+type QuoteStatusTab = (typeof QUOTE_STATUS_TABS)[number];
+type InvoiceStatusTab = (typeof INVOICE_STATUS_TABS)[number];
+
+type InvoiceColumnId =
+  | "number"
+  | "customer"
+  | "issued"
+  | "due"
+  | "total"
+  | "paid"
+  | "outstanding"
+  | "status";
+
+type QuoteColumnId =
+  | "number"
+  | "customer"
+  | "created"
+  | "expiry"
+  | "total"
+  | "status";
+
+const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
+  { id: "number", label: "Invoice #", minWidth: 100, defaultWidth: 120 },
+  { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
+  { id: "issued", label: "Issued", minWidth: 100, defaultWidth: 120 },
+  { id: "due", label: "Due", minWidth: 100, defaultWidth: 120 },
+  { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
+  { id: "paid", label: "Paid", minWidth: 90, defaultWidth: 110 },
+  { id: "outstanding", label: "Outstanding", minWidth: 110, defaultWidth: 130 },
+  { id: "status", label: "Status", minWidth: 110, defaultWidth: 140 },
+];
+
+const QUOTE_COLUMNS: DirectoryColumnDef<QuoteColumnId>[] = [
+  { id: "number", label: "Quote #", minWidth: 100, defaultWidth: 120 },
+  { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
+  { id: "created", label: "Created", minWidth: 100, defaultWidth: 120 },
+  { id: "expiry", label: "Expiry", minWidth: 100, defaultWidth: 120 },
+  { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
+  { id: "status", label: "Status", minWidth: 110, defaultWidth: 130 },
+];
+
+/** Soft fill status chips (no outline). */
+const STATUS_BADGE: Record<string, string> = {
+  Draft: "bg-[#F3F3F3] text-[#666666]",
+  Sent: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+  Viewed: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+  Accepted: "bg-[#E8F7EC] text-[#1B7A3A]",
+  Rejected: "bg-[#FDECEC] text-[#C62828]",
+  Expired: "bg-[#FDECEC] text-[#C62828]",
+  "Partially Paid": "bg-[#FFF8E6] text-[#8A6A00]",
+  Paid: "bg-[#E8F7EC] text-[#1B7A3A]",
+  Overdue: "bg-[#FDECEC] text-[#C62828]",
+  "Overdue 90+": "bg-[#FDECEC] text-[#C62828]",
+  Uncollectible: "bg-[#F3F3F3] text-[#666666]",
+  Void: "bg-[#F3F3F3] text-[#666666]",
+};
 
 function customerName(customerId: string) {
   return customers.find((entry) => entry.id === customerId)?.name ?? "—";
 }
 
-function SortHeader({ label }: { label: string }) {
-  return <span>{label}</span>;
+function invoicePaid(row: CustomerInvoiceRow) {
+  return Math.max(0, row.amount - row.balanceOutstanding);
 }
 
-function StatusFilter({
-  value,
-  options,
-  onChange,
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function HighlightText({
+  text,
+  query,
+  className,
 }: {
-  value: string;
-  options: string[];
-  onChange: (next: string) => void;
+  text: string;
+  query: string;
+  className?: string;
+}) {
+  const q = query.trim();
+  if (!q) {
+    return <span className={className}>{text}</span>;
+  }
+
+  const parts = text.split(new RegExp(`(${escapeRegExp(q)})`, "gi"));
+  return (
+    <span className={className}>
+      {parts.map((part, index) =>
+        part.toLowerCase() === q.toLowerCase() ? (
+          <mark
+            key={`${part}-${index}`}
+            className="rounded-sm bg-sunshine-yellow/80 px-0.5 text-inherit"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
+function StatusBadge({
+  status,
+  query = "",
+}: {
+  status: string;
+  query?: string;
+}) {
+  const className = STATUS_BADGE[status] ?? "bg-[#F3F3F3] text-[#666666]";
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded px-2 py-0.5 text-xs font-semibold ${className}`}
+    >
+      <HighlightText text={status} query={query} />
+    </span>
+  );
+}
+
+function CreatePrimaryLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
 }) {
   return (
-    <select
-      className="h-11 rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-prime-blue"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      aria-label="Filter by status"
+    <Link
+      href={href}
+      className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center gap-2 px-5`}
     >
-      <option value="all">All statuses</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [query, setQuery] = useState("");
-
-  const isInvoices = kind === "invoices";
-  const title = isInvoices ? "Invoices" : "Quotes";
-  const createHref = isInvoices ? "/" : "/quote";
-  const createLabel = isInvoices ? "Create invoice" : "Create quote";
-
-  const invoices = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return customerInvoices.filter((row) => {
-      if (statusFilter !== "all" && row.status !== statusFilter) return false;
-      if (!q) return true;
-      const name = customerName(row.customerId).toLowerCase();
-      return (
-        row.number.toLowerCase().includes(q) ||
-        name.includes(q) ||
-        row.status.toLowerCase().includes(q)
-      );
-    });
-  }, [query, statusFilter]);
-
-  const quotes = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return customerQuotes.filter((row) => {
-      if (statusFilter !== "all" && row.status !== statusFilter) return false;
-      if (!q) return true;
-      const name = customerName(row.customerId).toLowerCase();
-      return (
-        row.number.toLowerCase().includes(q) ||
-        name.includes(q) ||
-        row.status.toLowerCase().includes(q)
-      );
-    });
-  }, [query, statusFilter]);
-
-  const statusOptions = useMemo(() => {
-    const rows = isInvoices ? customerInvoices : customerQuotes;
-    return Array.from(new Set(rows.map((row) => row.status))).sort();
-  }, [isInvoices]);
-
-  return (
-    <div className="min-h-screen bg-page-grey text-black">
-      <TopNav />
-      <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="type-page-title">{title}</h1>
-          <Link href={createHref} className={`${UI_CLASS.btnPrimary} h-11 px-5`}>
-            {createLabel}
-          </Link>
-        </div>
-
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            className="h-11 min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-prime-blue"
-            placeholder={
-              isInvoices
-                ? "Search invoices, customers, or status…"
-                : "Search quotes, customers, or status…"
-            }
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <StatusFilter
-            value={statusFilter}
-            options={statusOptions}
-            onChange={setStatusFilter}
-          />
-        </div>
-
-        <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-          {isInvoices ? (
-            <InvoiceTable rows={invoices} />
-          ) : (
-            <QuoteTable rows={quotes} />
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function InvoiceTable({ rows }: { rows: CustomerInvoiceRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <div className="grid min-w-[760px] grid-cols-[0.8fr_1.4fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
-        <SortHeader label="Invoice #" />
-        <SortHeader label="Customer" />
-        <SortHeader label="Issued" />
-        <SortHeader label="Due" />
-        <SortHeader label="Total" />
-        <SortHeader label="Balance" />
-        <SortHeader label="Status" />
-      </div>
-      {rows.length > 0 ? (
-        <ul className="min-w-[760px]">
-          {rows.map((invoice, index) => (
-            <li key={invoice.id}>
-              <Link
-                href={hrefForCustomerInvoice(invoice.status)}
-                className={`grid w-full grid-cols-[0.8fr_1.4fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 px-5 py-3.5 text-sm text-black transition hover:bg-prime-blue/5 ${
-                  index < rows.length - 1 ? "border-b border-black/10" : ""
-                }`}
-              >
-                <span className="font-medium">{invoice.number}</span>
-                <span className="truncate">
-                  {customerName(invoice.customerId)}
-                </span>
-                <span>{invoice.dateIssued}</span>
-                <span>{invoice.dueDate}</span>
-                <span className="font-medium">
-                  {formatMoney(invoice.amount)}
-                </span>
-                <span className="font-medium">
-                  {formatMoney(invoice.balanceOutstanding)}
-                </span>
-                <span>{invoice.status}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <EmptyState
-          label="No invoices match your filters."
-          href="/"
-          cta="Create invoice"
-        />
-      )}
-    </div>
-  );
-}
-
-function QuoteTable({ rows }: { rows: CustomerQuoteRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <div className="grid min-w-[700px] grid-cols-[0.9fr_1.4fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
-        <SortHeader label="Quote #" />
-        <SortHeader label="Customer" />
-        <SortHeader label="Created" />
-        <SortHeader label="Expiry" />
-        <SortHeader label="Total" />
-        <SortHeader label="Status" />
-      </div>
-      {rows.length > 0 ? (
-        <ul className="min-w-[700px]">
-          {rows.map((quote, index) => (
-            <li key={quote.id}>
-              <Link
-                href={hrefForCustomerQuote(quote.status)}
-                className={`grid w-full grid-cols-[0.9fr_1.4fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 px-5 py-3.5 text-sm text-black transition hover:bg-prime-blue/5 ${
-                  index < rows.length - 1 ? "border-b border-black/10" : ""
-                }`}
-              >
-                <span className="font-medium">{quote.number}</span>
-                <span className="truncate">
-                  {customerName(quote.customerId)}
-                </span>
-                <span>{quote.dateCreated}</span>
-                <span>{quote.expiryDate}</span>
-                <span className="font-medium">
-                  {formatMoney(quote.amount)}
-                </span>
-                <span>{quote.status}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <EmptyState
-          label="No quotes match your filters."
-          href="/quote"
-          cta="Create quote"
-        />
-      )}
-    </div>
+      <CreatePlusIcon />
+      {children}
+    </Link>
   );
 }
 
@@ -242,12 +203,515 @@ function EmptyState({
   return (
     <div className="px-5 py-16 text-center">
       <p className="type-body-muted">{label}</p>
-      <Link
-        href={href}
-        className="type-link mt-3 inline-block text-sm font-semibold text-prime-blue"
-      >
-        {cta}
-      </Link>
+      <div className="mt-4 flex justify-center">
+        <CreatePrimaryLink href={href}>{cta}</CreatePrimaryLink>
+      </div>
+    </div>
+  );
+}
+
+function compareValues(left: string | number, right: string | number, dir: SortDir) {
+  if (left < right) return dir === "asc" ? -1 : 1;
+  if (left > right) return dir === "asc" ? 1 : -1;
+  return 0;
+}
+
+export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
+  const [quoteTab, setQuoteTab] = useState<QuoteStatusTab>("All");
+  const [invoiceTab, setInvoiceTab] = useState<InvoiceStatusTab>("All");
+  const [query, setQuery] = useState("");
+
+  const isInvoices = kind === "invoices";
+  const title = isInvoices ? "Invoices" : "Quotes";
+  const subtitle = isInvoices
+    ? "Bills you send to collect payment from customers."
+    : "Estimates of proposed work — convert to an invoice when accepted.";
+  const createHref = isInvoices ? "/" : "/quote";
+  const createLabel = isInvoices ? "Create Invoice" : "Create Quote";
+
+  const invoices = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return customerInvoices.filter((row) => {
+      if (invoiceTab !== "All") {
+        if (invoiceTab === "Overdue") {
+          if (!/^overdue/i.test(row.status)) return false;
+        } else if (row.status !== invoiceTab) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      const name = customerName(row.customerId).toLowerCase();
+      return (
+        row.number.toLowerCase().includes(q) ||
+        name.includes(q) ||
+        row.status.toLowerCase().includes(q) ||
+        row.dateIssued.toLowerCase().includes(q) ||
+        row.dueDate.toLowerCase().includes(q) ||
+        formatMoney(row.amount).toLowerCase().includes(q) ||
+        formatMoney(invoicePaid(row)).toLowerCase().includes(q) ||
+        formatMoney(row.balanceOutstanding).toLowerCase().includes(q)
+      );
+    });
+  }, [query, invoiceTab]);
+
+  const quotes = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return customerQuotes.filter((row) => {
+      if (quoteTab !== "All" && row.status !== quoteTab) return false;
+      if (!q) return true;
+      const name = customerName(row.customerId).toLowerCase();
+      return (
+        row.number.toLowerCase().includes(q) ||
+        name.includes(q) ||
+        row.status.toLowerCase().includes(q) ||
+        row.dateCreated.toLowerCase().includes(q) ||
+        row.expiryDate.toLowerCase().includes(q) ||
+        formatMoney(row.amount).toLowerCase().includes(q)
+      );
+    });
+  }, [query, quoteTab]);
+
+  return (
+    <div className="min-h-screen bg-page-grey text-black">
+      <TopNav />
+      <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="type-headline-2 text-midnight-ink">{title}</h1>
+            <p className="mt-2 type-subtitle-1 text-black/55">{subtitle}</p>
+          </div>
+          <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
+        </div>
+
+        <DirectoryToolbar
+          tabs={
+            isInvoices ? (
+              <StatusToggleTabs
+                tabs={INVOICE_STATUS_TABS}
+                value={invoiceTab}
+                onChange={(next) => setInvoiceTab(next as InvoiceStatusTab)}
+                label="Filter invoices by status"
+              />
+            ) : (
+              <StatusToggleTabs
+                tabs={QUOTE_STATUS_TABS}
+                value={quoteTab}
+                onChange={(next) => setQuoteTab(next as QuoteStatusTab)}
+                label="Filter quotes by status"
+              />
+            )
+          }
+        >
+          <SearchField
+            id={`${kind}-search`}
+            value={query}
+            onChange={setQuery}
+            placeholder={
+              isInvoices
+                ? "Search invoices or customers…"
+                : "Search quotes or customers…"
+            }
+            label={isInvoices ? "Search invoices" : "Search quotes"}
+          />
+        </DirectoryToolbar>
+
+        <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+          {isInvoices ? (
+            <InvoiceTable rows={invoices} query={query} />
+          ) : (
+            <QuoteTable rows={quotes} query={query} />
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function InvoiceTable({
+  rows,
+  query,
+}: {
+  rows: CustomerInvoiceRow[];
+  query: string;
+}) {
+  const [sortKey, setSortKey] = useState<InvoiceColumnId>("number");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const columns = useMemo(() => INVOICE_COLUMNS, []);
+  const {
+    visibleColumns,
+    gridTemplateColumns,
+    columnWidths,
+    contextMenu,
+    setContextMenu,
+    onHeaderDragStart,
+    onHeaderDrop,
+    startResize,
+    hideColumn,
+    showColumn,
+    showAllColumns,
+    hiddenHideable,
+  } = useDirectoryColumns("atb-invoice-directory-columns", columns);
+
+  useDismissOnOutsideClick(
+    contextMenuRef,
+    () => setContextMenu(null),
+    Boolean(contextMenu),
+  );
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const sortValue = (row: CustomerInvoiceRow): string | number => {
+        switch (sortKey) {
+          case "number":
+            return row.number.toLowerCase();
+          case "customer":
+            return customerName(row.customerId).toLowerCase();
+          case "issued":
+            return row.dateIssued.toLowerCase();
+          case "due":
+            return row.dueDate.toLowerCase();
+          case "total":
+            return row.amount;
+          case "paid":
+            return invoicePaid(row);
+          case "outstanding":
+            return row.balanceOutstanding;
+          case "status":
+            return row.status.toLowerCase();
+        }
+      };
+      const cmp = compareValues(sortValue(a), sortValue(b), sortDir);
+      if (cmp !== 0) return cmp;
+      return a.number.localeCompare(b.number);
+    });
+  }, [rows, sortDir, sortKey]);
+
+  function toggleSort(key: InvoiceColumnId) {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir("asc");
+  }
+
+  function renderCell(row: CustomerInvoiceRow, columnId: InvoiceColumnId) {
+    switch (columnId) {
+      case "number":
+        return (
+          <HighlightText text={row.number} query={query} className="font-medium" />
+        );
+      case "customer":
+        return (
+          <HighlightText
+            text={customerName(row.customerId)}
+            query={query}
+            className="truncate"
+          />
+        );
+      case "issued":
+        return <HighlightText text={row.dateIssued} query={query} />;
+      case "due":
+        return <HighlightText text={row.dueDate} query={query} />;
+      case "total":
+        return <MoneyCell amount={row.amount} variant="total" query={query} />;
+      case "paid":
+        return (
+          <MoneyCell amount={invoicePaid(row)} variant="paid" query={query} />
+        );
+      case "outstanding":
+        return (
+          <MoneyCell
+            amount={row.balanceOutstanding}
+            variant="outstanding"
+            query={query}
+          />
+        );
+      case "status":
+        return <StatusBadge status={row.status} query={query} />;
+    }
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-max">
+        <div
+          className={DIRECTORY_HEADER_ROW}
+          style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+        >
+          {visibleColumns.map((column, index) => (
+            <DirectoryColumnHeader
+              key={column.id}
+              label={column.label}
+              isLast={index === visibleColumns.length - 1}
+              onDragStart={() => onHeaderDragStart(column.id)}
+              onDrop={() => onHeaderDrop(column.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setContextMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  columnId: column.id,
+                });
+              }}
+              onResizeStart={(clientX) => startResize(column.id, clientX)}
+            >
+              <SortHeaderButton
+                label={column.label}
+                active={sortKey === column.id}
+                dir={sortDir}
+                onClick={() => toggleSort(column.id)}
+              />
+            </DirectoryColumnHeader>
+          ))}
+        </div>
+
+        {sortedRows.length > 0 ? (
+          <ul>
+            {sortedRows.map((invoice, index) => (
+              <li key={invoice.id}>
+                <Link
+                  href={hrefForCustomerInvoice(invoice.status)}
+                  className={`${DIRECTORY_BODY_ROW} ${
+                    index < sortedRows.length - 1 ? "border-b border-black/10" : ""
+                  }`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns,
+                    gap: "1rem",
+                    alignItems: "center",
+                  }}
+                >
+                  {visibleColumns.map((column) => (
+                    <div
+                      key={column.id}
+                      style={{
+                        width: columnWidths[column.id] ?? column.defaultWidth,
+                        minWidth: 0,
+                      }}
+                    >
+                      {renderCell(invoice, column.id)}
+                    </div>
+                  ))}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            label="No invoices match your filters."
+            href="/"
+            cta="Create Invoice"
+          />
+        )}
+      </div>
+
+      <ColumnContextMenu
+        menuRef={contextMenuRef}
+        contextMenu={contextMenu}
+        columnLabel={
+          INVOICE_COLUMNS.find((c) => c.id === contextMenu?.columnId)?.label ??
+          ""
+        }
+        canHide={Boolean(
+          contextMenu &&
+            INVOICE_COLUMNS.find((c) => c.id === contextMenu.columnId)
+              ?.hideable !== false,
+        )}
+        hiddenHideable={hiddenHideable}
+        onHide={() => contextMenu && hideColumn(contextMenu.columnId)}
+        onShow={(id) => showColumn(id as InvoiceColumnId)}
+        onShowAll={showAllColumns}
+        onClose={() => setContextMenu(null)}
+      />
+    </div>
+  );
+}
+
+function QuoteTable({
+  rows,
+  query,
+}: {
+  rows: CustomerQuoteRow[];
+  query: string;
+}) {
+  const [sortKey, setSortKey] = useState<QuoteColumnId>("number");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const columns = useMemo(() => QUOTE_COLUMNS, []);
+  const {
+    visibleColumns,
+    gridTemplateColumns,
+    columnWidths,
+    contextMenu,
+    setContextMenu,
+    onHeaderDragStart,
+    onHeaderDrop,
+    startResize,
+    hideColumn,
+    showColumn,
+    showAllColumns,
+    hiddenHideable,
+  } = useDirectoryColumns("atb-quote-directory-columns", columns);
+
+  useDismissOnOutsideClick(
+    contextMenuRef,
+    () => setContextMenu(null),
+    Boolean(contextMenu),
+  );
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const sortValue = (row: CustomerQuoteRow): string | number => {
+        switch (sortKey) {
+          case "number":
+            return row.number.toLowerCase();
+          case "customer":
+            return customerName(row.customerId).toLowerCase();
+          case "created":
+            return row.dateCreated.toLowerCase();
+          case "expiry":
+            return row.expiryDate.toLowerCase();
+          case "total":
+            return row.amount;
+          case "status":
+            return row.status.toLowerCase();
+        }
+      };
+      const cmp = compareValues(sortValue(a), sortValue(b), sortDir);
+      if (cmp !== 0) return cmp;
+      return a.number.localeCompare(b.number);
+    });
+  }, [rows, sortDir, sortKey]);
+
+  function toggleSort(key: QuoteColumnId) {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir("asc");
+  }
+
+  function renderCell(row: CustomerQuoteRow, columnId: QuoteColumnId) {
+    switch (columnId) {
+      case "number":
+        return (
+          <HighlightText text={row.number} query={query} className="font-medium" />
+        );
+      case "customer":
+        return (
+          <HighlightText
+            text={customerName(row.customerId)}
+            query={query}
+            className="truncate"
+          />
+        );
+      case "created":
+        return <HighlightText text={row.dateCreated} query={query} />;
+      case "expiry":
+        return <HighlightText text={row.expiryDate} query={query} />;
+      case "total":
+        return <MoneyCell amount={row.amount} variant="total" query={query} />;
+      case "status":
+        return <StatusBadge status={row.status} query={query} />;
+    }
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-max">
+        <div
+          className={DIRECTORY_HEADER_ROW}
+          style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+        >
+          {visibleColumns.map((column, index) => (
+            <DirectoryColumnHeader
+              key={column.id}
+              label={column.label}
+              isLast={index === visibleColumns.length - 1}
+              onDragStart={() => onHeaderDragStart(column.id)}
+              onDrop={() => onHeaderDrop(column.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setContextMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  columnId: column.id,
+                });
+              }}
+              onResizeStart={(clientX) => startResize(column.id, clientX)}
+            >
+              <SortHeaderButton
+                label={column.label}
+                active={sortKey === column.id}
+                dir={sortDir}
+                onClick={() => toggleSort(column.id)}
+              />
+            </DirectoryColumnHeader>
+          ))}
+        </div>
+
+        {sortedRows.length > 0 ? (
+          <ul>
+            {sortedRows.map((quote, index) => (
+              <li key={quote.id}>
+                <Link
+                  href={hrefForCustomerQuote(quote.status)}
+                  className={`${DIRECTORY_BODY_ROW} ${
+                    index < sortedRows.length - 1 ? "border-b border-black/10" : ""
+                  }`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns,
+                    gap: "1rem",
+                    alignItems: "center",
+                  }}
+                >
+                  {visibleColumns.map((column) => (
+                    <div
+                      key={column.id}
+                      style={{
+                        width: columnWidths[column.id] ?? column.defaultWidth,
+                        minWidth: 0,
+                      }}
+                    >
+                      {renderCell(quote, column.id)}
+                    </div>
+                  ))}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            label="No quotes match your filters."
+            href="/quote"
+            cta="Create Quote"
+          />
+        )}
+      </div>
+
+      <ColumnContextMenu
+        menuRef={contextMenuRef}
+        contextMenu={contextMenu}
+        columnLabel={
+          QUOTE_COLUMNS.find((c) => c.id === contextMenu?.columnId)?.label ?? ""
+        }
+        canHide={Boolean(
+          contextMenu &&
+            QUOTE_COLUMNS.find((c) => c.id === contextMenu.columnId)
+              ?.hideable !== false,
+        )}
+        hiddenHideable={hiddenHideable}
+        onHide={() => contextMenu && hideColumn(contextMenu.columnId)}
+        onShow={(id) => showColumn(id as QuoteColumnId)}
+        onShowAll={showAllColumns}
+        onClose={() => setContextMenu(null)}
+      />
     </div>
   );
 }

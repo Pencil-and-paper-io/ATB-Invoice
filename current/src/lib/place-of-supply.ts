@@ -19,16 +19,18 @@ export type GstRegistrationStatus =
 export const GST_REGISTRATION_OPTIONS: {
   value: GstRegistrationStatus;
   label: string;
+  tip?: string;
 }[] = [
   {
     value: "small_supplier",
     label:
       "I have not earned $30,000 yet and do not need a GST/HST number",
+    tip: "The $30,000 threshold is calculated on taxable revenue over 4 consecutive quarters. Some goods/services are tax exempt, such as health care, child care, education or housing. Check CRA for details.",
   },
   {
     value: "pending_number",
     label:
-      "I have earned $30,000 or more but do not have my GST/HST number yet",
+      "I have earned $30,000 or more but don't have my GST/HST number right now",
   },
   {
     value: "registered",
@@ -183,7 +185,7 @@ export const TAX_CATEGORY_CHIPS: TaxCategoryChip[] = [
     id: "exempt",
     label: "Exempt",
     optionLabel: "Tax Exempt",
-    hint: "GST/HST does not apply — leave tax blank/N/A (not $0.00). Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
+    hint: "GST/HST does not apply. Examples: most healthcare & dental, educational services, child care for ages 14 and under, financial services, long-term residential rent.",
   },
   {
     id: "out-of-scope",

@@ -11,7 +11,7 @@ import {
 } from "react";
 import {
   customers,
-  formatMoney,
+  getAllCustomers,
   getCustomerAccountSummary,
   isCustomerArchived,
   unarchiveCustomer,
@@ -22,6 +22,16 @@ import {
   loadCustomerTags,
 } from "@/lib/customer-tags";
 import { TopNav } from "@/components/invoice/TopNav";
+import {
+  DirectoryColumnHeader,
+  DirectoryToolbar,
+  DIRECTORY_BODY_ROW,
+  DIRECTORY_HEADER_ROW,
+  MoneyCell,
+  SearchField,
+  SortHeaderButton,
+} from "@/components/invoice/directory-table";
+import { CreatePlusIcon } from "@/components/invoice/ui";
 import { useDismissOnOutsideClick } from "@/components/invoice/useDismissOnOutsideClick";
 import { UI_CLASS } from "@/lib/design-tokens";
 
@@ -31,18 +41,17 @@ type SortKey =
   | "totalInvoiced"
   | "paid"
   | "outstanding"
-  | "tags"
   | "actions";
 type SortDir = "asc" | "desc";
 type DirectoryTab = "active" | "archived";
-type ColumnId = SortKey;
+type ColumnId = SortKey | "tags";
 
 type ColumnDef = {
   id: ColumnId;
   label: string;
   minWidth: number;
   defaultWidth: number;
-  sortable: SortKey;
+  sortable: SortKey | null;
   hideable: boolean;
   archivedOnly?: boolean;
 };
@@ -66,7 +75,7 @@ const COLUMN_DEFS: ColumnDef[] = [
   },
   {
     id: "totalInvoiced",
-    label: "Total Invoiced",
+    label: "Total",
     minWidth: 110,
     defaultWidth: 140,
     sortable: "totalInvoiced",
@@ -93,7 +102,7 @@ const COLUMN_DEFS: ColumnDef[] = [
     label: "Tags",
     minWidth: 120,
     defaultWidth: 180,
-    sortable: "tags",
+    sortable: null,
     hideable: true,
   },
   {
@@ -115,40 +124,6 @@ const COLUMN_STORAGE_KEY = "atb-customer-directory-columns";
 
 type DraftTag = { id: string; name: string };
 
-function SortHeader({
-  label,
-  active,
-  dir,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-left transition hover:text-black/70"
-    >
-      {label}
-      <svg width="8" height="10" viewBox="0 0 8 10" fill="none" aria-hidden>
-        <path
-          d="M4 1 7 4H1L4 1Z"
-          fill="currentColor"
-          opacity={active && dir === "asc" ? 0.85 : 0.35}
-        />
-        <path
-          d="M4 9 1 6h6L4 9Z"
-          fill="currentColor"
-          opacity={active && dir === "desc" ? 0.85 : 0.35}
-        />
-      </svg>
-    </button>
-  );
-}
-
 function sortValue(customer: Customer, key: SortKey): string | number {
   switch (key) {
     case "name":
@@ -160,8 +135,6 @@ function sortValue(customer: Customer, key: SortKey): string | number {
       const summary = getCustomerAccountSummary(customer.id);
       return summary[key];
     }
-    case "tags":
-      return customer.tags.join(", ").toLowerCase();
     case "actions":
       return customer.name.toLowerCase();
   }
@@ -270,10 +243,14 @@ export default function CustomersDirectoryPage() {
     null,
   );
   const [archivedIds, setArchivedIds] = useState<string[]>([]);
+  const [directoryCustomers, setDirectoryCustomers] = useState<Customer[]>(() => [
+    ...customers,
+  ]);
   const [columnOrder, setColumnOrder] = useState<ColumnId[]>(DEFAULT_ORDER);
   const [columnWidths, setColumnWidths] =
     useState<Record<ColumnId, number>>(DEFAULT_WIDTHS);
   const [hiddenColumns, setHiddenColumns] = useState<ColumnId[]>([]);
+  const [columnsHydrated, setColumnsHydrated] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -314,8 +291,10 @@ export default function CustomersDirectoryPage() {
 
   useEffect(() => {
     window.setTimeout(() => {
+      const all = getAllCustomers();
+      setDirectoryCustomers(all);
       setArchivedIds(
-        customers
+        all
           .map((customer) => customer.id)
           .filter((id) => isCustomerArchived(id)),
       );
@@ -326,6 +305,7 @@ export default function CustomersDirectoryPage() {
       setColumnOrder(prefs.order);
       setColumnWidths(prefs.widths);
       setHiddenColumns(prefs.hidden);
+      setColumnsHydrated(true);
     }, 0);
   }, []);
 
@@ -352,7 +332,7 @@ export default function CustomersDirectoryPage() {
   }, [tagFilterOpen]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!columnsHydrated || typeof window === "undefined") return;
     localStorage.setItem(
       COLUMN_STORAGE_KEY,
       JSON.stringify({
@@ -361,7 +341,7 @@ export default function CustomersDirectoryPage() {
         hidden: hiddenColumns,
       }),
     );
-  }, [columnOrder, columnWidths, hiddenColumns]);
+  }, [columnOrder, columnWidths, hiddenColumns, columnsHydrated]);
 
   useEffect(() => {
     function onMove(event: MouseEvent) {
@@ -408,7 +388,7 @@ export default function CustomersDirectoryPage() {
   const filteredSortedCustomers = useMemo(() => {
     const selected = new Set(selectedTags);
     const archived = new Set(archivedIds);
-    const filtered = customers.filter((customer) => {
+    const filtered = directoryCustomers.filter((customer) => {
       const isArchived = archived.has(customer.id);
       if (tab === "active" && isArchived) return false;
       if (tab === "archived" && !isArchived) return false;
@@ -426,6 +406,7 @@ export default function CustomersDirectoryPage() {
       return a.name.localeCompare(b.name);
     });
   }, [
+    directoryCustomers,
     sortKey,
     sortDir,
     selectedTags,
@@ -588,21 +569,23 @@ export default function CustomersDirectoryPage() {
         );
       case "totalInvoiced":
         return (
-          <span className="tabular-nums text-black/70">
-            {formatMoney(summary.totalInvoiced)}
-          </span>
+          <MoneyCell
+            amount={summary.totalInvoiced}
+            variant="total"
+            query={searchQuery}
+          />
         );
       case "paid":
         return (
-          <span className="tabular-nums text-[#1B7A4E]">
-            {formatMoney(summary.paid)}
-          </span>
+          <MoneyCell amount={summary.paid} variant="paid" query={searchQuery} />
         );
       case "outstanding":
         return (
-          <span className="tabular-nums text-status-danger">
-            {formatMoney(summary.outstanding)}
-          </span>
+          <MoneyCell
+            amount={summary.outstanding}
+            variant="outstanding"
+            query={searchQuery}
+          />
         );
       case "tags":
         return (
@@ -653,101 +636,75 @@ export default function CustomersDirectoryPage() {
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="type-headline-2 text-midnight-ink">Customers</h1>
-            <p className="mt-2 type-body-muted">
+            <p className="mt-2 type-subtitle-1 text-black/55">
               Customer directory for invoicing and quoting.
             </p>
           </div>
           <Link
             href="/customers/new"
-            className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center px-5`}
+            className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
           >
-            + Create New Customer
+            <CreatePlusIcon />
+            Create New Customer
           </Link>
         </div>
 
-        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div
-            className="inline-flex rounded-lg border border-black/10 bg-white p-1"
-            role="tablist"
-            aria-label="Customer directory tabs"
-          >
-            {(
-              [
-                ["active", "Active"],
-                ["archived", "Archived"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setTab(id)}
-                className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-                  tab === id
-                    ? "bg-midnight-ink text-white"
-                    : "text-black/55 hover:text-black"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative w-full max-w-md">
-            <label htmlFor="customer-search" className="sr-only">
-              Search customers
-            </label>
-            <svg
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/40"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden
+        <DirectoryToolbar
+          tabs={
+            <div
+              className="inline-flex rounded-lg border border-black/10 bg-white p-1"
+              role="tablist"
+              aria-label="Customer directory tabs"
             >
-              <circle
-                cx="7"
-                cy="7"
-                r="5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-              <path
-                d="M11 11 14 14"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            <input
-              id="customer-search"
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search Legal Name, Email, Or Tags"
-              className={`${UI_CLASS.input} pl-9`}
-            />
-          </div>
-        </div>
+              {(
+                [
+                  ["active", "Active"],
+                  ["archived", "Archived"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => setTab(id)}
+                  className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
+                    tab === id
+                      ? "bg-midnight-ink text-white"
+                      : "text-black/55 hover:text-black"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          <SearchField
+            id="customer-search"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search Legal Name, Email, Or Tags"
+            label="Search customers"
+          />
+        </DirectoryToolbar>
 
         <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
           <div className="min-w-max">
             <div
-              className="border-b border-black/10 bg-black/[0.02] px-5 py-3 text-xs font-semibold text-black/55"
+              className={DIRECTORY_HEADER_ROW}
               style={{
                 display: "grid",
                 gridTemplateColumns,
-                gap: "0.75rem",
+                gap: "1rem",
               }}
             >
-              {visibleColumns.map((column) => (
-                <div
+              {visibleColumns.map((column, index) => (
+                <DirectoryColumnHeader
                   key={column.id}
-                  className="relative select-none"
-                  draggable
+                  label={column.label}
+                  isLast={index === visibleColumns.length - 1}
                   onDragStart={() => onHeaderDragStart(column.id)}
-                  onDragOver={(event) => event.preventDefault()}
                   onDrop={() => onHeaderDrop(column.id)}
                   onContextMenu={(event) => {
                     event.preventDefault();
@@ -757,15 +714,18 @@ export default function CustomersDirectoryPage() {
                       columnId: column.id,
                     });
                   }}
+                  onResizeStart={(clientX) => {
+                    resizeRef.current = {
+                      columnId: column.id,
+                      startX: clientX,
+                      startWidth:
+                        columnWidths[column.id] ?? column.defaultWidth,
+                    };
+                  }}
                 >
                   {column.id === "tags" ? (
                     <div className="inline-flex items-center gap-1.5">
-                      <SortHeader
-                        label={column.label}
-                        active={sortKey === column.sortable}
-                        dir={sortDir}
-                        onClick={() => toggleSort(column.sortable)}
-                      />
+                      <span>{column.label}</span>
                       <button
                         ref={tagButtonRef}
                         type="button"
@@ -798,30 +758,17 @@ export default function CustomersDirectoryPage() {
                         </svg>
                       </button>
                     </div>
-                  ) : (
-                    <SortHeader
+                  ) : column.sortable ? (
+                    <SortHeaderButton
                       label={column.label}
                       active={sortKey === column.sortable}
                       dir={sortDir}
-                      onClick={() => toggleSort(column.sortable)}
+                      onClick={() => toggleSort(column.sortable!)}
                     />
+                  ) : (
+                    <span>{column.label}</span>
                   )}
-                  <button
-                    type="button"
-                    aria-label={`Resize ${column.label} column`}
-                    className="absolute -right-2 top-0 z-10 h-full w-3 cursor-col-resize"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      resizeRef.current = {
-                        columnId: column.id,
-                        startX: event.clientX,
-                        startWidth:
-                          columnWidths[column.id] ?? column.defaultWidth,
-                      };
-                    }}
-                  />
-                </div>
+                </DirectoryColumnHeader>
               ))}
             </div>
 
@@ -830,7 +777,7 @@ export default function CustomersDirectoryPage() {
                 filteredSortedCustomers.map((customer, index) => (
                   <li key={customer.id}>
                     <div
-                      className={`px-5 py-3.5 text-sm transition hover:bg-prime-blue/5 ${
+                      className={`${DIRECTORY_BODY_ROW} ${
                         index < filteredSortedCustomers.length - 1
                           ? "border-b border-black/10"
                           : ""
@@ -838,7 +785,7 @@ export default function CustomersDirectoryPage() {
                       style={{
                         display: "grid",
                         gridTemplateColumns,
-                        gap: "0.75rem",
+                        gap: "1rem",
                         alignItems: "center",
                       }}
                     >

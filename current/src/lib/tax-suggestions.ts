@@ -41,9 +41,9 @@ export const TAX_SETTING_OPTIONS: {
     value: "Tax-exempt",
     label: "Tax-exempt",
     orgDetails:
-      "Choose this if GST/HST does not apply to what you sell — show tax as blank/N/A (not $0.00). Common exempt vendors include most healthcare and dental practices, many educational providers, child care for ages 14 and under, most financial services, and long-term residential landlords. If you’re unsure, check CRA guidance or your accountant.",
+      "Choose this if GST/HST does not apply to what you sell. Common exempt vendors include most healthcare and dental practices, many educational providers, child care for ages 14 and under, most financial services, and long-term residential landlords. If you’re unsure, check CRA guidance or your accountant.",
     customerDetails:
-      "GST/HST does not apply — show tax as blank/N/A (not $0.00). Common examples include healthcare and dental, education, child care for ages 14 and under, financial services, and long-term residential rent.",
+      "GST/HST does not apply. Common examples include healthcare and dental, education, child care for ages 14 and under, financial services, and long-term residential rent.",
   },
 ];
 

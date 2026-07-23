@@ -13,7 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import {
   archiveCustomer,
-  customers,
+  findCustomer,
   formatMoney,
   getCustomerAccountSummary,
   getCustomerDocumentLifecycle,
@@ -24,6 +24,7 @@ import {
   isCustomerArchived,
   unarchiveCustomer,
 } from "@/lib/invoice-demo-data";
+import { CreateCustomerModal } from "./CreateCustomerModal";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
@@ -55,7 +56,7 @@ import {
 import { TopNav } from "./TopNav";
 import { TaxSuggestionsEditor } from "./TaxSuggestionsEditor";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
+import { CreatePlusIcon, EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 
@@ -660,7 +661,7 @@ function AddressFields({
 function formFromCustomerId(id: string | null): CustomerFormState {
   const base = emptyCustomerForm(getCustomerCascadeDefaults());
   if (!id) return base;
-  const customer = customers.find((entry) => entry.id === id);
+  const customer = findCustomer(id);
   if (!customer) return base;
 
   const addressParts = customer.address.split(",");
@@ -751,11 +752,6 @@ function CustomerFormInner() {
     customerId ? "Account Summary" : "Customer Settings",
   );
   const [documentTab, setDocumentTab] = useState<DocumentTab>("Quotes");
-  const [createDraft, setCreateDraft] = useState({
-    businessName: "",
-    email: "",
-    province: "",
-  });
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [lifecycleConfirm, setLifecycleConfirm] = useState<
     "delete" | "archive" | null
@@ -781,7 +777,6 @@ function CustomerFormInner() {
       setEditing(null);
       setCustomerCreated(Boolean(customerId));
       setTab(customerId ? "Account Summary" : "Customer Settings");
-      setCreateDraft({ businessName: "", email: "", province: "" });
       setArchived(isCustomerArchived(customerId));
       setLifecycleConfirm(null);
       setTagOptions(loadCustomerTags());
@@ -860,32 +855,6 @@ function CustomerFormInner() {
     });
   }
 
-  function saveCreateModal() {
-    const name = createDraft.businessName.trim();
-    if (!name) return;
-    if (createDraft.email.trim() && !isValidEmail(createDraft.email)) return;
-
-    const province = createDraft.province.trim();
-    const taxCascade = suggestCustomerTaxCascade(province);
-
-    const next: CustomerFormState = {
-      ...saved,
-      businessName: name,
-      email: createDraft.email.trim(),
-      phone: "",
-      province,
-      shippingProvince: isCanadianProvince(province) ? province : "",
-      currency: LOCKED_CURRENCY,
-      taxStatus: taxCascade.taxStatus,
-      taxSuggestions: { ...taxCascade.suggestions },
-    };
-    setSaved(next);
-    setDraft(next);
-    setCustomerCreated(true);
-    setTab("Customer Settings");
-    setEditing(null);
-  }
-
   function cancelCreateModal() {
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
@@ -893,11 +862,6 @@ function CustomerFormInner() {
     }
     router.push("/customers");
   }
-
-  const createEmailValid =
-    !createDraft.email.trim() || isValidEmail(createDraft.email);
-  const createNameValid = createDraft.businessName.trim().length > 0;
-  const createCanSave = createNameValid && createEmailValid;
 
   const businessEmpty =
     !saved.businessName && !saved.email && !saved.phone;
@@ -1052,6 +1016,7 @@ function CustomerFormInner() {
                 aria-haspopup="menu"
                 aria-expanded={createMenuOpen}
               >
+                <CreatePlusIcon />
                 Create New
                 <svg
                   width="11"
@@ -1273,8 +1238,9 @@ function CustomerFormInner() {
                         <button
                           type="button"
                           onClick={() => router.push("/quote")}
-                          className="type-link mt-3 text-sm font-semibold text-prime-blue"
+                          className={`${UI_CLASS.btnPrimary} mt-3 inline-flex h-11 items-center gap-2 px-5`}
                         >
+                          <CreatePlusIcon />
                           Create Quote
                         </button>
                       </div>
@@ -1339,8 +1305,9 @@ function CustomerFormInner() {
                         <button
                           type="button"
                           onClick={() => router.push("/")}
-                          className="type-link mt-3 text-sm font-semibold text-prime-blue"
+                          className={`${UI_CLASS.btnPrimary} mt-3 inline-flex h-11 items-center gap-2 px-5`}
                         >
+                          <CreatePlusIcon />
                           Create Invoice
                         </button>
                       </div>
@@ -2173,79 +2140,13 @@ function CustomerFormInner() {
       </main>
 
       {showCreateModal ? (
-        <Modal
-          title="Create New Customer"
-          titleId="create-customer-title"
+        <CreateCustomerModal
           onClose={cancelCreateModal}
-          closeOnBackdrop={false}
-          zClass="z-[220]"
-          maxWidthClass="max-w-xl"
-          confirmLabel="Save"
-          onConfirm={saveCreateModal}
-          confirmDisabled={!createCanSave}
-        >
-          <div className="flex flex-col gap-4">
-            <div>
-              <FieldLabel
-                htmlFor="create-business-name"
-                tip={LEGAL_NAME_TIP}
-              >
-                {FIELD.businessLegalName}{" "}
-                <span className="type-danger">*</span>
-              </FieldLabel>
-              <input
-                id="create-business-name"
-                className={inputClass}
-                value={createDraft.businessName}
-                onChange={(event) =>
-                  setCreateDraft((prev) => ({
-                    ...prev,
-                    businessName: event.target.value,
-                  }))
-                }
-                autoFocus
-              />
-            </div>
-            <div>
-              <FieldLabel htmlFor="create-email">
-                {FIELD.businessEmail}
-              </FieldLabel>
-              <input
-                id="create-email"
-                type="email"
-                className={inputClass}
-                value={createDraft.email}
-                onChange={(event) =>
-                  setCreateDraft((prev) => ({
-                    ...prev,
-                    email: event.target.value,
-                  }))
-                }
-              />
-              {!createEmailValid ? (
-                <p className="type-danger mt-1.5">
-                  Enter a valid email address.
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <FieldLabel tip="Used for billing address and tax suggestions (GST/HST place of supply).">
-                {FIELD.province}
-              </FieldLabel>
-              <SelectField
-                ariaLabel={FIELD.province}
-                value={createDraft.province}
-                options={CA_LOCATION_OPTIONS}
-                onChange={(value) =>
-                  setCreateDraft((prev) => ({
-                    ...prev,
-                    province: value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-        </Modal>
+          onCreated={(customer) => {
+            setCustomerCreated(true);
+            router.replace(`/customers/new?id=${customer.id}`);
+          }}
+        />
       ) : null}
 
       {lifecycleConfirm === "delete" ? (
