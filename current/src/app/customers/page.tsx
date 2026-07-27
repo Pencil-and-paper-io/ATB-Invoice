@@ -857,6 +857,13 @@ export default function CustomersDirectoryPage() {
                       active={sortKey === column.sortable}
                       dir={sortDir}
                       onClick={() => toggleSort(column.sortable!)}
+                      align={
+                        column.id === "totalInvoiced" ||
+                        column.id === "paid" ||
+                        column.id === "outstanding"
+                          ? "right"
+                          : "left"
+                      }
                     />
                   ) : (
                     <span>{column.label}</span>

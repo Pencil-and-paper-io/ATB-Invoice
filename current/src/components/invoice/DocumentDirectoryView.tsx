@@ -42,10 +42,13 @@ import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import {
   ColumnContextMenu,
   DirectoryColumnHeader,
+  DirectoryPagination,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
-  DIRECTORY_HEADER_ROW,
+  DIRECTORY_HEADER_ROW_STICKY,
+  DIRECTORY_PAGE_SIZE,
   MoneyCell,
+  DateCell,
   SearchField,
   SortHeaderButton,
   useDirectoryColumns,
@@ -110,23 +113,23 @@ type QuoteColumnId =
   | "status";
 
 const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
-  { id: "number", label: "Invoice #", minWidth: 100, defaultWidth: 120 },
-  { id: "status", label: "Status", minWidth: 110, defaultWidth: 140 },
-  { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
-  { id: "issued", label: "Issued", minWidth: 100, defaultWidth: 120 },
-  { id: "due", label: "Due", minWidth: 100, defaultWidth: 120 },
-  { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
-  { id: "paid", label: "Paid", minWidth: 90, defaultWidth: 110 },
-  { id: "outstanding", label: "Outstanding", minWidth: 110, defaultWidth: 130 },
+  { id: "number", label: "Invoice #", minWidth: 88, defaultWidth: 100 },
+  { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
+  { id: "customer", label: "Customer", minWidth: 120, defaultWidth: 220 },
+  { id: "issued", label: "Issued", minWidth: 88, defaultWidth: 110 },
+  { id: "due", label: "Due", minWidth: 88, defaultWidth: 110 },
+  { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
+  { id: "paid", label: "Paid", minWidth: 80, defaultWidth: 100 },
+  { id: "outstanding", label: "Outstanding", minWidth: 96, defaultWidth: 120 },
 ];
 
 const QUOTE_COLUMNS: DirectoryColumnDef<QuoteColumnId>[] = [
-  { id: "number", label: "Quote #", minWidth: 100, defaultWidth: 120 },
-  { id: "status", label: "Status", minWidth: 110, defaultWidth: 130 },
-  { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
-  { id: "created", label: "Created", minWidth: 100, defaultWidth: 120 },
-  { id: "expiry", label: "Expiry", minWidth: 100, defaultWidth: 120 },
-  { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
+  { id: "number", label: "Quote #", minWidth: 88, defaultWidth: 100 },
+  { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
+  { id: "customer", label: "Customer", minWidth: 120, defaultWidth: 240 },
+  { id: "created", label: "Created", minWidth: 88, defaultWidth: 110 },
+  { id: "expiry", label: "Expiry", minWidth: 88, defaultWidth: 110 },
+  { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
 ];
 
 /** Soft fill status chips (no outline). */
@@ -264,6 +267,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
 
   const isInvoices = kind === "invoices";
   const title = isInvoices ? "Invoices" : "Quotes";
@@ -297,11 +301,13 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
 
   function applyInvoiceFilters(next: InvoiceDirectoryFilters) {
     setInvoiceFilters(next);
+    setPage(1);
     syncStatusToUrl(next.status);
   }
 
   function applyQuoteFilters(next: QuoteDirectoryFilters) {
     setQuoteFilters(next);
+    setPage(1);
     syncStatusToUrl(next.status);
   }
 
@@ -371,6 +377,28 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     });
   }, [query, quoteFilters]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query, kind, viewMode]);
+
+  const totalItems = isInvoices ? invoices.length : quotes.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / DIRECTORY_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pagedInvoices = useMemo(() => {
+    const start = (safePage - 1) * DIRECTORY_PAGE_SIZE;
+    return invoices.slice(start, start + DIRECTORY_PAGE_SIZE);
+  }, [invoices, safePage]);
+
+  const pagedQuotes = useMemo(() => {
+    const start = (safePage - 1) * DIRECTORY_PAGE_SIZE;
+    return quotes.slice(start, start + DIRECTORY_PAGE_SIZE);
+  }, [quotes, safePage]);
+
   const activeTags = isInvoices
     ? invoiceFilterTags(invoiceFilters, customerName)
     : quoteFilterTags(quoteFilters, customerName);
@@ -407,7 +435,10 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
             <SearchField
               id={`${kind}-search`}
               value={query}
-              onChange={setQuery}
+              onChange={(next) => {
+                setQuery(next);
+                setPage(1);
+              }}
               placeholder={
                 isInvoices
                   ? "Search invoices or customers…"
@@ -440,19 +471,25 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
 
         {viewMode === "card" ? (
           isInvoices ? (
-            <InvoiceCardGrid rows={invoices} query={query} />
+            <InvoiceCardGrid rows={pagedInvoices} query={query} />
           ) : (
-            <QuoteCardGrid rows={quotes} query={query} />
+            <QuoteCardGrid rows={pagedQuotes} query={query} />
           )
         ) : (
-          <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+          <div className="rounded-[10px] border border-black/10 bg-white">
             {isInvoices ? (
-              <InvoiceTable rows={invoices} query={query} />
+              <InvoiceTable rows={pagedInvoices} query={query} />
             ) : (
-              <QuoteTable rows={quotes} query={query} />
+              <QuoteTable rows={pagedQuotes} query={query} />
             )}
           </div>
         )}
+
+        <DirectoryPagination
+          page={safePage}
+          totalItems={totalItems}
+          onPageChange={setPage}
+        />
       </main>
 
       <DirectoryFilterPanel
@@ -512,11 +549,15 @@ function InvoiceCardGrid({
             <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               <div>
                 <dt className="text-xs text-black/45">Issued</dt>
-                <dd className="mt-0.5 text-black/75">{invoice.dateIssued}</dd>
+                <dd className="mt-0.5 text-black/75">
+                  <DateCell value={invoice.dateIssued} query={query} />
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-black/45">Due</dt>
-                <dd className="mt-0.5 text-black/75">{invoice.dueDate}</dd>
+                <dd className="mt-0.5 text-black/75">
+                  <DateCell value={invoice.dueDate} query={query} />
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-black/45">Total</dt>
@@ -585,11 +626,15 @@ function QuoteCardGrid({
             <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               <div>
                 <dt className="text-xs text-black/45">Created</dt>
-                <dd className="mt-0.5 text-black/75">{quote.dateCreated}</dd>
+                <dd className="mt-0.5 text-black/75">
+                  <DateCell value={quote.dateCreated} query={query} />
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-black/45">Expiry</dt>
-                <dd className="mt-0.5 text-black/75">{quote.expiryDate}</dd>
+                <dd className="mt-0.5 text-black/75">
+                  <DateCell value={quote.expiryDate} query={query} />
+                </dd>
               </div>
               <div className="col-span-2">
                 <dt className="text-xs text-black/45">Total</dt>
@@ -620,7 +665,6 @@ function InvoiceTable({
   const {
     visibleColumns,
     gridTemplateColumns,
-    columnWidths,
     contextMenu,
     setContextMenu,
     onHeaderDragStart,
@@ -630,7 +674,9 @@ function InvoiceTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-invoice-directory-columns-v2", columns);
+  } = useDirectoryColumns("atb-invoice-directory-columns-v3", columns, {
+    fluid: true,
+  });
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -686,13 +732,13 @@ function InvoiceTable({
           <HighlightText
             text={customerName(row.customerId)}
             query={query}
-            className="truncate"
+            className="block truncate"
           />
         );
       case "issued":
-        return <HighlightText text={row.dateIssued} query={query} />;
+        return <DateCell value={row.dateIssued} query={query} />;
       case "due":
-        return <HighlightText text={row.dueDate} query={query} />;
+        return <DateCell value={row.dueDate} query={query} />;
       case "total":
         return <MoneyCell amount={row.amount} variant="total" query={query} />;
       case "paid":
@@ -713,12 +759,12 @@ function InvoiceTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-max">
-        <div
-          className={DIRECTORY_HEADER_ROW}
-          style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
-        >
+    <>
+    <div className="w-full">
+      <div
+        className={DIRECTORY_HEADER_ROW_STICKY}
+        style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+      >
           {visibleColumns.map((column, index) => (
             <DirectoryColumnHeader
               key={column.id}
@@ -741,10 +787,17 @@ function InvoiceTable({
                 active={sortKey === column.id}
                 dir={sortDir}
                 onClick={() => toggleSort(column.id)}
+                align={
+                  column.id === "total" ||
+                  column.id === "paid" ||
+                  column.id === "outstanding"
+                    ? "right"
+                    : "left"
+                }
               />
             </DirectoryColumnHeader>
           ))}
-        </div>
+      </div>
 
         {sortedRows.length > 0 ? (
           <ul>
@@ -763,13 +816,7 @@ function InvoiceTable({
                   }}
                 >
                   {visibleColumns.map((column) => (
-                    <div
-                      key={column.id}
-                      style={{
-                        width: columnWidths[column.id] ?? column.defaultWidth,
-                        minWidth: 0,
-                      }}
-                    >
+                    <div key={column.id} className="min-w-0 overflow-hidden">
                       {renderCell(invoice, column.id)}
                     </div>
                   ))}
@@ -784,7 +831,7 @@ function InvoiceTable({
             cta="Create Invoice"
           />
         )}
-      </div>
+    </div>
 
       <ColumnContextMenu
         menuRef={contextMenuRef}
@@ -804,7 +851,7 @@ function InvoiceTable({
         onShowAll={showAllColumns}
         onClose={() => setContextMenu(null)}
       />
-    </div>
+  </>
   );
 }
 
@@ -823,7 +870,6 @@ function QuoteTable({
   const {
     visibleColumns,
     gridTemplateColumns,
-    columnWidths,
     contextMenu,
     setContextMenu,
     onHeaderDragStart,
@@ -833,7 +879,9 @@ function QuoteTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-quote-directory-columns-v2", columns);
+  } = useDirectoryColumns("atb-quote-directory-columns-v3", columns, {
+    fluid: true,
+  });
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -885,13 +933,13 @@ function QuoteTable({
           <HighlightText
             text={customerName(row.customerId)}
             query={query}
-            className="truncate"
+            className="block truncate"
           />
         );
       case "created":
-        return <HighlightText text={row.dateCreated} query={query} />;
+        return <DateCell value={row.dateCreated} query={query} />;
       case "expiry":
-        return <HighlightText text={row.expiryDate} query={query} />;
+        return <DateCell value={row.expiryDate} query={query} />;
       case "total":
         return <MoneyCell amount={row.amount} variant="total" query={query} />;
       case "status":
@@ -900,12 +948,12 @@ function QuoteTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-max">
-        <div
-          className={DIRECTORY_HEADER_ROW}
-          style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
-        >
+    <>
+    <div className="w-full">
+      <div
+        className={DIRECTORY_HEADER_ROW_STICKY}
+        style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+      >
           {visibleColumns.map((column, index) => (
             <DirectoryColumnHeader
               key={column.id}
@@ -928,10 +976,11 @@ function QuoteTable({
                 active={sortKey === column.id}
                 dir={sortDir}
                 onClick={() => toggleSort(column.id)}
+                align={column.id === "total" ? "right" : "left"}
               />
             </DirectoryColumnHeader>
           ))}
-        </div>
+      </div>
 
         {sortedRows.length > 0 ? (
           <ul>
@@ -950,13 +999,7 @@ function QuoteTable({
                   }}
                 >
                   {visibleColumns.map((column) => (
-                    <div
-                      key={column.id}
-                      style={{
-                        width: columnWidths[column.id] ?? column.defaultWidth,
-                        minWidth: 0,
-                      }}
-                    >
+                    <div key={column.id} className="min-w-0 overflow-hidden">
                       {renderCell(quote, column.id)}
                     </div>
                   ))}
@@ -971,7 +1014,7 @@ function QuoteTable({
             cta="Create Quote"
           />
         )}
-      </div>
+    </div>
 
       <ColumnContextMenu
         menuRef={contextMenuRef}
@@ -990,6 +1033,6 @@ function QuoteTable({
         onShowAll={showAllColumns}
         onClose={() => setContextMenu(null)}
       />
-    </div>
+    </>
   );
 }

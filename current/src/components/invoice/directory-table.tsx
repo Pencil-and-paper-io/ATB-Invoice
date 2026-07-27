@@ -21,10 +21,10 @@ export type DirectoryColumnDef<Id extends string> = {
 };
 
 export const MONEY_CELL = {
-  total: "tabular-nums text-black/70",
-  paid: "tabular-nums text-[#1B7A4E]",
-  outstanding: "tabular-nums text-status-danger",
-  zero: "tabular-nums text-black/35",
+  total: "font-mono tabular-nums text-black/70",
+  paid: "font-mono tabular-nums text-[#1B7A4E]",
+  outstanding: "font-mono tabular-nums text-status-danger",
+  zero: "font-mono tabular-nums text-black/35",
 } as const;
 
 type MoneyVariant = "total" | "paid" | "outstanding";
@@ -45,18 +45,18 @@ export function MoneyCell({
   const formatted = formatMoney(amount);
   const q = query.trim();
   if (!q || !formatted.toLowerCase().includes(q.toLowerCase())) {
-    return <span className={toneClass}>{formatted}</span>;
+    return <span className={`block w-full text-right ${toneClass}`}>{formatted}</span>;
   }
 
   const lower = formatted.toLowerCase();
   const lowerQ = q.toLowerCase();
   const idx = lower.indexOf(lowerQ);
   if (idx < 0) {
-    return <span className={toneClass}>{formatted}</span>;
+    return <span className={`block w-full text-right ${toneClass}`}>{formatted}</span>;
   }
   const end = idx + q.length;
   return (
-    <span className={toneClass}>
+    <span className={`block w-full text-right ${toneClass}`}>
       {formatted.slice(0, idx)}
       <mark className="rounded-sm bg-sunshine-yellow/70 px-0.5 text-inherit">
         {formatted.slice(idx, end)}
@@ -64,6 +64,45 @@ export function MoneyCell({
       {formatted.slice(end)}
     </span>
   );
+}
+
+export function DateCell({
+  value,
+  query = "",
+  className = "",
+}: {
+  value: string;
+  query?: string;
+  className?: string;
+}) {
+  const display = formatDirectoryDate(value);
+  const q = query.trim();
+  let content: ReactNode = display;
+
+  if (q) {
+    const lowerDisplay = display.toLowerCase();
+    const lowerQ = q.toLowerCase();
+    const matchIdx = lowerDisplay.indexOf(lowerQ);
+    if (matchIdx >= 0) {
+      const end = matchIdx + q.length;
+      content = (
+        <>
+          {display.slice(0, matchIdx)}
+          <mark className="rounded-sm bg-sunshine-yellow/70 px-0.5 text-inherit">
+            {display.slice(matchIdx, end)}
+          </mark>
+          {display.slice(end)}
+        </>
+      );
+    }
+  }
+
+  return <span className={className}>{content}</span>;
+}
+
+/** Display dates like "Jul 2, '26" instead of "Jul 2, 2026". */
+export function formatDirectoryDate(value: string) {
+  return value.replace(/\b(?:19|20)(\d{2})\b/g, "'$1");
 }
 
 export function SearchField({
@@ -330,17 +369,21 @@ export function SortHeaderButton({
   active,
   dir,
   onClick,
+  align = "left",
 }: {
   label: string;
   active: boolean;
   dir: "asc" | "desc";
   onClick: () => void;
+  align?: "left" | "right";
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 text-left transition hover:text-black/70"
+      className={`inline-flex items-center gap-1 transition hover:text-black/70 ${
+        align === "right" ? "w-full justify-end text-right" : "text-left"
+      }`}
     >
       {label}
       <svg width="8" height="10" viewBox="0 0 8 10" fill="none" aria-hidden>
@@ -360,7 +403,11 @@ export function SortHeaderButton({
 }
 
 export const DIRECTORY_HEADER_ROW =
-  "border-b border-black/10 bg-black/[0.02] px-5 py-4 text-xs font-semibold text-black/55";
+  "border-b border-black/10 bg-[#FAFAFA] px-5 py-4 text-xs font-semibold text-black/55";
+
+/** Sticky under TopNav (60px). Use on invoice/quote directory tables. */
+export const DIRECTORY_HEADER_ROW_STICKY =
+  `${DIRECTORY_HEADER_ROW} sticky top-[60px] z-30`;
 export const DIRECTORY_BODY_ROW =
   "px-5 py-5 text-sm text-black transition hover:bg-prime-blue/5";
 
@@ -457,7 +504,9 @@ function loadColumnPrefs<Id extends string>(
 export function useDirectoryColumns<Id extends string>(
   storageKey: string,
   defs: DirectoryColumnDef<Id>[],
+  options?: { fluid?: boolean },
 ) {
+  const fluid = options?.fluid ?? false;
   const defaultOrder = useMemo(() => defs.map((column) => column.id), [defs]);
   const defaultWidths = useMemo(
     () =>
@@ -545,7 +594,10 @@ export function useDirectoryColumns<Id extends string>(
   );
 
   const gridTemplateColumns = visibleColumns
-    .map((column) => `${columnWidths[column.id] ?? column.defaultWidth}px`)
+    .map((column) => {
+      const weight = columnWidths[column.id] ?? column.defaultWidth;
+      return fluid ? `minmax(0, ${weight}fr)` : `${weight}px`;
+    })
     .join(" ");
 
   const onHeaderDragStart = useCallback((columnId: Id) => {
@@ -703,5 +755,140 @@ export function ColumnContextMenu({
         Close
       </button>
     </div>
+  );
+}
+
+export const DIRECTORY_PAGE_SIZE = 20;
+
+type PageItem = number | "ellipsis";
+
+/** Build a compact page list with ellipses (first/last always visible). */
+function buildPageItems(current: number, total: number): PageItem[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, total]);
+  for (let page = current - 1; page <= current + 1; page += 1) {
+    if (page >= 1 && page <= total) pages.add(page);
+  }
+  if (current <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+  if (current >= total - 2) {
+    pages.add(total - 3);
+    pages.add(total - 2);
+    pages.add(total - 1);
+  }
+
+  const sorted = Array.from(pages)
+    .filter((page) => page >= 1 && page <= total)
+    .sort((a, b) => a - b);
+
+  const items: PageItem[] = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const page = sorted[index];
+    if (index > 0 && page - sorted[index - 1] > 1) {
+      items.push("ellipsis");
+    }
+    items.push(page);
+  }
+  return items;
+}
+
+export function DirectoryPagination({
+  page,
+  pageSize = DIRECTORY_PAGE_SIZE,
+  totalItems,
+  onPageChange,
+}: {
+  page: number;
+  pageSize?: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalItems <= pageSize) return null;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, totalItems);
+  const pageItems = buildPageItems(safePage, totalPages);
+
+  return (
+    <nav
+      className="mt-6 grid grid-cols-1 items-center gap-3 sm:grid-cols-[1fr_auto_1fr]"
+      aria-label="Pagination"
+    >
+      <p className="text-sm text-black/55 sm:justify-self-start">
+        Showing{" "}
+        <span className="font-medium text-midnight-ink">
+          {start}–{end}
+        </span>{" "}
+        of{" "}
+        <span className="font-medium text-midnight-ink">{totalItems}</span>
+      </p>
+
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-self-center">
+        <button
+          type="button"
+          className="inline-flex h-9 items-center justify-center rounded-md border border-black/15 bg-white px-3 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={safePage <= 1}
+          onClick={() => onPageChange(safePage - 1)}
+          aria-label="Previous page"
+        >
+          Previous
+        </button>
+
+        <ul className="flex flex-wrap items-center justify-center gap-1.5">
+          {pageItems.map((item, index) => {
+            if (item === "ellipsis") {
+              return (
+                <li
+                  key={`ellipsis-${index}`}
+                  className="inline-flex h-9 min-w-9 items-center justify-center px-1 text-sm text-black/40"
+                  aria-hidden
+                >
+                  …
+                </li>
+              );
+            }
+
+            const isCurrent = item === safePage;
+            return (
+              <li key={item}>
+                <button
+                  type="button"
+                  onClick={() => onPageChange(item)}
+                  aria-label={`Page ${item}`}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2.5 text-sm font-semibold transition ${
+                    isCurrent
+                      ? "bg-prime-blue text-white"
+                      : "border border-black/15 bg-white text-midnight-ink hover:bg-black/[0.03]"
+                  }`}
+                >
+                  {item}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        <button
+          type="button"
+          className="inline-flex h-9 items-center justify-center rounded-md border border-black/15 bg-white px-3 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={safePage >= totalPages}
+          onClick={() => onPageChange(safePage + 1)}
+          aria-label="Next page"
+        >
+          Next
+        </button>
+      </div>
+
+      <span className="hidden sm:block" aria-hidden />
+    </nav>
   );
 }

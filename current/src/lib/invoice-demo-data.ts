@@ -456,7 +456,7 @@ export type CustomerQuoteRow = {
 };
 
 /** Demo invoices tied to customers for the customer profile page. */
-export const customerInvoices: CustomerInvoiceRow[] = [
+const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
   {
     id: "inv-acme-1",
     number: "3001",
@@ -537,8 +537,104 @@ export const customerInvoices: CustomerInvoiceRow[] = [
   },
 ];
 
+const DEMO_CUSTOMER_IDS = customers.map((customer) => customer.id);
+
+const EXTRA_INVOICE_STATUSES = [
+  "Draft",
+  "Sent",
+  "Viewed",
+  "Partially Paid",
+  "Paid",
+  "Overdue",
+  "Uncollectible",
+] as const;
+
+const EXTRA_QUOTE_STATUSES = [
+  "Draft",
+  "Sent",
+  "Viewed",
+  "Accepted",
+  "Rejected",
+  "Expired",
+] as const;
+
+const DEMO_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function demoDate(dayOffset: number, year = 2026) {
+  const start = Date.UTC(year, 0, 5);
+  const date = new Date(start + dayOffset * 24 * 60 * 60 * 1000);
+  const month = DEMO_MONTHS[date.getUTCMonth()];
+  return `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+
+function buildExtraInvoices(count: number): CustomerInvoiceRow[] {
+  const rows: CustomerInvoiceRow[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const status =
+      EXTRA_INVOICE_STATUSES[i % EXTRA_INVOICE_STATUSES.length];
+    const amount = Math.round((420 + (i % 17) * 185.25) * 100) / 100;
+    let balanceOutstanding = amount;
+    if (status === "Paid") balanceOutstanding = 0;
+    else if (status === "Partially Paid") {
+      balanceOutstanding = Math.round(amount * 0.45 * 100) / 100;
+    } else if (status === "Draft") {
+      balanceOutstanding = amount;
+    }
+    const issuedOffset = (i * 3) % 200;
+    rows.push({
+      id: `inv-extra-${i + 1}`,
+      number: String(3200 + i),
+      milestonePhase: i % 5 === 0 ? "Deposit" : i % 7 === 0 ? "Progress" : null,
+      dateIssued: demoDate(issuedOffset),
+      dueDate: demoDate(issuedOffset + 30),
+      amount,
+      balanceOutstanding,
+      status,
+      customerId: DEMO_CUSTOMER_IDS[i % DEMO_CUSTOMER_IDS.length],
+    });
+  }
+  return rows;
+}
+
+function buildExtraQuotes(count: number): CustomerQuoteRow[] {
+  const rows: CustomerQuoteRow[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const status = EXTRA_QUOTE_STATUSES[i % EXTRA_QUOTE_STATUSES.length];
+    const amount = Math.round((380 + (i % 19) * 162.5) * 100) / 100;
+    const createdOffset = (i * 4) % 210;
+    rows.push({
+      id: `quo-extra-${i + 1}`,
+      number: `Q-${220 + i}`,
+      dateCreated: demoDate(createdOffset),
+      expiryDate: demoDate(createdOffset + 30),
+      amount,
+      status,
+      customerId: DEMO_CUSTOMER_IDS[i % DEMO_CUSTOMER_IDS.length],
+    });
+  }
+  return rows;
+}
+
+export const customerInvoices: CustomerInvoiceRow[] = [
+  ...SEED_CUSTOMER_INVOICES,
+  ...buildExtraInvoices(48),
+];
+
 /** Demo quotes tied to customers for the customer profile page. */
-export const customerQuotes: CustomerQuoteRow[] = [
+const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
   {
     id: "quo-acme-1",
     number: "Q-104",
@@ -602,6 +698,11 @@ export const customerQuotes: CustomerQuoteRow[] = [
     status: "Draft",
     customerId: "beta",
   },
+];
+
+export const customerQuotes: CustomerQuoteRow[] = [
+  ...SEED_CUSTOMER_QUOTES,
+  ...buildExtraQuotes(48),
 ];
 
 export function getCustomerInvoices(customerId: string | null) {
