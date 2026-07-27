@@ -50,6 +50,7 @@ function automationsFromCascade(): DocumentAutomationsState {
     autoSend: cascade.autoSend,
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
+    reminderChannel: cascade.reminders ? "email" : null,
     receipts: cascade.receipts,
   };
 }

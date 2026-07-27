@@ -22,15 +22,22 @@ import {
   loadCustomerTags,
 } from "@/lib/customer-tags";
 import {
-  DEFAULT_DATE_RANGE,
-  dateInRange,
-  type DateRangeValue,
-} from "@/lib/directory-date-range";
+  clearCustomerFilterTag,
+  customerFilterCount,
+  customerFilterTags,
+  defaultCustomerFilters,
+  matchesAmount,
+  matchesCustomerTags,
+  type CustomerDirectoryFilters,
+} from "@/lib/directory-filters";
 import { TopNav } from "@/components/invoice/TopNav";
-import { DateRangeFilter } from "@/components/invoice/DateRangeFilter";
+import { DirectoryFilterPanel } from "@/components/invoice/DirectoryFilterPanel";
+import {
+  DirectoryFilterTags,
+  FilterIconButton,
+} from "@/components/invoice/DirectoryFilterTags";
 import {
   DirectoryColumnHeader,
-  DirectoryToolbar,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW,
@@ -241,12 +248,14 @@ export default function CustomersDirectoryPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<DirectoryTab>("active");
-  const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_DATE_RANGE);
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [customerFilters, setCustomerFilters] = useState<CustomerDirectoryFilters>(
+    () => defaultCustomerFilters(),
+  );
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [managingTags, setManagingTags] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [draftTags, setDraftTags] = useState<DraftTag[]>([]);
   const [tagRevision, setTagRevision] = useState(0);
   const [tagMenuPos, setTagMenuPos] = useState<{ top: number; left: number } | null>(
@@ -310,7 +319,6 @@ export default function CustomersDirectoryPage() {
       );
       const tags = loadCustomerTags();
       setAvailableTags(tags);
-      setSelectedTags(tags);
       const prefs = loadColumnPrefs();
       setColumnOrder(prefs.order);
       setColumnWidths(prefs.widths);
@@ -396,22 +404,26 @@ export default function CustomersDirectoryPage() {
     .join(" ");
 
   const filteredSortedCustomers = useMemo(() => {
-    const selected = new Set(selectedTags);
     const archived = new Set(archivedIds);
     const filtered = directoryCustomers.filter((customer) => {
       const isArchived = archived.has(customer.id);
       if (tab === "active" && isArchived) return false;
       if (tab === "archived" && !isArchived) return false;
-      if (selected.size === 0) return false;
       if (!customerMatchesQuery(customer, searchQuery)) return false;
-      if (
-        customer.dateCreated &&
-        !dateInRange(customer.dateCreated, dateRange)
-      ) {
+      if (!matchesCustomerTags(customer.tags, customerFilters.tags)) {
         return false;
       }
-      if (selected.size === availableTags.length) return true;
-      return customer.tags.some((tag) => selected.has(tag));
+      const summary = getCustomerAccountSummary(customer.id);
+      if (!matchesAmount(summary.totalInvoiced, customerFilters.total)) {
+        return false;
+      }
+      if (!matchesAmount(summary.outstanding, customerFilters.outstanding)) {
+        return false;
+      }
+      if (!matchesAmount(summary.paid, customerFilters.paid)) {
+        return false;
+      }
+      return true;
     });
 
     return [...filtered].sort((a, b) => {
@@ -425,13 +437,11 @@ export default function CustomersDirectoryPage() {
     directoryCustomers,
     sortKey,
     sortDir,
-    selectedTags,
-    availableTags.length,
+    customerFilters,
     archivedIds,
     searchQuery,
     tab,
     tagRevision,
-    dateRange,
   ]);
 
   function toggleSort(key: SortKey) {
@@ -443,15 +453,7 @@ export default function CustomersDirectoryPage() {
     setSortDir("asc");
   }
 
-  function toggleTag(tag: string) {
-    setSelectedTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((item) => item !== tag)
-        : [...prev, tag],
-    );
-  }
-
-  function openTagFilter() {
+  function openTagManager() {
     const button = tagButtonRef.current;
     if (button) {
       const rect = button.getBoundingClientRect();
@@ -460,44 +462,38 @@ export default function CustomersDirectoryPage() {
         left: Math.min(rect.left, window.innerWidth - 280),
       });
     }
-    setTagFilterOpen((prev) => {
-      if (prev) {
-        setManagingTags(false);
-        setDraftTags([]);
-      }
-      return !prev;
-    });
-  }
-
-  function startManagingTags() {
     setDraftTags(availableTags.map((tag) => ({ id: tag, name: tag })));
     setManagingTags(true);
+    setTagFilterOpen(true);
   }
 
   function cancelManagingTags() {
     setManagingTags(false);
     setDraftTags([]);
+    setTagFilterOpen(false);
   }
 
   function saveManagingTags() {
-    const previousSelected = new Set(selectedTags);
+    const previousFilterTags = new Set(customerFilters.tags);
     const next = applyCustomerTagEdits(draftTags);
     setAvailableTags(next);
-    setSelectedTags(
-      next.filter((tag) => {
+    setCustomerFilters((prev) => ({
+      ...prev,
+      tags: next.filter((tag) => {
         const draft = draftTags.find(
           (item) => item.name.trim() === tag || item.id === tag,
         );
-        if (!draft) return previousSelected.has(tag);
+        if (!draft) return previousFilterTags.has(tag);
         return (
-          previousSelected.has(draft.id) ||
-          previousSelected.has(draft.name.trim())
+          previousFilterTags.has(draft.id) ||
+          previousFilterTags.has(draft.name.trim())
         );
       }),
-    );
+    }));
     setTagRevision((value) => value + 1);
     setManagingTags(false);
     setDraftTags([]);
+    setTagFilterOpen(false);
   }
 
   function updateDraftTagName(id: string, name: string) {
@@ -558,10 +554,8 @@ export default function CustomersDirectoryPage() {
     [draggingColumn],
   );
 
-  const filterActive =
-    availableTags.length > 0 &&
-    (selectedTags.length !== availableTags.length ||
-      availableTags.some((tag) => !selectedTags.includes(tag)));
+  const activeTags = customerFilterTags(customerFilters);
+  const activeFilterCount = customerFilterCount(customerFilters);
   const hiddenHideable = COLUMN_DEFS.filter(
     (column) =>
       column.hideable &&
@@ -608,20 +602,14 @@ export default function CustomersDirectoryPage() {
         return (
           <span className="flex flex-wrap gap-1.5">
             {customer.tags.length ? (
-              customer.tags
-                .filter(
-                  (tag) =>
-                    selectedTags.length === availableTags.length ||
-                    selectedTags.includes(tag),
-                )
-                .map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
-                  >
-                    <HighlightText text={tag} query={searchQuery} />
-                  </span>
-                ))
+              customer.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
+                >
+                  <HighlightText text={tag} query={searchQuery} />
+                </span>
+              ))
             ) : (
               <span className="text-black/40">N/A</span>
             )}
@@ -666,52 +654,60 @@ export default function CustomersDirectoryPage() {
           </Link>
         </div>
 
-        <DirectoryToolbar
-          layout="inline"
-          secondaryFilters={
-            <DateRangeFilter value={dateRange} onChange={setDateRange} />
-          }
-          viewToggle={
-            <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
-          }
-          tabs={
-            <div
-              className="inline-flex rounded-lg border border-black/10 bg-white p-1"
-              role="tablist"
-              aria-label="Customer directory tabs"
-            >
-              {(
-                [
-                  ["active", "Active"],
-                  ["archived", "Archived"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === id}
-                  onClick={() => setTab(id)}
-                  className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
-                    tab === id
-                      ? "bg-midnight-ink text-white"
-                      : "text-black/55 hover:text-black"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          <SearchField
-            id="customer-search"
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search Legal Name, Email, Or Tags"
-            label="Search customers"
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div
+            className="inline-flex rounded-lg border border-black/10 bg-white p-1"
+            role="tablist"
+            aria-label="Customer directory tabs"
+          >
+            {(
+              [
+                ["active", "Active"],
+                ["archived", "Archived"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
+                  tab === id
+                    ? "bg-midnight-ink text-white"
+                    : "text-black/55 hover:text-black"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <SearchField
+              id="customer-search"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search Legal Name, Email, Or Tags"
+              label="Search customers"
+            />
+          </div>
+          <FilterIconButton
+            activeCount={activeFilterCount}
+            onClick={() => setFilterOpen(true)}
           />
-        </DirectoryToolbar>
+          <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+        </div>
+
+        <DirectoryFilterTags
+          tags={activeTags}
+          onRemove={(id) =>
+            setCustomerFilters((prev) => clearCustomerFilterTag(prev, id))
+          }
+          onClearAll={() => setCustomerFilters(defaultCustomerFilters())}
+        />
 
         {viewMode === "card" ? (
           filteredSortedCustomers.length ? (
@@ -789,11 +785,11 @@ export default function CustomersDirectoryPage() {
             </ul>
           ) : (
             <div className="rounded-xl border border-black/10 bg-white px-5 py-10 text-center text-sm text-black/45">
-              {searchQuery.trim()
-                ? "No customers match your search."
+              {searchQuery.trim() || activeFilterCount > 0
+                ? "No customers match your filters."
                 : tab === "archived"
                   ? "No archived customers."
-                  : "No customers match the selected tags."}
+                  : "No customers yet."}
             </div>
           )
         ) : (
@@ -839,31 +835,20 @@ export default function CustomersDirectoryPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openTagFilter();
+                          openTagManager();
                         }}
                         className={`inline-flex h-6 w-6 items-center justify-center rounded transition hover:bg-black/[0.04] ${
-                          filterActive || tagFilterOpen
+                          tagFilterOpen
                             ? "text-prime-blue"
                             : "text-black/45"
                         }`}
-                        aria-haspopup="listbox"
+                        aria-haspopup="dialog"
                         aria-expanded={tagFilterOpen}
-                        aria-label="Filter by tags"
+                        aria-label="Manage tags"
                       >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          aria-hidden
-                        >
-                          <path
-                            d="M2 3.5h12l-4.5 5.25V13l-3-1.5V8.75L2 3.5Z"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <span className="text-base leading-none" aria-hidden>
+                          ⚙
+                        </span>
                       </button>
                     </div>
                   ) : column.sortable ? (
@@ -917,11 +902,11 @@ export default function CustomersDirectoryPage() {
                 ))
               ) : (
                 <li className="px-5 py-10 text-center text-sm text-black/45">
-                  {searchQuery.trim()
-                    ? "No customers match your search."
+                  {searchQuery.trim() || activeFilterCount > 0
+                    ? "No customers match your filters."
                     : tab === "archived"
                       ? "No archived customers."
-                      : "No customers match the selected tags."}
+                      : "No customers yet."}
                 </li>
               )}
             </ul>
@@ -929,100 +914,71 @@ export default function CustomersDirectoryPage() {
         </div>
         )}
 
-        {tagFilterOpen && tagMenuPos ? (
+        {tagFilterOpen && tagMenuPos && managingTags ? (
           <div
             ref={tagMenuRef}
             className="fixed z-50 w-72 overflow-hidden rounded-lg border border-black/10 bg-white shadow-xl"
             style={{ top: tagMenuPos.top, left: tagMenuPos.left }}
-            role="listbox"
-            aria-label="Filter by tags"
+            role="dialog"
+            aria-label="Manage tags"
           >
-            {managingTags ? (
-              <>
-                <div className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-black/40">
-                  Manage Tags
-                </div>
-                <ul className="max-h-64 space-y-2 overflow-auto px-3 py-2">
-                  {draftTags.length === 0 ? (
-                    <li className="px-1 py-3 text-sm text-black/50">
-                      No tags left. Save to finish.
-                    </li>
-                  ) : (
-                    draftTags.map((tag) => (
-                      <li key={tag.id} className="flex items-center gap-2">
-                        <input
-                          className="min-w-0 flex-1 rounded border border-black/20 bg-input-grey px-2.5 py-2 text-sm font-normal normal-case text-midnight-ink outline-none transition focus:border-prime-blue"
-                          value={tag.name}
-                          onChange={(event) =>
-                            updateDraftTagName(tag.id, event.target.value)
-                          }
-                          aria-label={`Rename ${tag.id}`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => deleteDraftTag(tag.id)}
-                          className="shrink-0 px-1 text-sm font-semibold text-delete-red transition hover:opacity-80"
-                        >
-                          Delete
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
-                <div className="flex items-center justify-between gap-2 border-t border-black/10 p-3">
-                  <button
-                    type="button"
-                    onClick={cancelManagingTags}
-                    className="rounded px-2 py-1.5 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.04]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveManagingTags}
-                    className="rounded bg-prime-blue px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover"
-                  >
-                    Save
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-black/40">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Show Tags</span>
+            <div className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-black/40">
+              Manage Tags
+            </div>
+            <ul className="max-h-64 space-y-2 overflow-auto px-3 py-2">
+              {draftTags.length === 0 ? (
+                <li className="px-1 py-3 text-sm text-black/50">
+                  No tags left. Save to finish.
+                </li>
+              ) : (
+                draftTags.map((tag) => (
+                  <li key={tag.id} className="flex items-center gap-2">
+                    <input
+                      className="min-w-0 flex-1 rounded border border-black/20 bg-input-grey px-2.5 py-2 text-sm font-normal normal-case text-midnight-ink outline-none transition focus:border-prime-blue"
+                      value={tag.name}
+                      onChange={(event) =>
+                        updateDraftTagName(tag.id, event.target.value)
+                      }
+                      aria-label={`Rename ${tag.id}`}
+                    />
                     <button
                       type="button"
-                      onClick={startManagingTags}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded bg-transparent text-black/40 transition hover:text-prime-blue"
-                      aria-label="Manage tags"
+                      onClick={() => deleteDraftTag(tag.id)}
+                      className="shrink-0 px-1 text-sm font-semibold text-delete-red transition hover:opacity-80"
                     >
-                      <span className="text-lg leading-none">⚙</span>
+                      Delete
                     </button>
-                  </div>
-                </div>
-                <ul className="max-h-64 overflow-auto py-1">
-                  {availableTags.map((tag) => {
-                    const checked = selectedTags.includes(tag);
-                    return (
-                      <li key={tag}>
-                        <label className="flex cursor-pointer items-center gap-2.5 px-4 py-2.5 text-sm font-normal normal-case text-midnight-ink transition hover:bg-black/[0.04]">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleTag(tag)}
-                            className="h-4 w-4 rounded border-black/25 accent-prime-blue"
-                          />
-                          {tag}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="flex items-center justify-between gap-2 border-t border-black/10 p-3">
+              <button
+                type="button"
+                onClick={cancelManagingTags}
+                className="rounded px-2 py-1.5 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.04]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveManagingTags}
+                className="rounded bg-prime-blue px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover"
+              >
+                Save
+              </button>
+            </div>
           </div>
         ) : null}
+
+        <DirectoryFilterPanel
+          kind="customers"
+          open={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          customerFilters={customerFilters}
+          availableTags={availableTags}
+          onApplyCustomer={setCustomerFilters}
+        />
 
         {contextMenu ? (
           <div

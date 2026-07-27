@@ -9,7 +9,6 @@ import {
   ALBERTA_TAX_TOOLTIP,
   type TaxMode,
 } from "@/lib/alberta-tax";
-import { LOCKED_CURRENCY_BADGE } from "@/lib/canada";
 import {
   formatMoney,
   makeBlankLineItem,
@@ -624,9 +623,6 @@ function LineItemsTotals({
           </p>
           <span className="w-4 shrink-0" aria-hidden />
         </div>
-        <p className="pr-4 text-xs font-semibold text-black/50">
-          {LOCKED_CURRENCY_BADGE}
-        </p>
       </div>
     </>
   );

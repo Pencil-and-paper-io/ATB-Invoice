@@ -5,10 +5,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { exportInvoicesCsv, exportQuotesCsv } from "@/lib/csv-export";
 import {
-  DEFAULT_DATE_RANGE,
-  dateInRange,
-  type DateRangeValue,
-} from "@/lib/directory-date-range";
+  clearInvoiceFilterTag,
+  clearQuoteFilterTag,
+  defaultInvoiceFilters,
+  defaultQuoteFilters,
+  invoiceFilterCount,
+  invoiceFilterTags,
+  matchesAmount,
+  matchesInvoiceStatus,
+  matchesOptionalDate,
+  quoteFilterCount,
+  quoteFilterTags,
+  type InvoiceDirectoryFilters,
+  type InvoiceStatusOption,
+  type QuoteDirectoryFilters,
+  type QuoteStatusOption,
+} from "@/lib/directory-filters";
 import {
   customers,
   customerInvoices,
@@ -19,15 +31,17 @@ import {
   type CustomerInvoiceRow,
   type CustomerQuoteRow,
 } from "@/lib/invoice-demo-data";
-import { DateRangeFilter } from "./DateRangeFilter";
-import { StatusFilterDropdown } from "./StatusFilterDropdown";
+import { DirectoryFilterPanel } from "./DirectoryFilterPanel";
+import {
+  DirectoryFilterTags,
+  FilterIconButton,
+} from "./DirectoryFilterTags";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import {
   ColumnContextMenu,
   DirectoryColumnHeader,
-  DirectoryToolbar,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW,
@@ -43,59 +57,38 @@ import { UI_CLASS } from "@/lib/design-tokens";
 type DirectoryKind = "invoices" | "quotes";
 type SortDir = "asc" | "desc";
 
-const QUOTE_STATUS_TABS = [
-  "All",
-  "Draft",
-  "Sent",
-  "Viewed",
-  "Accepted",
-  "Rejected",
-  "Expired",
-] as const;
-
-const INVOICE_STATUS_TABS = [
-  "All",
-  "Outstanding",
-  "Draft",
-  "Sent",
-  "Viewed",
-  "Partially Paid",
-  "Paid",
-  "Overdue",
-  "Uncollectible",
-] as const;
-
-type QuoteStatusTab = (typeof QUOTE_STATUS_TABS)[number];
-type InvoiceStatusTab = (typeof INVOICE_STATUS_TABS)[number];
-
-function invoiceTabFromParam(value: string | null): InvoiceStatusTab {
+function invoiceStatusFromParam(value: string | null): InvoiceStatusOption {
   if (!value) return "All";
-  const match = INVOICE_STATUS_TABS.find(
-    (tab) => tab.toLowerCase() === value.toLowerCase(),
+  const options: InvoiceStatusOption[] = [
+    "All",
+    "Outstanding",
+    "Draft",
+    "Sent",
+    "Viewed",
+    "Partially Paid",
+    "Paid",
+    "Overdue",
+    "Uncollectible",
+  ];
+  return (
+    options.find((tab) => tab.toLowerCase() === value.toLowerCase()) ?? "All"
   );
-  return match ?? "All";
 }
 
-function quoteTabFromParam(value: string | null): QuoteStatusTab {
+function quoteStatusFromParam(value: string | null): QuoteStatusOption {
   if (!value) return "All";
-  const match = QUOTE_STATUS_TABS.find(
-    (tab) => tab.toLowerCase() === value.toLowerCase(),
+  const options: QuoteStatusOption[] = [
+    "All",
+    "Draft",
+    "Sent",
+    "Viewed",
+    "Accepted",
+    "Rejected",
+    "Expired",
+  ];
+  return (
+    options.find((tab) => tab.toLowerCase() === value.toLowerCase()) ?? "All"
   );
-  return match ?? "All";
-}
-
-function matchesInvoiceStatus(row: CustomerInvoiceRow, tab: InvoiceStatusTab) {
-  if (tab === "All") return true;
-  if (tab === "Outstanding") {
-    return (
-      row.balanceOutstanding > 0 &&
-      !/^(draft|paid|void|uncollectible)$/i.test(row.status)
-    );
-  }
-  if (tab === "Overdue") {
-    return /^overdue/i.test(row.status);
-  }
-  return row.status === tab;
 }
 
 type InvoiceColumnId =
@@ -262,15 +255,15 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const searchParams = useSearchParams();
   const statusParam = searchParams.get("status");
 
-  const [quoteTab, setQuoteTab] = useState<QuoteStatusTab>(() =>
-    quoteTabFromParam(statusParam),
+  const [invoiceFilters, setInvoiceFilters] = useState<InvoiceDirectoryFilters>(
+    () => defaultInvoiceFilters(invoiceStatusFromParam(statusParam)),
   );
-  const [invoiceTab, setInvoiceTab] = useState<InvoiceStatusTab>(() =>
-    invoiceTabFromParam(statusParam),
+  const [quoteFilters, setQuoteFilters] = useState<QuoteDirectoryFilters>(() =>
+    defaultQuoteFilters(quoteStatusFromParam(statusParam)),
   );
   const [query, setQuery] = useState("");
-  const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_DATE_RANGE);
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const isInvoices = kind === "invoices";
   const title = isInvoices ? "Invoices" : "Quotes";
@@ -282,33 +275,52 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
 
   useEffect(() => {
     if (isInvoices) {
-      setInvoiceTab(invoiceTabFromParam(statusParam));
+      setInvoiceFilters((prev) => ({
+        ...prev,
+        status: invoiceStatusFromParam(statusParam),
+      }));
     } else {
-      setQuoteTab(quoteTabFromParam(statusParam));
+      setQuoteFilters((prev) => ({
+        ...prev,
+        status: quoteStatusFromParam(statusParam),
+      }));
     }
   }, [isInvoices, statusParam]);
 
-  function setStatusTab(next: string) {
-    if (isInvoices) {
-      setInvoiceTab(next as InvoiceStatusTab);
-    } else {
-      setQuoteTab(next as QuoteStatusTab);
-    }
+  function syncStatusToUrl(next: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "All") {
-      params.delete("status");
-    } else {
-      params.set("status", next);
-    }
+    if (next === "All") params.delete("status");
+    else params.set("status", next);
     const queryString = params.toString();
     router.replace(queryString ? `?${queryString}` : "?", { scroll: false });
+  }
+
+  function applyInvoiceFilters(next: InvoiceDirectoryFilters) {
+    setInvoiceFilters(next);
+    syncStatusToUrl(next.status);
+  }
+
+  function applyQuoteFilters(next: QuoteDirectoryFilters) {
+    setQuoteFilters(next);
+    syncStatusToUrl(next.status);
   }
 
   const invoices = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customerInvoices.filter((row) => {
-      if (!matchesInvoiceStatus(row, invoiceTab)) return false;
-      if (!dateInRange(row.dateIssued, dateRange)) return false;
+      if (!matchesInvoiceStatus(row, invoiceFilters.status)) return false;
+      if (
+        invoiceFilters.customerId &&
+        row.customerId !== invoiceFilters.customerId
+      ) {
+        return false;
+      }
+      if (!matchesOptionalDate(row.dateIssued, invoiceFilters.issued)) return false;
+      if (!matchesOptionalDate(row.dueDate, invoiceFilters.due)) return false;
+      if (!matchesAmount(row.amount, invoiceFilters.total)) return false;
+      if (!matchesAmount(row.balanceOutstanding, invoiceFilters.outstanding)) {
+        return false;
+      }
       if (!q) return true;
       const name = customerName(row.customerId).toLowerCase();
       return (
@@ -322,13 +334,30 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.balanceOutstanding).toLowerCase().includes(q)
       );
     });
-  }, [query, invoiceTab, dateRange]);
+  }, [query, invoiceFilters]);
 
   const quotes = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customerQuotes.filter((row) => {
-      if (quoteTab !== "All" && row.status !== quoteTab) return false;
-      if (!dateInRange(row.dateCreated, dateRange)) return false;
+      if (
+        quoteFilters.status !== "All" &&
+        row.status !== quoteFilters.status
+      ) {
+        return false;
+      }
+      if (
+        quoteFilters.customerId &&
+        row.customerId !== quoteFilters.customerId
+      ) {
+        return false;
+      }
+      if (!matchesOptionalDate(row.dateCreated, quoteFilters.created)) {
+        return false;
+      }
+      if (!matchesOptionalDate(row.expiryDate, quoteFilters.expiry)) {
+        return false;
+      }
+      if (!matchesAmount(row.amount, quoteFilters.total)) return false;
       if (!q) return true;
       const name = customerName(row.customerId).toLowerCase();
       return (
@@ -340,7 +369,14 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.amount).toLowerCase().includes(q)
       );
     });
-  }, [query, quoteTab, dateRange]);
+  }, [query, quoteFilters]);
+
+  const activeTags = isInvoices
+    ? invoiceFilterTags(invoiceFilters, customerName)
+    : quoteFilterTags(quoteFilters, customerName);
+  const activeFilterCount = isInvoices
+    ? invoiceFilterCount(invoiceFilters, customerName)
+    : quoteFilterCount(quoteFilters, customerName);
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -356,11 +392,8 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
               type="button"
               className="ui-btn-secondary"
               onClick={() => {
-                if (isInvoices) {
-                  exportInvoicesCsv(invoices);
-                } else {
-                  exportQuotesCsv(quotes);
-                }
+                if (isInvoices) exportInvoicesCsv(invoices);
+                else exportQuotesCsv(quotes);
               }}
             >
               Export CSV
@@ -369,39 +402,41 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           </div>
         </div>
 
-        <DirectoryToolbar
-          layout="stacked"
-          secondaryFilters={
-            <>
-              <StatusFilterDropdown
-                options={isInvoices ? INVOICE_STATUS_TABS : QUOTE_STATUS_TABS}
-                value={isInvoices ? invoiceTab : quoteTab}
-                onChange={setStatusTab}
-                label={
-                  isInvoices
-                    ? "Filter invoices by status"
-                    : "Filter quotes by status"
-                }
-              />
-              <DateRangeFilter value={dateRange} onChange={setDateRange} />
-            </>
-          }
-          viewToggle={
-            <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
-          }
-        >
-          <SearchField
-            id={`${kind}-search`}
-            value={query}
-            onChange={setQuery}
-            placeholder={
-              isInvoices
-                ? "Search invoices or customers…"
-                : "Search quotes or customers…"
-            }
-            label={isInvoices ? "Search invoices" : "Search quotes"}
+        <div className="mb-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <SearchField
+              id={`${kind}-search`}
+              value={query}
+              onChange={setQuery}
+              placeholder={
+                isInvoices
+                  ? "Search invoices or customers…"
+                  : "Search quotes or customers…"
+              }
+              label={isInvoices ? "Search invoices" : "Search quotes"}
+            />
+          </div>
+          <FilterIconButton
+            activeCount={activeFilterCount}
+            onClick={() => setFilterOpen(true)}
           />
-        </DirectoryToolbar>
+          <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+        </div>
+
+        <DirectoryFilterTags
+          tags={activeTags}
+          onRemove={(id) => {
+            if (isInvoices) {
+              applyInvoiceFilters(clearInvoiceFilterTag(invoiceFilters, id));
+            } else {
+              applyQuoteFilters(clearQuoteFilterTag(quoteFilters, id));
+            }
+          }}
+          onClearAll={() => {
+            if (isInvoices) applyInvoiceFilters(defaultInvoiceFilters());
+            else applyQuoteFilters(defaultQuoteFilters());
+          }}
+        />
 
         {viewMode === "card" ? (
           isInvoices ? (
@@ -419,6 +454,16 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           </div>
         )}
       </main>
+
+      <DirectoryFilterPanel
+        kind={kind}
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        invoiceFilters={invoiceFilters}
+        quoteFilters={quoteFilters}
+        onApplyInvoice={applyInvoiceFilters}
+        onApplyQuote={applyQuoteFilters}
+      />
     </div>
   );
 }

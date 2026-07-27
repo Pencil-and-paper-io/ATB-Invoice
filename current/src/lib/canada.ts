@@ -50,5 +50,3 @@ export const CUSTOMER_TAG_OPTIONS = [
 ] as const;
 
 export const LOCKED_CURRENCY = "CAD" as const;
-export const LOCKED_CURRENCY_BADGE =
-  "Invoice Total in CAD (Canadian Dollars)" as const;
