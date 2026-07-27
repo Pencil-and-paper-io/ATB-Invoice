@@ -8,7 +8,12 @@ import {
   formatMoney,
   previewMeta,
 } from "@/lib/invoice-demo-data";
+import {
+  loadDocumentPayments,
+} from "@/lib/draft-document-payments";
+import { loadInvoiceDetails } from "@/lib/invoice-details";
 import { loadOrganizationSettings } from "@/lib/organization-settings";
+import type { InvoicePaymentOption } from "@/lib/organization-settings";
 import {
   formatQuoteDate,
   loadQuoteDetails,
@@ -151,33 +156,43 @@ export function CustomerInvoiceCard({
   documentKind = "invoice",
   showDraftWatermark = false,
   isExpired = false,
+  showPaymentOptions,
 }: {
   shadow?: "preview" | "sent";
   documentKind?: "invoice" | "quote";
   showDraftWatermark?: boolean;
   isExpired?: boolean;
+  /** Override payment block visibility (quotes in portal hide; invoices show). */
+  showPaymentOptions?: boolean;
 }) {
   const [quoteDetails, setQuoteDetails] = useState<InvoiceDetailsState | null>(
     null,
   );
+  const [invoiceDetails, setInvoiceDetails] =
+    useState<InvoiceDetailsState | null>(null);
   const [gstHstNumber, setGstHstNumber] = useState("");
+  const [paymentOptions, setPaymentOptions] = useState<InvoicePaymentOption[]>(
+    [],
+  );
 
   useEffect(() => {
-    if (documentKind !== "quote") return;
-    const loaded = loadQuoteDetails();
-    window.setTimeout(() => setQuoteDetails(loaded), 0);
-  }, [documentKind]);
-
-  useEffect(() => {
-    const org = loadOrganizationSettings();
     window.setTimeout(() => {
+      if (documentKind === "quote") {
+        setQuoteDetails(loadQuoteDetails());
+      } else {
+        setInvoiceDetails(loadInvoiceDetails());
+      }
+      setPaymentOptions(
+        loadDocumentPayments(documentKind).filter((option) => option.checked),
+      );
+      const org = loadOrganizationSettings();
       setGstHstNumber(
         org.gstRegistrationStatus === "registered" && org.gstHstNumber.trim()
           ? org.gstHstNumber.trim()
           : "",
       );
     }, 0);
-  }, []);
+  }, [documentKind]);
 
   const previewTotals = useMemo(
     () =>
@@ -203,9 +218,21 @@ export function CustomerInvoiceCard({
   const documentNumber =
     documentKind === "quote"
       ? `QT - ${quoteDetails?.invoiceNumber ?? "0003"}`
-      : previewMeta.invoiceNumber;
+      : invoiceDetails?.invoiceNumber?.trim()
+        ? invoiceDetails.invoiceNumber.trim()
+        : previewMeta.invoiceNumber;
+  const referenceNumber =
+    (documentKind === "quote"
+      ? quoteDetails?.referenceNumber
+      : invoiceDetails?.referenceNumber
+    )?.trim() ||
+    (documentKind === "quote"
+      ? quoteDetails?.invoiceNumber?.trim()
+      : invoiceDetails?.invoiceNumber?.trim()) ||
+    (documentKind === "invoice" ? previewMeta.invoiceNumber.replace(/\s+/g, " ") : "") ||
+    documentNumber;
   const showPayment =
-    documentKind === "invoice" || documentKind === "quote";
+    showPaymentOptions === false ? false : paymentOptions.length > 0;
 
   const validUntilValue = quoteDetails?.validUntil
     ? formatQuoteDate(quoteDetails.validUntil)
@@ -365,14 +392,34 @@ export function CustomerInvoiceCard({
       {showPayment ? (
         <div className="flex flex-col gap-5 px-4 sm:px-[30px]">
           <p className="text-base font-bold text-black">Payment Options</p>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-sm text-black">Pay by e-transfer</span>
-            <button
-              type="button"
-              className="ui-btn-primary"
-            >
-              E-Transfer
-            </button>
+          <div className="flex flex-col gap-4">
+            {paymentOptions.map((option) => {
+              return (
+                <div key={option.id} className="flex flex-col gap-1.5">
+                  <p className="text-sm font-semibold text-black">
+                    {option.label}
+                  </p>
+                  {option.id === "interac" ? (
+                    <div>
+                      <button type="button" className="ui-btn-primary">
+                        E-Transfer
+                      </button>
+                    </div>
+                  ) : null}
+                  {option.id === "eft" ? (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <button type="button" className="ui-btn-primary shrink-0">
+                        Email me direct deposit info
+                      </button>
+                      <p className="text-sm leading-5 text-black">
+                        Include this reference number in your transaction [
+                        {referenceNumber}]
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}

@@ -7,18 +7,23 @@ import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { Modal } from "./ui";
 
-export type ClientQuotePortalVariant = "review" | "accepted" | "declined";
+export type ClientPortalVariant = "review" | "accepted" | "declined";
+export type ClientPortalDocumentKind = "quote" | "invoice";
 
 /**
- * Prototype stub for the client-facing quote acceptance portal (US2.4 / US2.5).
- * Not behind auth — used for permutation demos via Quick Links.
+ * Prototype stub for client-facing document portals.
+ * Quote: accept / decline, no payment options.
+ * Invoice: payment options only (no accept / decline).
  */
 export function ClientQuotePortalView({
   variant = "review",
+  documentKind = "quote",
 }: {
-  variant?: ClientQuotePortalVariant;
+  variant?: ClientPortalVariant;
+  documentKind?: ClientPortalDocumentKind;
 }) {
   const router = useRouter();
+  const isQuote = documentKind === "quote";
   const [showAccept, setShowAccept] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
   const [printedName, setPrintedName] = useState("");
@@ -33,46 +38,59 @@ export function ClientQuotePortalView({
 
   const canDecline = declineReason.trim().length > 0;
 
+  const title = isQuote
+    ? variant === "accepted"
+      ? "Quote accepted"
+      : variant === "declined"
+        ? "Quote declined"
+        : "Review quote"
+    : "Review invoice";
+
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <header className="border-b border-black/10 bg-white px-4 py-4 sm:px-8">
         <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-          Client quote portal · prototype stub
+          Client {isQuote ? "quote" : "invoice"} portal · prototype stub
         </p>
-        <h1 className="type-page-title mt-1">
-          {variant === "accepted"
-            ? "Quote accepted"
-            : variant === "declined"
-              ? "Quote declined"
-              : "Review quote"}
-        </h1>
+        <h1 className="type-page-title mt-1">{title}</h1>
       </header>
 
       <main className="mx-auto max-w-[960px] px-4 py-10 sm:px-8">
-        {variant === "review" ? (
+        {isQuote && variant === "review" ? (
           <div className="mb-6 rounded-lg border border-prime-blue/25 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
             Secure client link (demo). Accept creates a draft invoice for the
             business owner. Decline keeps the quote viewable without actions.
           </div>
         ) : null}
 
-        {variant === "accepted" ? (
+        {!isQuote && variant === "review" ? (
+          <div className="mb-6 rounded-lg border border-prime-blue/25 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
+            Secure client invoice link (demo). Pay using the options on the
+            invoice — no accept or decline actions.
+          </div>
+        ) : null}
+
+        {isQuote && variant === "accepted" ? (
           <div className="mb-6 rounded-lg border border-[#B7E0C0] bg-[#E8F7EC] px-4 py-3 text-sm text-[#1B7A3A]">
             Thank you — this quote was accepted. The business owner has a draft
             invoice ready to review.
           </div>
         ) : null}
 
-        {variant === "declined" ? (
+        {isQuote && variant === "declined" ? (
           <div className="mb-6 rounded-lg border border-[#F5C2C0] bg-[#FDECEC] px-4 py-3 text-sm text-[#C62828]">
             You have rejected this quotation. The accept and decline actions are
             no longer available.
           </div>
         ) : null}
 
-        <CustomerInvoiceCard shadow="sent" documentKind="quote" />
+        <CustomerInvoiceCard
+          shadow="sent"
+          documentKind={documentKind}
+          showPaymentOptions={!isQuote}
+        />
 
-        {variant === "review" ? (
+        {isQuote && variant === "review" ? (
           <div className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-black/10 bg-white/95 px-4 py-4 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-5">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-end">
               <button
@@ -93,7 +111,7 @@ export function ClientQuotePortalView({
           </div>
         ) : null}
 
-        {variant === "accepted" ? (
+        {isQuote && variant === "accepted" ? (
           <div className="mt-8 flex justify-end">
             <Link href="/?from=quote" className="ui-btn-primary h-11 px-5">
               View draft invoice (owner)
@@ -178,3 +196,6 @@ export function ClientQuotePortalView({
     </div>
   );
 }
+
+/** @deprecated Use ClientQuotePortalVariant via ClientPortalVariant */
+export type ClientQuotePortalVariant = ClientPortalVariant;

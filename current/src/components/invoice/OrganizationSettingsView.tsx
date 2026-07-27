@@ -114,6 +114,11 @@ function sectionIdFromDeepLink(
   }
   if (
     tab === "Payment Options" ||
+    tab === "payment-options"
+  ) {
+    return SECTION_IDS.paymentOptions;
+  }
+  if (
     tab === "Defaults" ||
     tab === "Default Settings"
   ) {
@@ -1650,13 +1655,7 @@ export function OrganizationSettingsView() {
                             <span className="inline-flex items-start gap-1.5">
                               <span>{option.label}</span>
                               {option.tip ? (
-                                <span
-                                  className="mt-0.5 inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[10px] font-bold text-black/55"
-                                  title={option.tip}
-                                  aria-label={option.tip}
-                                >
-                                  i
-                                </span>
+                                <InfoTooltip text={option.tip} />
                               ) : null}
                             </span>
                           </label>

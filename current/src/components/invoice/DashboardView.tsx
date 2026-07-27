@@ -1,0 +1,203 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { buildDashboardModel } from "@/lib/dashboard-stats";
+import { UI_CLASS } from "@/lib/design-tokens";
+import { CreatePlusIcon, InfoTooltip } from "./ui";
+import { TopNav } from "./TopNav";
+
+const STATUS_BADGE: Record<string, string> = {
+  Draft: "bg-[#F3F3F3] text-[#666666]",
+  Sent: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+  Viewed: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+  "Partially Paid": "bg-[#FFF8E6] text-[#8A6A00]",
+  Paid: "bg-[#E8F7EC] text-[#1B7A3A]",
+  Overdue: "bg-[#FDECEC] text-[#C62828]",
+  "Overdue 90+": "bg-[#FDECEC] text-[#C62828]",
+  Uncollectible: "bg-[#F3F3F3] text-[#666666]",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const className = STATUS_BADGE[status] ?? "bg-[#F3F3F3] text-[#666666]";
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded px-2 py-0.5 text-xs font-semibold ${className}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+const STAT_TONE: Record<string, string> = {
+  neutral: "border-black/10 bg-white hover:border-black/25",
+  warning: "border-[#F5C6C6] bg-[#FFF8F8] hover:border-[#E89A9A]",
+  success: "border-[#C8E6C9] bg-[#F7FBF8] hover:border-[#9CCC9E]",
+};
+
+export function DashboardView() {
+  const model = useMemo(() => buildDashboardModel(), []);
+  const [reminderSentFor, setReminderSentFor] = useState<string | null>(null);
+
+  return (
+    <div className="min-h-screen bg-page-grey text-black">
+      <TopNav />
+      <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="type-headline-2 text-midnight-ink">Dashboard</h1>
+            <p className="mt-2 type-subtitle-1 text-black/55">
+              A snapshot of what you are owed and what needs follow-up.
+            </p>
+          </div>
+          <Link
+            href="/?fresh=1"
+            className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center gap-2 px-5`}
+          >
+            <CreatePlusIcon />
+            Create Invoice
+          </Link>
+        </div>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          {model.stats.map((stat) => (
+            <Link
+              key={stat.id}
+              href={stat.href}
+              className={`rounded-[10px] border p-5 transition ${STAT_TONE[stat.tone]}`}
+            >
+              <p className="text-sm font-medium text-black/55">{stat.label}</p>
+              <p className="mt-2 type-headline-4 text-midnight-ink">{stat.amount}</p>
+              <p className="mt-1 text-sm text-black/50">{stat.countLabel}</p>
+            </Link>
+          ))}
+        </section>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <section className="rounded-[10px] border border-black/10 bg-white p-6">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="type-headline-5 text-midnight-ink">Needs attention</h2>
+              <Link
+                href="/invoices"
+                className="text-sm font-semibold text-prime-blue hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            <p className="mt-1 text-sm text-black/50">
+              Overdue and unpaid invoices that may need a reminder.
+            </p>
+
+            {model.needsAttention.length === 0 ? (
+              <p className="mt-8 text-sm text-black/50">
+                Nothing needs attention right now.
+              </p>
+            ) : (
+              <ul className="mt-5 divide-y divide-black/10">
+                {model.needsAttention.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={item.href}
+                          className="font-semibold text-midnight-ink hover:underline"
+                        >
+                          #{item.number}
+                        </Link>
+                        <StatusBadge status={item.status} />
+                      </div>
+                      <p className="mt-1 truncate text-sm text-black/60">
+                        {item.customer} · {item.amount} · {item.lateness}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="ui-btn-secondary shrink-0"
+                      onClick={() => setReminderSentFor(item.id)}
+                    >
+                      {reminderSentFor === item.id
+                        ? "Reminder sent"
+                        : "Send reminder"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-[10px] border border-black/10 bg-white p-6">
+            <h2 className="type-headline-5 text-midnight-ink">How you’re doing</h2>
+            <p className="mt-1 text-sm text-black/50">
+              High-level collection health for your account.
+            </p>
+            <ul className="mt-5 flex flex-col gap-4">
+              {model.howYoureDoing.map((stat) => (
+                <li
+                  key={stat.id}
+                  className="rounded-lg border border-black/10 bg-page-grey/60 px-4 py-3"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm text-black/55">{stat.label}</p>
+                    <InfoTooltip text={stat.tooltip} />
+                  </div>
+                  <p className="mt-1 text-2xl font-semibold text-midnight-ink">
+                    {stat.value}
+                  </p>
+                  <p className="mt-0.5 text-xs text-black/45">{stat.hint}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+
+        <section className="mt-5 rounded-[10px] border border-black/10 bg-white p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="type-headline-5 text-midnight-ink">Recent invoices</h2>
+            <Link
+              href="/invoices"
+              className="text-sm font-semibold text-prime-blue hover:underline"
+            >
+              Invoices
+            </Link>
+          </div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-black/10 text-black/50">
+                  <th className="pb-3 font-medium">Invoice #</th>
+                  <th className="pb-3 font-medium">Customer</th>
+                  <th className="pb-3 font-medium">Due</th>
+                  <th className="pb-3 font-medium">Amount</th>
+                  <th className="pb-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {model.recentInvoices.map((row) => (
+                  <tr key={row.id} className="border-b border-black/5 last:border-0">
+                    <td className="py-3.5">
+                      <Link
+                        href={row.href}
+                        className="font-semibold text-midnight-ink hover:underline"
+                      >
+                        #{row.number}
+                      </Link>
+                    </td>
+                    <td className="py-3.5 text-black/70">{row.customer}</td>
+                    <td className="py-3.5 text-black/70">{row.dueDate}</td>
+                    <td className="py-3.5 font-medium">{row.amount}</td>
+                    <td className="py-3.5">
+                      <StatusBadge status={row.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}

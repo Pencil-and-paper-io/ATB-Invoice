@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { exportInvoicesCsv, exportQuotesCsv } from "@/lib/csv-export";
+import {
+  DEFAULT_DATE_RANGE,
+  dateInRange,
+  type DateRangeValue,
+} from "@/lib/directory-date-range";
 import {
   customers,
   customerInvoices,
@@ -12,6 +19,8 @@ import {
   type CustomerInvoiceRow,
   type CustomerQuoteRow,
 } from "@/lib/invoice-demo-data";
+import { DateRangeFilter } from "./DateRangeFilter";
+import { MoreActionsMenu } from "./MoreActionsMenu";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -45,6 +54,7 @@ const QUOTE_STATUS_TABS = [
 
 const INVOICE_STATUS_TABS = [
   "All",
+  "Outstanding",
   "Draft",
   "Sent",
   "Viewed",
@@ -56,6 +66,36 @@ const INVOICE_STATUS_TABS = [
 
 type QuoteStatusTab = (typeof QUOTE_STATUS_TABS)[number];
 type InvoiceStatusTab = (typeof INVOICE_STATUS_TABS)[number];
+
+function invoiceTabFromParam(value: string | null): InvoiceStatusTab {
+  if (!value) return "All";
+  const match = INVOICE_STATUS_TABS.find(
+    (tab) => tab.toLowerCase() === value.toLowerCase(),
+  );
+  return match ?? "All";
+}
+
+function quoteTabFromParam(value: string | null): QuoteStatusTab {
+  if (!value) return "All";
+  const match = QUOTE_STATUS_TABS.find(
+    (tab) => tab.toLowerCase() === value.toLowerCase(),
+  );
+  return match ?? "All";
+}
+
+function matchesInvoiceStatus(row: CustomerInvoiceRow, tab: InvoiceStatusTab) {
+  if (tab === "All") return true;
+  if (tab === "Outstanding") {
+    return (
+      row.balanceOutstanding > 0 &&
+      !/^(draft|paid|void|uncollectible)$/i.test(row.status)
+    );
+  }
+  if (tab === "Overdue") {
+    return /^overdue/i.test(row.status);
+  }
+  return row.status === tab;
+}
 
 type InvoiceColumnId =
   | "number"
@@ -217,9 +257,18 @@ function compareValues(left: string | number, right: string | number, dir: SortD
 }
 
 export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
-  const [quoteTab, setQuoteTab] = useState<QuoteStatusTab>("All");
-  const [invoiceTab, setInvoiceTab] = useState<InvoiceStatusTab>("All");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const statusParam = searchParams.get("status");
+
+  const [quoteTab, setQuoteTab] = useState<QuoteStatusTab>(() =>
+    quoteTabFromParam(statusParam),
+  );
+  const [invoiceTab, setInvoiceTab] = useState<InvoiceStatusTab>(() =>
+    invoiceTabFromParam(statusParam),
+  );
   const [query, setQuery] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_DATE_RANGE);
 
   const isInvoices = kind === "invoices";
   const title = isInvoices ? "Invoices" : "Quotes";
@@ -229,16 +278,35 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const createHref = isInvoices ? "/" : "/quote";
   const createLabel = isInvoices ? "Create Invoice" : "Create Quote";
 
+  useEffect(() => {
+    if (isInvoices) {
+      setInvoiceTab(invoiceTabFromParam(statusParam));
+    } else {
+      setQuoteTab(quoteTabFromParam(statusParam));
+    }
+  }, [isInvoices, statusParam]);
+
+  function setStatusTab(next: string) {
+    if (isInvoices) {
+      setInvoiceTab(next as InvoiceStatusTab);
+    } else {
+      setQuoteTab(next as QuoteStatusTab);
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "All") {
+      params.delete("status");
+    } else {
+      params.set("status", next);
+    }
+    const queryString = params.toString();
+    router.replace(queryString ? `?${queryString}` : "?", { scroll: false });
+  }
+
   const invoices = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customerInvoices.filter((row) => {
-      if (invoiceTab !== "All") {
-        if (invoiceTab === "Overdue") {
-          if (!/^overdue/i.test(row.status)) return false;
-        } else if (row.status !== invoiceTab) {
-          return false;
-        }
-      }
+      if (!matchesInvoiceStatus(row, invoiceTab)) return false;
+      if (!dateInRange(row.dateIssued, dateRange)) return false;
       if (!q) return true;
       const name = customerName(row.customerId).toLowerCase();
       return (
@@ -252,12 +320,13 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.balanceOutstanding).toLowerCase().includes(q)
       );
     });
-  }, [query, invoiceTab]);
+  }, [query, invoiceTab, dateRange]);
 
   const quotes = useMemo(() => {
     const q = query.trim().toLowerCase();
     return customerQuotes.filter((row) => {
       if (quoteTab !== "All" && row.status !== quoteTab) return false;
+      if (!dateInRange(row.dateCreated, dateRange)) return false;
       if (!q) return true;
       const name = customerName(row.customerId).toLowerCase();
       return (
@@ -269,7 +338,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.amount).toLowerCase().includes(q)
       );
     });
-  }, [query, quoteTab]);
+  }, [query, quoteTab, dateRange]);
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -280,23 +349,39 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
             <h1 className="type-headline-2 text-midnight-ink">{title}</h1>
             <p className="mt-2 type-subtitle-1 text-black/55">{subtitle}</p>
           </div>
-          <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <MoreActionsMenu
+              actions={[{ key: "export_csv", label: "Export CSV" }]}
+              onAction={(key) => {
+                if (key !== "export_csv") return;
+                if (isInvoices) {
+                  exportInvoicesCsv(invoices);
+                } else {
+                  exportQuotesCsv(quotes);
+                }
+              }}
+            />
+            <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
+          </div>
         </div>
 
         <DirectoryToolbar
+          secondaryFilters={
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          }
           tabs={
             isInvoices ? (
               <StatusToggleTabs
                 tabs={INVOICE_STATUS_TABS}
                 value={invoiceTab}
-                onChange={(next) => setInvoiceTab(next as InvoiceStatusTab)}
+                onChange={setStatusTab}
                 label="Filter invoices by status"
               />
             ) : (
               <StatusToggleTabs
                 tabs={QUOTE_STATUS_TABS}
                 value={quoteTab}
-                onChange={(next) => setQuoteTab(next as QuoteStatusTab)}
+                onChange={setStatusTab}
                 label="Filter quotes by status"
               />
             )

@@ -144,7 +144,7 @@ function CustomerDropdown({
                   strokeLinecap="round"
                 />
               </svg>
-              + Create new customer
+              Create new customer
             </button>
           </div>
         </div>

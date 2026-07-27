@@ -41,9 +41,9 @@ const FLOW_ROOTS: FlowNode[] = [
               },
               {
                 id: "client-review",
-                label: "Client portal · Review",
+                label: "Client portal · Quote review",
                 href: "/quote/review",
-                description: "US2.4 stub — Accept & Sign / Decline",
+                description: "Accept & Sign / Decline — no payment options",
                 children: [
                   {
                     id: "client-accepted",
@@ -58,6 +58,12 @@ const FLOW_ROOTS: FlowNode[] = [
                     description: "Read-only rejected portal state",
                   },
                 ],
+              },
+              {
+                id: "client-invoice-review",
+                label: "Client portal · Invoice review",
+                href: "/invoice/review",
+                description: "Payment options only — no accept / decline",
               },
               {
                 id: "quote-accepted",

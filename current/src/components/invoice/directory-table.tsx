@@ -169,20 +169,23 @@ export function StatusToggleTabs({
   );
 }
 
-/** Toolbar: toggles left, search right (~30% shorter); search wraps under if needed. */
+/** Toolbar: search (+ optional filters) on one row; status tabs below. */
 export function DirectoryToolbar({
   tabs,
   children,
+  secondaryFilters,
 }: {
   tabs: ReactNode;
   children: ReactNode;
+  secondaryFilters?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-      <div className="min-w-0 max-w-full overflow-x-auto">{tabs}</div>
-      <div className="ml-auto w-full max-w-[19.5rem] sm:w-[19.5rem]">
-        {children}
+    <div className="mb-4 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 w-full max-w-md flex-1">{children}</div>
+        {secondaryFilters}
       </div>
+      <div className="min-w-0 max-w-full overflow-x-auto">{tabs}</div>
     </div>
   );
 }

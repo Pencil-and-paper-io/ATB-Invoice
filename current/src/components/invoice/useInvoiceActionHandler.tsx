@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { exportSingleInvoiceCsv } from "@/lib/csv-export";
 import {
   UNCOLLECTIBLE_REASON_CODES,
   type InvoiceActionKey,
   type InvoiceStatus,
 } from "@/lib/invoice-actions";
 import { DownloadPdfModal } from "./DownloadPdfModal";
+import { ManualReceiptModal } from "./ManualReceiptModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
@@ -46,6 +48,7 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [showUncollectible, setShowUncollectible] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [confirm, setConfirm] = useState<"delete" | "void" | "send_reminder" | null>(
     null,
   );
@@ -88,6 +91,15 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     }
     if (action === "download") {
       setShowDownload(true);
+      return;
+    }
+    if (action === "send_receipt") {
+      setShowReceipt(true);
+      return;
+    }
+    if (action === "export_csv") {
+      exportSingleInvoiceCsv("3001");
+      setFeedback({ kind: "info", message: "CSV exported." });
       return;
     }
     if (action === "copy_link") {
@@ -245,11 +257,21 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     />
   ) : null;
 
+  const receiptModal = showReceipt ? (
+    <ManualReceiptModal
+      onClose={() => setShowReceipt(false)}
+      onSent={() =>
+        setFeedback({ kind: "info", message: "Receipt sent (demo)." })
+      }
+    />
+  ) : null;
+
   return {
     handleAction,
     feedbackBanner,
     uncollectibleModal,
     confirmModal,
     downloadModal,
+    receiptModal,
   };
 }

@@ -383,18 +383,25 @@ export function InvoiceDetailsPanel({
   details,
   onChange,
   documentKind = "invoice",
+  referenceRequired = false,
 }: {
   details: InvoiceDetailsState;
   onChange: (next: InvoiceDetailsState) => void;
   documentKind?: "invoice" | "quote";
+  /** When EFT is selected on the document, reference # is required. */
+  referenceRequired?: boolean;
 }) {
   const isQuote = documentKind === "quote";
+  const showReference = !isQuote || referenceRequired;
   const quoteDateIso = /^\d{4}-\d{2}-\d{2}$/.test(details.issueDate)
     ? details.issueDate
     : "";
   const serviceStart = details.serviceStart ?? "";
   const serviceEnd = details.serviceEnd ?? "";
   const validUntil = details.validUntil ?? "";
+  const referenceNumber = details.referenceNumber ?? "";
+  const referenceMissing =
+    referenceRequired && !referenceNumber.trim();
 
   const serviceStartError =
     !serviceStart.trim() ? "Service start date is required." : null;
@@ -479,20 +486,37 @@ export function InvoiceDetailsPanel({
         onChange={(dueDate) => patch({ dueDate })}
       />
 
-      {!isQuote ? (
+      {showReference ? (
         <label className="flex flex-col gap-2.5">
           <span className="text-sm text-black">
             Reference #{" "}
-            <span className="text-black/40">(PO / contract / quote)</span>
+            {referenceRequired ? (
+              <span className="type-danger">*</span>
+            ) : (
+              <span className="text-black/40">(PO / contract / quote)</span>
+            )}
           </span>
           <input
             className={inputClass}
-            value={details.referenceNumber ?? ""}
+            value={referenceNumber}
             onChange={(event) =>
               patch({ referenceNumber: event.target.value })
             }
-            placeholder="Optional"
+            placeholder={referenceRequired ? "Required for EFT" : "Optional"}
+            aria-required={referenceRequired}
+            aria-invalid={referenceMissing}
           />
+          {referenceRequired ? (
+            <p className="text-xs leading-4 text-black/55">
+              Customers paying by EFT must include this reference in their
+              transfer.
+            </p>
+          ) : null}
+          {referenceMissing ? (
+            <p className="type-danger">
+              Reference number is required when EFT is selected.
+            </p>
+          ) : null}
         </label>
       ) : null}
 

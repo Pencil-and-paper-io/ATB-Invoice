@@ -13,11 +13,14 @@ import {
 } from "@/lib/document-numbers";
 import {
   getCustomerCascadeDefaults,
-  getInvoicePaymentOptions,
-  loadOrganizationSettings,
   orgMissingGstHstNumber,
   type InvoicePaymentOption,
 } from "@/lib/organization-settings";
+import {
+  eftPaymentSelected,
+  loadDocumentPayments,
+  persistDocumentPayments,
+} from "@/lib/draft-document-payments";
 import { GST_HST_REGISTER_URL } from "@/lib/place-of-supply";
 import { getQuoteActionsForStatus } from "@/lib/quote-actions";
 import { loadQuoteDetails, persistQuoteDetails } from "@/lib/quote-details";
@@ -110,7 +113,7 @@ export function DraftQuoteView() {
 
   useEffect(() => {
     window.setTimeout(() => {
-      setPayments(getInvoicePaymentOptions(loadOrganizationSettings()));
+      setPayments(loadDocumentPayments("quote"));
       const cascade = getCustomerCascadeDefaults();
       const expiryDays = Number(cascade.quoteExpiryDays) || 45;
       const saved = loadQuoteDetails();
@@ -164,17 +167,23 @@ export function DraftQuoteView() {
   const { handleAction, feedbackBanner, confirmModal, downloadModal } =
     useQuoteActionHandler("drafted");
   const moreActions = getQuoteActionsForStatus("drafted", ["edit", "template"]);
+  const referenceRequired = eftPaymentSelected(payments);
+  const referenceMissing =
+    referenceRequired && !details.referenceNumber?.trim();
 
   function togglePayment(id: InvoicePaymentOption["id"]) {
-    setPayments((prev) =>
-      prev.map((option) =>
+    setPayments((prev) => {
+      const next = prev.map((option) =>
         option.id === id ? { ...option, checked: !option.checked } : option,
-      ),
-    );
+      );
+      persistDocumentPayments("quote", next);
+      return next;
+    });
   }
 
   function updatePayments(next: InvoicePaymentOption[]) {
     setPayments(next);
+    persistDocumentPayments("quote", next);
   }
 
   return (
@@ -195,9 +204,20 @@ export function DraftQuoteView() {
           <div className="flex flex-wrap items-center gap-2.5">
             <TemplatePicker />
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            <Link href="/quote/preview" className="ui-btn-primary">
-              Save and Preview
-            </Link>
+            {referenceMissing ? (
+              <button
+                type="button"
+                disabled
+                className="ui-btn-primary cursor-not-allowed opacity-40"
+                title="Add a reference number to use EFT"
+              >
+                Save and Preview
+              </button>
+            ) : (
+              <Link href="/quote/preview" className="ui-btn-primary">
+                Save and Preview
+              </Link>
+            )}
           </div>
         </div>
 
@@ -242,6 +262,7 @@ export function DraftQuoteView() {
                 documentKind="quote"
                 details={details}
                 onChange={updateDetails}
+                referenceRequired={referenceRequired}
               />
             </SectionCard>
 

@@ -17,6 +17,8 @@ export type InvoiceActionKey =
   | "uncollectible"
   | "duplicate"
   | "download"
+  | "export_csv"
+  | "send_receipt"
   | "resend"
   | "copy_link"
   | "send_test"
@@ -37,11 +39,12 @@ export type InvoiceAction = {
  * Delete is always listed last so the menu can separate it.
  */
 export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
-  drafted: ["edit", "download", "duplicate", "delete"],
+  drafted: ["edit", "download", "export_csv", "duplicate", "delete"],
   sent: [
     "resend",
     "send_reminder",
     "download",
+    "export_csv",
     "copy_link",
     "send_test",
     "mark_viewed",
@@ -54,6 +57,7 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "resend",
     "send_reminder",
     "download",
+    "export_csv",
     "copy_link",
     "send_test",
     "void",
@@ -63,7 +67,9 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   ],
   partially_paid: [
     "send_reminder",
+    "send_receipt",
     "download",
+    "export_csv",
     "copy_link",
     "void",
     "template",
@@ -71,11 +77,20 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "view_history",
     "duplicate",
   ],
-  paid: ["download", "copy_link", "template", "view_history", "duplicate"],
+  paid: [
+    "send_receipt",
+    "download",
+    "export_csv",
+    "copy_link",
+    "template",
+    "view_history",
+    "duplicate",
+  ],
   overdue_under_90: [
     "resend",
     "send_reminder",
     "download",
+    "export_csv",
     "copy_link",
     "send_test",
     "void",
@@ -87,14 +102,15 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "resend",
     "send_reminder",
     "download",
+    "export_csv",
     "copy_link",
     "uncollectible",
     "template",
     "view_history",
     "duplicate",
   ],
-  uncollectible: ["download", "template", "view_history", "duplicate"],
-  void: ["download", "template", "view_history", "duplicate"],
+  uncollectible: ["download", "export_csv", "template", "view_history", "duplicate"],
+  void: ["download", "export_csv", "template", "view_history", "duplicate"],
 };
 
 const ACTION_META: Record<
@@ -103,6 +119,8 @@ const ACTION_META: Record<
 > = {
   edit: { label: "Edit" },
   download: { label: "Download PDF" },
+  export_csv: { label: "Export CSV" },
+  send_receipt: { label: "Send Receipt" },
   delete: { label: "Delete", danger: true },
   void: { label: "Void Invoice", danger: true },
   template: { label: "Save As Template" },

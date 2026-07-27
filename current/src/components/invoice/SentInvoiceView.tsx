@@ -69,6 +69,7 @@ export function SentInvoiceView({
     uncollectibleModal,
     confirmModal,
     downloadModal,
+    receiptModal,
   } = useInvoiceActionHandler(status);
   const [showPayment, setShowPayment] = useState(false);
   const moreActions = getActionsForStatus(status);
@@ -145,6 +146,7 @@ export function SentInvoiceView({
       {uncollectibleModal}
       {confirmModal}
       {downloadModal}
+      {receiptModal}
     </div>
   );
 }

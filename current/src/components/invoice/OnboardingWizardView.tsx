@@ -30,7 +30,7 @@ import {
 } from "@/components/invoice/OnboardingWelcomeHero";
 import { TermsAndConditionsView, TERMS_ACCEPTED_KEY } from "@/components/invoice/TermsAndConditionsView";
 import { TopNav } from "@/components/invoice/TopNav";
-import { EditCloseButton, PencilIcon } from "@/components/invoice/ui";
+import { EditCloseButton, InfoTooltip, PencilIcon } from "@/components/invoice/ui";
 
 const SETUP_STEPS = [
   {
@@ -100,11 +100,7 @@ function FieldLabel({
       <label htmlFor={htmlFor} className="type-label">
         {children}
       </label>
-      {tip ? (
-        <span className="text-xs text-black/40" title={tip}>
-          i
-        </span>
-      ) : null}
+      {tip ? <InfoTooltip text={tip} /> : null}
     </div>
   );
 }
@@ -743,124 +739,135 @@ export function OnboardingWizardView() {
             ) : null}
 
             {step === 2 ? (
-              <div className="flex flex-col gap-3">
-                {GST_REGISTRATION_OPTIONS.map((option) => (
-                  <div key={option.value}>
-                    <label className="flex items-start gap-2 text-sm leading-5 text-black">
-                      <input
-                        type="radio"
-                        name="gst-registration"
-                        className="mt-0.5 accent-prime-blue"
-                        checked={state.gstRegistrationStatus === option.value}
-                        onChange={() => {
-                          setGstHstShowError(false);
-                          patch({
-                            gstRegistrationStatus: option.value,
-                            gstHstNumber:
-                              option.value === "registered"
-                                ? state.gstHstNumber
-                                : "",
-                          });
-                        }}
-                      />
-                      <span className="inline-flex items-start gap-1.5">
-                        <span>{option.label}</span>
-                        {option.tip ? (
-                          <span
-                            className="mt-0.5 inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[10px] font-bold text-black/55"
-                            title={option.tip}
-                            aria-label={option.tip}
-                          >
-                            i
-                          </span>
-                        ) : null}
-                      </span>
-                    </label>
-                    {option.value === "pending_number" &&
-                    state.gstRegistrationStatus === "pending_number" ? (
-                      <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
-                        You need a GST/HST number once you exceed $30,000 in
-                        revenue.{" "}
-                        <a
-                          href={GST_HST_REGISTER_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-prime-blue underline underline-offset-2"
-                        >
-                          Register with the CRA
-                        </a>
-                        , then add this in later in your organization settings.
-                      </p>
-                    ) : null}
-                    {option.value === "registered" &&
-                    state.gstRegistrationStatus === "registered" ? (
-                      <div className="mt-1.5 pl-6">
-                        <div
-                          className="flex flex-nowrap items-center gap-2"
-                          onBlur={(event) => {
-                            const next = event.relatedTarget as Node | null;
-                            if (next && event.currentTarget.contains(next)) {
-                              return;
-                            }
-                            setGstHstShowError(true);
+              <div className="flex flex-col gap-3" role="radiogroup" aria-label="GST/HST registration">
+                {GST_REGISTRATION_OPTIONS.map((option) => {
+                  const selected =
+                    state.gstRegistrationStatus === option.value;
+                  const showThresholdNote =
+                    option.value === "small_supplier" && selected && option.tip;
+                  return (
+                    <div
+                      key={option.value}
+                      className={`rounded-[10px] border px-4 py-3 transition ${
+                        selected
+                          ? "border-prime-blue bg-prime-blue/[0.04]"
+                          : "border-black/10 bg-white hover:border-black/20"
+                      }`}
+                    >
+                      <label className="flex w-full cursor-pointer items-start gap-3 text-left">
+                        <input
+                          type="radio"
+                          name="gst-registration"
+                          className="mt-1 h-4 w-4 shrink-0 accent-prime-blue"
+                          checked={selected}
+                          onChange={() => {
+                            setGstHstShowError(false);
+                            patch({
+                              gstRegistrationStatus: option.value,
+                              gstHstNumber:
+                                option.value === "registered"
+                                  ? state.gstHstNumber
+                                  : "",
+                            });
                           }}
-                        >
-                          <input
-                            id="gst-hst-bn"
-                            inputMode="numeric"
-                            maxLength={9}
-                            className={`${inputClass} !w-[9.5rem] shrink-0`}
-                            value={gstParts.bn}
-                            onChange={(event) => {
-                              const bn = event.target.value
-                                .replace(/[^\d]/g, "")
-                                .slice(0, 9);
-                              setGstHstShowError(false);
-                              patch({
-                                gstHstNumber: formatGstHstNumber(
-                                  bn,
-                                  gstParts.account,
-                                ),
-                              });
-                            }}
-                            placeholder="123456789"
-                            aria-label="GST/HST business number, 9 digits"
-                          />
-                          <span className="shrink-0 type-body text-black">
-                            RT
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-sm font-normal leading-5 text-black">
+                            {option.label}
                           </span>
-                          <input
-                            id="gst-hst-account"
-                            inputMode="numeric"
-                            maxLength={4}
-                            className={`${inputClass} !w-[5.5rem] shrink-0`}
-                            value={gstParts.account}
-                            onChange={(event) => {
-                              const account = event.target.value
-                                .replace(/[^\d]/g, "")
-                                .slice(0, 4);
-                              setGstHstShowError(false);
-                              patch({
-                                gstHstNumber: formatGstHstNumber(
-                                  gstParts.bn,
-                                  account,
-                                ),
-                              });
+                          {showThresholdNote ? (
+                            <span className="mt-1.5 block text-sm font-normal leading-5 text-black/60">
+                              {option.tip}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                      {option.value === "pending_number" && selected ? (
+                        <p className="mt-3 pl-7 text-sm leading-5 text-black">
+                          You need a GST/HST number once you exceed $30,000 in
+                          revenue.{" "}
+                          <a
+                            href={GST_HST_REGISTER_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-prime-blue underline underline-offset-2"
+                          >
+                            Register with the CRA
+                          </a>
+                          , then add this in later in your organization
+                          settings.
+                        </p>
+                      ) : null}
+                      {option.value === "registered" && selected ? (
+                        <div className="mt-3 pl-7">
+                          <div
+                            className="flex flex-nowrap items-center gap-2"
+                            onBlur={(event) => {
+                              const next = event.relatedTarget as Node | null;
+                              if (next && event.currentTarget.contains(next)) {
+                                return;
+                              }
+                              setGstHstShowError(true);
                             }}
-                            placeholder="0001"
-                            aria-label="GST/HST account number, 4 digits"
-                          />
+                          >
+                            <input
+                              id="gst-hst-bn"
+                              inputMode="numeric"
+                              maxLength={9}
+                              className={`${inputClass} !w-[9.5rem] shrink-0`}
+                              value={gstParts.bn}
+                              onChange={(event) => {
+                                const bn = event.target.value
+                                  .replace(/[^\d]/g, "")
+                                  .slice(0, 9);
+                                setGstHstShowError(false);
+                                patch({
+                                  gstHstNumber: formatGstHstNumber(
+                                    bn,
+                                    gstParts.account,
+                                  ),
+                                });
+                              }}
+                              placeholder="123456789"
+                              aria-label="GST/HST business number, 9 digits"
+                            />
+                            <span className="shrink-0 type-body text-black">
+                              RT
+                            </span>
+                            <input
+                              id="gst-hst-account"
+                              inputMode="numeric"
+                              maxLength={4}
+                              className={`${inputClass} !w-[5.5rem] shrink-0`}
+                              value={gstParts.account}
+                              onChange={(event) => {
+                                const account = event.target.value
+                                  .replace(/[^\d]/g, "")
+                                  .slice(0, 4);
+                                setGstHstShowError(false);
+                                patch({
+                                  gstHstNumber: formatGstHstNumber(
+                                    gstParts.bn,
+                                    account,
+                                  ),
+                                });
+                              }}
+                              placeholder="0001"
+                              aria-label="GST/HST account number, 4 digits"
+                            />
+                          </div>
+                          {gstHstShowError &&
+                          !isValidGstHstNumber(state.gstHstNumber) ? (
+                            <p className="type-danger mt-2">
+                              Enter a valid CRA number (9 digits + RT + 4
+                              digits).
+                            </p>
+                          ) : null}
                         </div>
-                        {gstHstShowError &&
-                        !isValidGstHstNumber(state.gstHstNumber) ? (
-                          <p className="type-danger mt-2">
-                            Enter a valid CRA number (9 digits + RT + 4 digits).
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 

@@ -19,13 +19,23 @@ import {
 import { loadQuoteDetails } from "@/lib/quote-details";
 import {
   getCustomerCascadeDefaults,
-  getInvoicePaymentOptions,
   loadOrganizationSettings,
   orgMissingGstHstNumber,
   type InvoicePaymentOption,
 } from "@/lib/organization-settings";
+import {
+  eftPaymentSelected,
+  loadDocumentPayments,
+  persistDocumentPayments,
+} from "@/lib/draft-document-payments";
+import {
+  defaultInvoiceDetails,
+  loadInvoiceDetails,
+  persistInvoiceDetails,
+} from "@/lib/invoice-details";
 import { GST_HST_REGISTER_URL } from "@/lib/place-of-supply";
 import { getActionsForStatus } from "@/lib/invoice-actions";
+import { FIRST_INVOICE_PLAYTHROUGH_KEY } from "./OnboardingCompleteModal";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
 import { CustomerNotesSection } from "./CustomerNotesSection";
 import {
@@ -85,60 +95,80 @@ export function DraftInvoiceView() {
   const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
     automationsFromCascade(),
   );
-  const [details, setDetails] = useState<InvoiceDetailsState>({
-    invoiceNumber: "",
-    issueDate: "Send right away",
-    dueDate: "Net 30",
-    taxMode: "inclusive",
-    currency: "CAD",
-    referenceNumber: "",
-    serviceStart: todayIso(),
-    serviceEnd: "",
-  });
+  const [details, setDetails] = useState<InvoiceDetailsState>(() =>
+    defaultInvoiceDetails(),
+  );
 
   const searchParams = useSearchParams();
   const fromQuote = searchParams.get("from") === "quote";
+  const [isFirstInvoicePlaythrough, setIsFirstInvoicePlaythrough] = useState(
+    () => searchParams.get("fresh") === "1",
+  );
   const [acceptedQuoteNumber, setAcceptedQuoteNumber] = useState<string | null>(
     null,
   );
 
   useEffect(() => {
     window.setTimeout(() => {
+      let fresh = searchParams.get("fresh") === "1";
+      try {
+        if (
+          fresh ||
+          window.sessionStorage.getItem(FIRST_INVOICE_PLAYTHROUGH_KEY) === "1"
+        ) {
+          fresh = true;
+          window.sessionStorage.setItem(FIRST_INVOICE_PLAYTHROUGH_KEY, "1");
+        }
+      } catch {
+        /* ignore */
+      }
+      setIsFirstInvoicePlaythrough(fresh);
+
       const org = loadOrganizationSettings();
-      setPayments(getInvoicePaymentOptions(org));
+      setPayments(loadDocumentPayments("invoice"));
       const cascade = getCustomerCascadeDefaults(org);
-      const acceptance = fromQuote ? consumeQuoteAcceptance() : null;
+      const acceptance =
+        !fresh && fromQuote ? consumeQuoteAcceptance() : null;
       if (acceptance) {
         const fromAccepted = invoiceDetailsFromAcceptedQuote(acceptance);
-        setDetails((prev) => ({
-          ...prev,
+        const next = {
+          ...defaultInvoiceDetails(),
           ...fromAccepted,
-          invoiceNumber: prev.invoiceNumber || fromAccepted.invoiceNumber,
-        }));
+          invoiceNumber:
+            fromAccepted.invoiceNumber || peekNextInvoiceNumber(),
+        };
+        setDetails(next);
+        persistInvoiceDetails(next);
         setAcceptedQuoteNumber(acceptance.quoteNumber);
         if (fromAccepted.invoiceNumber.trim()) {
           rememberDocumentNumber("invoice", fromAccepted.invoiceNumber);
         }
       } else {
-        const quoteNumber = fromQuote
-          ? loadQuoteDetails()?.invoiceNumber?.trim() || null
-          : null;
-        setDetails((prev) => ({
-          ...prev,
-          invoiceNumber: prev.invoiceNumber || peekNextInvoiceNumber(),
+        const quoteNumber =
+          !fresh && fromQuote
+            ? loadQuoteDetails()?.invoiceNumber?.trim() || null
+            : null;
+        const saved = fresh ? null : loadInvoiceDetails();
+        const next: InvoiceDetailsState = {
+          ...(saved ?? defaultInvoiceDetails()),
+          invoiceNumber:
+            saved?.invoiceNumber?.trim() || peekNextInvoiceNumber(),
           dueDate: normalizeDueDateOption(cascade.paymentTerms),
-          serviceStart: prev.serviceStart || todayIso(),
-          referenceNumber: quoteNumber || prev.referenceNumber || "",
-        }));
+          serviceStart: saved?.serviceStart || todayIso(),
+          referenceNumber: quoteNumber || saved?.referenceNumber || "",
+        };
+        setDetails(next);
+        persistInvoiceDetails(next);
         if (quoteNumber) setAcceptedQuoteNumber(quoteNumber);
+        rememberDocumentNumber("invoice", next.invoiceNumber);
       }
       setAutomations(automationsFromCascade());
-      const customerId = defaultDraftCustomer?.id ?? null;
+      const customerId = fresh ? null : (defaultDraftCustomer?.id ?? null);
       const taxRec = getCustomerTaxRecommendation(customerId);
       setDefaultTaxLabel(taxRec?.label ?? "");
       setRecommendedTaxNote(taxRec?.note ?? "");
     }, 0);
-  }, [fromQuote]);
+  }, [fromQuote, searchParams]);
 
   const {
     handleAction,
@@ -147,22 +177,32 @@ export function DraftInvoiceView() {
     confirmModal,
     downloadModal,
   } = useInvoiceActionHandler("drafted");
-  const moreActions = getActionsForStatus("drafted", ["edit", "template"]);
+  const moreActions = getActionsForStatus(
+    "drafted",
+    isFirstInvoicePlaythrough ? ["edit", "template"] : ["edit"],
+  );
+  const referenceRequired = eftPaymentSelected(payments);
+  const referenceMissing =
+    referenceRequired && !details.referenceNumber?.trim();
 
   function togglePayment(id: InvoicePaymentOption["id"]) {
-    setPayments((prev) =>
-      prev.map((option) =>
+    setPayments((prev) => {
+      const next = prev.map((option) =>
         option.id === id ? { ...option, checked: !option.checked } : option,
-      ),
-    );
+      );
+      persistDocumentPayments("invoice", next);
+      return next;
+    });
   }
 
   function updatePayments(next: InvoicePaymentOption[]) {
     setPayments(next);
+    persistDocumentPayments("invoice", next);
   }
 
   function updateDetails(next: InvoiceDetailsState) {
     setDetails(next);
+    persistInvoiceDetails(next);
     if (next.invoiceNumber.trim()) {
       rememberDocumentNumber("invoice", next.invoiceNumber);
     }
@@ -210,18 +250,32 @@ export function DraftInvoiceView() {
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="type-page-title">Draft Invoice</h1>
           <div className="flex flex-wrap items-center gap-2.5">
-            <TemplatePicker />
+            {isFirstInvoicePlaythrough ? null : <TemplatePicker />}
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            <Link href="/preview" className="ui-btn-primary">
-              Save and Preview
-            </Link>
+            {referenceMissing ? (
+              <button
+                type="button"
+                disabled
+                className="ui-btn-primary cursor-not-allowed opacity-40"
+                title="Add a reference number to use EFT"
+              >
+                Save and Preview
+              </button>
+            ) : (
+              <Link href="/preview" className="ui-btn-primary">
+                Save and Preview
+              </Link>
+            )}
           </div>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_331px]">
           <div className="flex flex-col gap-2.5">
             <BillToSection
-              defaultCustomer={defaultDraftCustomer}
+              key={isFirstInvoicePlaythrough ? "fresh-bill-to" : "demo-bill-to"}
+              defaultCustomer={
+                isFirstInvoicePlaythrough ? null : defaultDraftCustomer
+              }
               onCustomerChange={handleCustomerChange}
             />
 
@@ -258,6 +312,7 @@ export function DraftInvoiceView() {
               <InvoiceDetailsPanel
                 details={details}
                 onChange={updateDetails}
+                referenceRequired={referenceRequired}
               />
             </SectionCard>
 
