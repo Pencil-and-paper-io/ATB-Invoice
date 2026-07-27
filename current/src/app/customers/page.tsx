@@ -21,15 +21,23 @@ import {
   applyCustomerTagEdits,
   loadCustomerTags,
 } from "@/lib/customer-tags";
+import {
+  DEFAULT_DATE_RANGE,
+  dateInRange,
+  type DateRangeValue,
+} from "@/lib/directory-date-range";
 import { TopNav } from "@/components/invoice/TopNav";
+import { DateRangeFilter } from "@/components/invoice/DateRangeFilter";
 import {
   DirectoryColumnHeader,
   DirectoryToolbar,
+  DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
   SearchField,
   SortHeaderButton,
+  type DirectoryViewMode,
 } from "@/components/invoice/directory-table";
 import { CreatePlusIcon } from "@/components/invoice/ui";
 import { useDismissOnOutsideClick } from "@/components/invoice/useDismissOnOutsideClick";
@@ -233,6 +241,8 @@ export default function CustomersDirectoryPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<DirectoryTab>("active");
+  const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_DATE_RANGE);
+  const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [managingTags, setManagingTags] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -394,6 +404,12 @@ export default function CustomersDirectoryPage() {
       if (tab === "archived" && !isArchived) return false;
       if (selected.size === 0) return false;
       if (!customerMatchesQuery(customer, searchQuery)) return false;
+      if (
+        customer.dateCreated &&
+        !dateInRange(customer.dateCreated, dateRange)
+      ) {
+        return false;
+      }
       if (selected.size === availableTags.length) return true;
       return customer.tags.some((tag) => selected.has(tag));
     });
@@ -415,6 +431,7 @@ export default function CustomersDirectoryPage() {
     searchQuery,
     tab,
     tagRevision,
+    dateRange,
   ]);
 
   function toggleSort(key: SortKey) {
@@ -650,6 +667,13 @@ export default function CustomersDirectoryPage() {
         </div>
 
         <DirectoryToolbar
+          layout="inline"
+          secondaryFilters={
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          }
+          viewToggle={
+            <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+          }
           tabs={
             <div
               className="inline-flex rounded-lg border border-black/10 bg-white p-1"
@@ -689,6 +713,90 @@ export default function CustomersDirectoryPage() {
           />
         </DirectoryToolbar>
 
+        {viewMode === "card" ? (
+          filteredSortedCustomers.length ? (
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredSortedCustomers.map((customer) => {
+                const summary = getCustomerAccountSummary(customer.id);
+                return (
+                  <li key={customer.id}>
+                    <Link
+                      href={`/customers/new?id=${customer.id}`}
+                      className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-midnight-ink">
+                          <HighlightText
+                            text={customer.name}
+                            query={searchQuery}
+                          />
+                        </p>
+                        <p className="mt-1 truncate text-sm text-black/55">
+                          <HighlightText
+                            text={customer.email || "No email"}
+                            query={searchQuery}
+                          />
+                        </p>
+                      </div>
+                      <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                        <div>
+                          <dt className="text-xs text-black/45">Total</dt>
+                          <dd className="mt-0.5 font-medium">
+                            <MoneyCell
+                              amount={summary.totalInvoiced}
+                              variant="total"
+                            />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-black/45">Outstanding</dt>
+                          <dd className="mt-0.5 font-medium">
+                            <MoneyCell
+                              amount={summary.outstanding}
+                              variant="outstanding"
+                            />
+                          </dd>
+                        </div>
+                      </dl>
+                      {customer.tags.length ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {customer.tags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {tab === "archived" ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            handleUnarchive(customer.id);
+                          }}
+                          className="text-left text-sm font-semibold text-prime-blue underline-offset-2 hover:underline"
+                        >
+                          Unarchive Client
+                        </button>
+                      ) : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="rounded-xl border border-black/10 bg-white px-5 py-10 text-center text-sm text-black/45">
+              {searchQuery.trim()
+                ? "No customers match your search."
+                : tab === "archived"
+                  ? "No archived customers."
+                  : "No customers match the selected tags."}
+            </div>
+          )
+        ) : (
         <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
           <div className="min-w-max">
             <div
@@ -819,6 +927,7 @@ export default function CustomersDirectoryPage() {
             </ul>
           </div>
         </div>
+        )}
 
         {tagFilterOpen && tagMenuPos ? (
           <div

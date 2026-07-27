@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { buildDashboardModel } from "@/lib/dashboard-stats";
 import { UI_CLASS } from "@/lib/design-tokens";
+import { SendReminderModal } from "./SendReminderModal";
 import { CreatePlusIcon, InfoTooltip } from "./ui";
 import { TopNav } from "./TopNav";
 
@@ -29,14 +30,19 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const STAT_TONE: Record<string, string> = {
-  neutral: "border-black/10 bg-white hover:border-black/25",
-  warning: "border-[#F5C6C6] bg-[#FFF8F8] hover:border-[#E89A9A]",
-  success: "border-[#C8E6C9] bg-[#F7FBF8] hover:border-[#9CCC9E]",
+const STAT_AMOUNT_COLOR: Record<string, string> = {
+  neutral: "text-midnight-ink",
+  warning: "text-[#C62828]",
+  success: "text-[#1B7A3A]",
 };
 
 export function DashboardView() {
   const model = useMemo(() => buildDashboardModel(), []);
+  const [reminderTarget, setReminderTarget] = useState<{
+    id: string;
+    number: string;
+    customer: string;
+  } | null>(null);
   const [reminderSentFor, setReminderSentFor] = useState<string | null>(null);
 
   return (
@@ -64,10 +70,14 @@ export function DashboardView() {
             <Link
               key={stat.id}
               href={stat.href}
-              className={`rounded-[10px] border p-5 transition ${STAT_TONE[stat.tone]}`}
+              className="rounded-[10px] border border-black/10 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:border-prime-blue hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:ring-1 hover:ring-prime-blue"
             >
               <p className="text-sm font-medium text-black/55">{stat.label}</p>
-              <p className="mt-2 type-headline-4 text-midnight-ink">{stat.amount}</p>
+              <p
+                className={`mt-2 type-headline-4 ${STAT_AMOUNT_COLOR[stat.tone]}`}
+              >
+                {stat.amount}
+              </p>
               <p className="mt-1 text-sm text-black/50">{stat.countLabel}</p>
             </Link>
           ))}
@@ -116,7 +126,13 @@ export function DashboardView() {
                     <button
                       type="button"
                       className="ui-btn-secondary shrink-0"
-                      onClick={() => setReminderSentFor(item.id)}
+                      onClick={() =>
+                        setReminderTarget({
+                          id: item.id,
+                          number: item.number,
+                          customer: item.customer,
+                        })
+                      }
                     >
                       {reminderSentFor === item.id
                         ? "Reminder sent"
@@ -198,6 +214,18 @@ export function DashboardView() {
           </div>
         </section>
       </main>
+
+      {reminderTarget ? (
+        <SendReminderModal
+          invoiceNumber={`#${reminderTarget.number}`}
+          customerName={reminderTarget.customer}
+          onClose={() => setReminderTarget(null)}
+          onSent={() => {
+            setReminderSentFor(reminderTarget.id);
+            setReminderTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

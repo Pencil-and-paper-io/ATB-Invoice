@@ -134,15 +134,22 @@ export function StatusToggleTabs({
   value,
   onChange,
   label,
+  fill = false,
 }: {
   tabs: readonly string[];
   value: string;
   onChange: (next: string) => void;
   label: string;
+  /** Equal-width tabs that stay inside the container (no overflow). */
+  fill?: boolean;
 }) {
   return (
     <div
-      className="inline-flex w-max max-w-none flex-nowrap rounded-lg border border-black/10 bg-white p-1"
+      className={`rounded-lg border border-black/10 bg-white p-1 ${
+        fill
+          ? "flex w-full min-w-0 overflow-hidden"
+          : "inline-flex w-max max-w-none flex-nowrap"
+      }`}
       role="tablist"
       aria-label={label}
     >
@@ -155,7 +162,12 @@ export function StatusToggleTabs({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(tab)}
-            className={`shrink-0 rounded-md px-3 py-2 text-sm font-semibold whitespace-nowrap transition sm:px-4 ${
+            title={tab}
+            className={`rounded-md transition ${
+              fill
+                ? "min-w-0 flex-1 basis-0 px-1 py-2 text-center text-[11px] font-semibold leading-snug sm:px-1.5 sm:text-xs lg:text-sm"
+                : "shrink-0 px-3 py-2 text-sm font-semibold whitespace-nowrap sm:px-4"
+            } ${
               active
                 ? "bg-midnight-ink text-white"
                 : "text-black/55 hover:text-black"
@@ -169,23 +181,146 @@ export function StatusToggleTabs({
   );
 }
 
-/** Toolbar: search (+ optional filters) on one row; status tabs below. */
+export type DirectoryViewMode = "list" | "card";
+
+export function DirectoryViewToggle({
+  value,
+  onChange,
+}: {
+  value: DirectoryViewMode;
+  onChange: (next: DirectoryViewMode) => void;
+}) {
+  return (
+    <div
+      className="inline-flex h-11 shrink-0 items-stretch overflow-hidden rounded-md border border-black/15 bg-white"
+      role="group"
+      aria-label="View mode"
+    >
+      <button
+        type="button"
+        onClick={() => onChange("list")}
+        aria-pressed={value === "list"}
+        title="List view"
+        className={`inline-flex w-11 items-center justify-center transition ${
+          value === "list"
+            ? "bg-midnight-ink text-white"
+            : "text-black/50 hover:bg-black/[0.04] hover:text-black"
+        }`}
+      >
+        <ListViewIcon />
+        <span className="sr-only">List view</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("card")}
+        aria-pressed={value === "card"}
+        title="Card view"
+        className={`inline-flex w-11 items-center justify-center border-l border-black/10 transition ${
+          value === "card"
+            ? "bg-midnight-ink text-white"
+            : "text-black/50 hover:bg-black/[0.04] hover:text-black"
+        }`}
+      >
+        <CardViewIcon />
+        <span className="sr-only">Card view</span>
+      </button>
+    </div>
+  );
+}
+
+function ListViewIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2 4h12M2 8h12M2 12h12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CardViewIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect
+        x="2"
+        y="2"
+        width="5"
+        height="5"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <rect
+        x="9"
+        y="2"
+        width="5"
+        height="5"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <rect
+        x="2"
+        y="9"
+        width="5"
+        height="5"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <rect
+        x="9"
+        y="9"
+        width="5"
+        height="5"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Toolbar layouts:
+ * - stacked: status / date / search left; view toggle right (invoices/quotes)
+ * - inline: tabs left; date / search / view right (customers)
+ */
 export function DirectoryToolbar({
   tabs,
   children,
   secondaryFilters,
+  viewToggle,
+  layout = "stacked",
 }: {
-  tabs: ReactNode;
+  tabs?: ReactNode;
   children: ReactNode;
   secondaryFilters?: ReactNode;
+  viewToggle?: ReactNode;
+  layout?: "stacked" | "inline";
 }) {
-  return (
-    <div className="mb-4 flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 w-full max-w-md flex-1">{children}</div>
-        {secondaryFilters}
+  if (layout === "inline") {
+    return (
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {tabs ? <div className="shrink-0">{tabs}</div> : null}
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-3">
+          {secondaryFilters}
+          <div className="w-full max-w-[19.5rem] sm:w-[19.5rem]">{children}</div>
+          {viewToggle}
+        </div>
       </div>
-      <div className="min-w-0 max-w-full overflow-x-auto">{tabs}</div>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      {tabs ? <div className="w-full min-w-0">{tabs}</div> : null}
+      {secondaryFilters}
+      <div className="min-w-0 w-[19.5rem] max-w-full">{children}</div>
+      {viewToggle ? <div className="ml-auto shrink-0">{viewToggle}</div> : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { exportSingleInvoiceCsv } from "@/lib/csv-export";
+import { draftInvoice } from "@/lib/invoice-demo-data";
 import {
   UNCOLLECTIBLE_REASON_CODES,
   type InvoiceActionKey,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/invoice-actions";
 import { DownloadPdfModal } from "./DownloadPdfModal";
 import { ManualReceiptModal } from "./ManualReceiptModal";
+import { SendReminderModal } from "./SendReminderModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
@@ -49,9 +51,8 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
   const [showUncollectible, setShowUncollectible] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [confirm, setConfirm] = useState<"delete" | "void" | "send_reminder" | null>(
-    null,
-  );
+  const [showReminder, setShowReminder] = useState(false);
+  const [confirm, setConfirm] = useState<"delete" | "void" | null>(null);
   const [reason, setReason] = useState<(typeof UNCOLLECTIBLE_REASON_CODES)[number]>(
     UNCOLLECTIBLE_REASON_CODES[0],
   );
@@ -77,8 +78,12 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
       setShowUncollectible(true);
       return;
     }
-    if (action === "delete" || action === "void" || action === "send_reminder") {
+    if (action === "delete" || action === "void") {
       setConfirm(action);
+      return;
+    }
+    if (action === "send_reminder") {
+      setShowReminder(true);
       return;
     }
     if (action === "mark_viewed") {
@@ -233,20 +238,6 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
           router.push("/sent/void");
         }}
       />
-    ) : confirm === "send_reminder" ? (
-      <ConfirmModal
-        title="Send reminder?"
-        body="Send a payment reminder to this customer for the outstanding balance on this invoice."
-        confirmLabel="Send reminder"
-        onClose={() => setConfirm(null)}
-        onConfirm={() => {
-          setConfirm(null);
-          setFeedback({
-            kind: "info",
-            message: "Reminder sent (demo).",
-          });
-        }}
-      />
     ) : null;
 
   const downloadModal = showDownload ? (
@@ -266,6 +257,21 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     />
   ) : null;
 
+  const reminderModal = showReminder ? (
+    <SendReminderModal
+      onClose={() => setShowReminder(false)}
+      onSent={(method) =>
+        setFeedback({
+          kind: "info",
+          message:
+            method === "email"
+              ? `Reminder emailed to ${draftInvoice.customer.email}.`
+              : `Reminder texted to ${draftInvoice.customer.phone}.`,
+        })
+      }
+    />
+  ) : null;
+
   return {
     handleAction,
     feedbackBanner,
@@ -273,5 +279,6 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     confirmModal,
     downloadModal,
     receiptModal,
+    reminderModal,
   };
 }

@@ -82,6 +82,11 @@ export function createAndPersistCustomer(
     phone: "",
     email,
     tags: [],
+    dateCreated: new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
   };
 
   const existing = loadCustomCustomers().filter(

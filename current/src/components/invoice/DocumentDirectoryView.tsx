@@ -20,7 +20,7 @@ import {
   type CustomerQuoteRow,
 } from "@/lib/invoice-demo-data";
 import { DateRangeFilter } from "./DateRangeFilter";
-import { MoreActionsMenu } from "./MoreActionsMenu";
+import { StatusFilterDropdown } from "./StatusFilterDropdown";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -28,14 +28,15 @@ import {
   ColumnContextMenu,
   DirectoryColumnHeader,
   DirectoryToolbar,
+  DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
   SearchField,
   SortHeaderButton,
-  StatusToggleTabs,
   useDirectoryColumns,
   type DirectoryColumnDef,
+  type DirectoryViewMode,
 } from "./directory-table";
 import { UI_CLASS } from "@/lib/design-tokens";
 
@@ -117,22 +118,22 @@ type QuoteColumnId =
 
 const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
   { id: "number", label: "Invoice #", minWidth: 100, defaultWidth: 120 },
+  { id: "status", label: "Status", minWidth: 110, defaultWidth: 140 },
   { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
   { id: "issued", label: "Issued", minWidth: 100, defaultWidth: 120 },
   { id: "due", label: "Due", minWidth: 100, defaultWidth: 120 },
   { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
   { id: "paid", label: "Paid", minWidth: 90, defaultWidth: 110 },
   { id: "outstanding", label: "Outstanding", minWidth: 110, defaultWidth: 130 },
-  { id: "status", label: "Status", minWidth: 110, defaultWidth: 140 },
 ];
 
 const QUOTE_COLUMNS: DirectoryColumnDef<QuoteColumnId>[] = [
   { id: "number", label: "Quote #", minWidth: 100, defaultWidth: 120 },
+  { id: "status", label: "Status", minWidth: 110, defaultWidth: 130 },
   { id: "customer", label: "Customer", minWidth: 140, defaultWidth: 200 },
   { id: "created", label: "Created", minWidth: 100, defaultWidth: 120 },
   { id: "expiry", label: "Expiry", minWidth: 100, defaultWidth: 120 },
   { id: "total", label: "Total", minWidth: 100, defaultWidth: 120 },
-  { id: "status", label: "Status", minWidth: 110, defaultWidth: 130 },
 ];
 
 /** Soft fill status chips (no outline). */
@@ -269,6 +270,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   );
   const [query, setQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRangeValue>(DEFAULT_DATE_RANGE);
+  const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
 
   const isInvoices = kind === "invoices";
   const title = isInvoices ? "Invoices" : "Quotes";
@@ -350,41 +352,42 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
             <p className="mt-2 type-subtitle-1 text-black/55">{subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <MoreActionsMenu
-              actions={[{ key: "export_csv", label: "Export CSV" }]}
-              onAction={(key) => {
-                if (key !== "export_csv") return;
+            <button
+              type="button"
+              className="ui-btn-secondary"
+              onClick={() => {
                 if (isInvoices) {
                   exportInvoicesCsv(invoices);
                 } else {
                   exportQuotesCsv(quotes);
                 }
               }}
-            />
+            >
+              Export CSV
+            </button>
             <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
           </div>
         </div>
 
         <DirectoryToolbar
+          layout="stacked"
           secondaryFilters={
-            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+            <>
+              <StatusFilterDropdown
+                options={isInvoices ? INVOICE_STATUS_TABS : QUOTE_STATUS_TABS}
+                value={isInvoices ? invoiceTab : quoteTab}
+                onChange={setStatusTab}
+                label={
+                  isInvoices
+                    ? "Filter invoices by status"
+                    : "Filter quotes by status"
+                }
+              />
+              <DateRangeFilter value={dateRange} onChange={setDateRange} />
+            </>
           }
-          tabs={
-            isInvoices ? (
-              <StatusToggleTabs
-                tabs={INVOICE_STATUS_TABS}
-                value={invoiceTab}
-                onChange={setStatusTab}
-                label="Filter invoices by status"
-              />
-            ) : (
-              <StatusToggleTabs
-                tabs={QUOTE_STATUS_TABS}
-                value={quoteTab}
-                onChange={setStatusTab}
-                label="Filter quotes by status"
-              />
-            )
+          viewToggle={
+            <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
           }
         >
           <SearchField
@@ -400,15 +403,160 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           />
         </DirectoryToolbar>
 
-        <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-          {isInvoices ? (
-            <InvoiceTable rows={invoices} query={query} />
+        {viewMode === "card" ? (
+          isInvoices ? (
+            <InvoiceCardGrid rows={invoices} query={query} />
           ) : (
-            <QuoteTable rows={quotes} query={query} />
-          )}
-        </div>
+            <QuoteCardGrid rows={quotes} query={query} />
+          )
+        ) : (
+          <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+            {isInvoices ? (
+              <InvoiceTable rows={invoices} query={query} />
+            ) : (
+              <QuoteTable rows={quotes} query={query} />
+            )}
+          </div>
+        )}
       </main>
     </div>
+  );
+}
+
+function InvoiceCardGrid({
+  rows,
+  query,
+}: {
+  rows: CustomerInvoiceRow[];
+  query: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+        <EmptyState
+          label="No invoices match your filters."
+          href="/"
+          cta="Create Invoice"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {rows.map((invoice) => (
+        <li key={invoice.id}>
+          <Link
+            href={hrefForCustomerInvoice(invoice.status)}
+            className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-midnight-ink">
+                  <HighlightText text={`#${invoice.number}`} query={query} />
+                </p>
+                <p className="mt-1 truncate text-sm text-black/60">
+                  <HighlightText
+                    text={customerName(invoice.customerId)}
+                    query={query}
+                  />
+                </p>
+              </div>
+              <StatusBadge status={invoice.status} query={query} />
+            </div>
+            <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <div>
+                <dt className="text-xs text-black/45">Issued</dt>
+                <dd className="mt-0.5 text-black/75">{invoice.dateIssued}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-black/45">Due</dt>
+                <dd className="mt-0.5 text-black/75">{invoice.dueDate}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-black/45">Total</dt>
+                <dd className="mt-0.5 font-medium">
+                  <MoneyCell amount={invoice.amount} variant="total" />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-black/45">Outstanding</dt>
+                <dd className="mt-0.5 font-medium">
+                  <MoneyCell
+                    amount={invoice.balanceOutstanding}
+                    variant="outstanding"
+                  />
+                </dd>
+              </div>
+            </dl>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function QuoteCardGrid({
+  rows,
+  query,
+}: {
+  rows: CustomerQuoteRow[];
+  query: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+        <EmptyState
+          label="No quotes match your filters."
+          href="/quote"
+          cta="Create Quote"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {rows.map((quote) => (
+        <li key={quote.id}>
+          <Link
+            href={hrefForCustomerQuote(quote.status)}
+            className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-midnight-ink">
+                  <HighlightText text={quote.number} query={query} />
+                </p>
+                <p className="mt-1 truncate text-sm text-black/60">
+                  <HighlightText
+                    text={customerName(quote.customerId)}
+                    query={query}
+                  />
+                </p>
+              </div>
+              <StatusBadge status={quote.status} query={query} />
+            </div>
+            <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <div>
+                <dt className="text-xs text-black/45">Created</dt>
+                <dd className="mt-0.5 text-black/75">{quote.dateCreated}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-black/45">Expiry</dt>
+                <dd className="mt-0.5 text-black/75">{quote.expiryDate}</dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-xs text-black/45">Total</dt>
+                <dd className="mt-0.5 font-medium">
+                  <MoneyCell amount={quote.amount} variant="total" />
+                </dd>
+              </div>
+            </dl>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -437,7 +585,7 @@ function InvoiceTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-invoice-directory-columns", columns);
+  } = useDirectoryColumns("atb-invoice-directory-columns-v2", columns);
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -640,7 +788,7 @@ function QuoteTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-quote-directory-columns", columns);
+  } = useDirectoryColumns("atb-quote-directory-columns-v2", columns);
 
   useDismissOnOutsideClick(
     contextMenuRef,

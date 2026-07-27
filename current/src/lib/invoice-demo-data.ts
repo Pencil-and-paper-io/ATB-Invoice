@@ -22,6 +22,8 @@ export type Customer = {
   phone: string;
   email: string;
   tags: string[];
+  /** Demo / directory date filter (“Created”). */
+  dateCreated?: string;
 };
 
 export const customers: Customer[] = [
@@ -32,6 +34,7 @@ export const customers: Customer[] = [
     phone: "1-403-257-0099",
     email: "accounting@acme.co",
     tags: ["VIP", "Contractor"],
+    dateCreated: "Jul 2, 2026",
   },
   {
     id: "beta",
@@ -40,6 +43,7 @@ export const customers: Customer[] = [
     phone: "1-403-555-0142",
     email: "billing@betabuilders.ca",
     tags: ["Retail"],
+    dateCreated: "Jul 8, 2026",
   },
   {
     id: "cedar",
@@ -48,6 +52,7 @@ export const customers: Customer[] = [
     phone: "1-403-555-0177",
     email: "invoices@cedarcontracting.ca",
     tags: ["Wholesale", "Net-30"],
+    dateCreated: "Jul 12, 2026",
   },
   {
     id: "delta",
@@ -56,6 +61,7 @@ export const customers: Customer[] = [
     phone: "1-403-555-0190",
     email: "accounts@deltadesign.ca",
     tags: ["VIP", "Retail"],
+    dateCreated: "Jun 15, 2026",
   },
   {
     id: "evergreen",
@@ -64,6 +70,7 @@ export const customers: Customer[] = [
     phone: "1-587-555-0133",
     email: "payables@evergreenland.ca",
     tags: ["Contractor", "Net-30"],
+    dateCreated: "Jul 18, 2026",
   },
   {
     id: "falcon",
@@ -72,6 +79,7 @@ export const customers: Customer[] = [
     phone: "1-403-555-0168",
     email: "billing@falconhvac.ca",
     tags: ["Wholesale"],
+    dateCreated: "Jul 5, 2026",
   },
   {
     id: "glacier",
@@ -80,6 +88,7 @@ export const customers: Customer[] = [
     phone: "1-825-555-0111",
     email: "finance@glacierpeak.ca",
     tags: ["VIP", "Net-30"],
+    dateCreated: "Jul 20, 2026",
   },
 ];
 

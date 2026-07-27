@@ -7,14 +7,18 @@ import {
   type DateRangePreset,
   type DateRangeValue,
 } from "@/lib/directory-date-range";
+import { DropdownMenuCheck } from "./DropdownMenuCheck";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 
 export function DateRangeFilter({
   value,
   onChange,
+  prefixLabel = "Created",
 }: {
   value: DateRangeValue;
   onChange: (next: DateRangeValue) => void;
+  /** Grey label before the selected range (e.g. “Created”). */
+  prefixLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -41,19 +45,26 @@ export function DateRangeFilter({
   }
 
   const showingCustom = value.preset === "custom";
+  const rangeText = dateRangeLabel(value);
 
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex h-11 items-center gap-2 rounded-md border border-black/15 bg-white px-3.5 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.03]"
+        className="inline-flex h-11 items-center gap-2 rounded-md border border-black/15 bg-white px-3.5 text-sm transition hover:bg-black/[0.03]"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={menuId}
       >
         <CalendarIcon />
-        <span className="max-w-[11rem] truncate">{dateRangeLabel(value)}</span>
+        <span className="max-w-[14rem] truncate text-left">
+          <span className="font-semibold text-black/45">{prefixLabel}</span>
+          <span className="mx-1.5 font-semibold text-black/25" aria-hidden>
+            ·
+          </span>
+          <span className="font-semibold text-midnight-ink">{rangeText}</span>
+        </span>
         <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
           <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
         </svg>
@@ -63,23 +74,27 @@ export function DateRangeFilter({
         <div
           id={menuId}
           role="dialog"
-          aria-label="Date range"
+          aria-label={`${prefixLabel} date range`}
           className="absolute right-0 top-full z-40 mt-1 w-[280px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-lg"
         >
-          {DATE_RANGE_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => selectPreset(preset.id)}
-              className={`flex w-full px-4 py-2.5 text-left text-sm font-medium transition hover:bg-black/[0.04] ${
-                value.preset === preset.id
-                  ? "bg-prime-blue/8 text-prime-blue"
-                  : "text-midnight-ink"
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
+          {DATE_RANGE_PRESETS.map((preset) => {
+            const selected = value.preset === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => selectPreset(preset.id)}
+                className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium transition hover:bg-black/[0.04] ${
+                  selected
+                    ? "bg-prime-blue/8 text-prime-blue"
+                    : "text-midnight-ink"
+                }`}
+              >
+                <DropdownMenuCheck selected={selected} />
+                <span>{preset.label}</span>
+              </button>
+            );
+          })}
 
           {showingCustom ? (
             <div className="border-t border-black/10 px-4 py-3">
@@ -134,7 +149,14 @@ export function DateRangeFilter({
 
 function CalendarIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className="text-black/45"
+    >
       <rect
         x="2"
         y="3"
