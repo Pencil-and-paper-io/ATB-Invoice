@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { draftInvoice, formatMoney, previewMeta } from "@/lib/invoice-demo-data";
-import { MessagePreview } from "./SendMethodAccordion";
+import {
+  MessagePreview,
+  SendButtonIcon,
+  SendMethodAccordion,
+  useSendMethodSelection,
+} from "./SendMethodAccordion";
 import { CloseIcon, Modal } from "./ui";
 
 type Step = "receipt" | "send";
@@ -12,10 +17,11 @@ export function ManualReceiptModal({
   onSent,
 }: {
   onClose: () => void;
-  onSent?: () => void;
+  onSent?: (method?: "email" | "text") => void;
 }) {
   const [step, setStep] = useState<Step>("receipt");
-  const [sending, setSending] = useState(false);
+  const { selected, sending, setSending, selectMethod } =
+    useSendMethodSelection();
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -28,8 +34,11 @@ export function ManualReceiptModal({
   const amountPaid = previewMeta.amount;
   const taxGst = draftInvoice.totals.taxGst;
   const email = draftInvoice.customer.email;
+  const phone = draftInvoice.customer.phone;
   const contactName = draftInvoice.customer.name;
   const companyName = draftInvoice.business.name;
+  const emailAvailable = Boolean(email);
+  const textAvailable = Boolean(phone);
 
   function handleDownload() {
     // Demo: browser print of the receipt surface.
@@ -37,16 +46,23 @@ export function ManualReceiptModal({
   }
 
   function handleSend() {
-    if (sending) return;
+    if (sending || !selected || selected === "link") return;
     setSending(true);
     window.setTimeout(() => {
       setSending(false);
-      onSent?.();
+      onSent?.(selected);
       onClose();
     }, 400);
   }
 
   if (step === "send") {
+    const confirmLabel =
+      selected === "email"
+        ? "Send via email"
+        : selected === "text"
+          ? "Send via text"
+          : "Send receipt";
+
     return (
       <Modal
         title="Send receipt"
@@ -54,24 +70,70 @@ export function ManualReceiptModal({
         onClose={onClose}
         maxWidthClass="max-w-2xl"
         zClass="z-[80]"
-        confirmLabel={sending ? "Sending…" : "Send via email"}
+        confirmLabel={sending ? "Sending…" : confirmLabel}
         onConfirm={handleSend}
-        confirmDisabled={sending || !email}
+        confirmDisabled={
+          sending || !selected || selected === "link"
+        }
         cancelLabel="Back"
         onCancel={() => setStep("receipt")}
+        confirmChildren={
+          <>
+            {selected && selected !== "link" ? (
+              <SendButtonIcon method={selected} />
+            ) : null}
+            {sending ? "Sending…" : confirmLabel}
+          </>
+        }
       >
         <p className="text-sm text-black/60">
-          Email a copy of this payment receipt to {email || "the customer"}.
+          Choose how to send a copy of this payment receipt.
         </p>
         <div className="mt-5">
-          <p className="text-sm font-semibold text-black">Email preview</p>
-          <div className="mt-3">
-            <MessagePreview>
-              Hello {contactName}, thank you for your payment of{" "}
-              {formatMoney(amountPaid)} to {companyName}. Your receipt for
-              invoice #{previewMeta.invoiceNumber} is attached. GST/HST collected
-              on this payment: {formatMoney(taxGst)}.
-            </MessagePreview>
+          <p className="text-sm font-semibold text-black">
+            How do you want to send it?
+          </p>
+          <p className="mt-1 text-xs text-black/50">
+            Choose one option and preview the message.
+          </p>
+          <div className="mt-4">
+            <SendMethodAccordion
+              selected={selected}
+              onSelect={selectMethod}
+              sections={[
+                {
+                  method: "email",
+                  title: "Email",
+                  summary: emailAvailable
+                    ? `Send to ${email}`
+                    : "No email on file — add one on the customer page",
+                  available: emailAvailable,
+                  children: (
+                    <MessagePreview>
+                      Hello {contactName}, thank you for your payment of{" "}
+                      {formatMoney(amountPaid)} to {companyName}. Your receipt
+                      for invoice #{previewMeta.invoiceNumber} is attached.
+                      GST/HST collected on this payment: {formatMoney(taxGst)}.
+                    </MessagePreview>
+                  ),
+                },
+                {
+                  method: "text",
+                  title: "Text message",
+                  summary: textAvailable
+                    ? `Send to ${phone}`
+                    : "No phone on file — add one on the customer page",
+                  available: textAvailable,
+                  children: (
+                    <MessagePreview>
+                      Receipt from {companyName}: payment of{" "}
+                      {formatMoney(amountPaid)} received for invoice #
+                      {previewMeta.invoiceNumber}. Thank you!
+                    </MessagePreview>
+                  ),
+                },
+              ]}
+            />
           </div>
         </div>
       </Modal>

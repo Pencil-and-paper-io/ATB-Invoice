@@ -31,14 +31,25 @@ import {
   type CustomerInvoiceRow,
   type CustomerQuoteRow,
 } from "@/lib/invoice-demo-data";
+import {
+  getActionsForStatus,
+  type InvoiceStatus,
+} from "@/lib/invoice-actions";
+import {
+  getQuoteActionsForStatus,
+  type QuoteStatus,
+} from "@/lib/quote-actions";
 import { DirectoryFilterPanel } from "./DirectoryFilterPanel";
 import {
   DirectoryFilterTags,
   FilterIconButton,
 } from "./DirectoryFilterTags";
+import { RowKebabMenu } from "./RowKebabMenu";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
+import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
+import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import {
   ColumnContextMenu,
   DirectoryColumnHeader,
@@ -154,6 +165,32 @@ function customerName(customerId: string) {
 
 function invoicePaid(row: CustomerInvoiceRow) {
   return Math.max(0, row.amount - row.balanceOutstanding);
+}
+
+function mapDirectoryInvoiceStatus(status: string): InvoiceStatus {
+  const key = status.trim().toLowerCase();
+  if (key === "draft") return "drafted";
+  if (key === "sent") return "sent";
+  if (key === "viewed") return "viewed";
+  if (key === "partially paid") return "partially_paid";
+  if (key === "paid") return "paid";
+  if (key === "overdue 90+" || key === "overdue_90") return "overdue_over_90";
+  if (key.startsWith("overdue")) return "overdue_under_90";
+  if (key === "uncollectible") return "uncollectible";
+  if (key === "void") return "void";
+  return "sent";
+}
+
+function mapDirectoryQuoteStatus(status: string): QuoteStatus {
+  const key = status.trim().toLowerCase();
+  if (key === "draft") return "drafted";
+  if (key === "sent") return "sent";
+  if (key === "viewed") return "viewed";
+  if (key === "accepted") return "accepted";
+  if (key === "rejected") return "rejected";
+  if (key === "expired") return "expired";
+  if (key === "void") return "void";
+  return "sent";
 }
 
 function escapeRegExp(value: string) {
@@ -660,6 +697,16 @@ function InvoiceTable({
   const [sortKey, setSortKey] = useState<InvoiceColumnId>("number");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const {
+    handleAction,
+    feedbackBanner,
+    uncollectibleModal,
+    confirmModal,
+    downloadModal,
+    receiptModal,
+    reminderModal,
+    sendModal,
+  } = useInvoiceActionHandler("sent");
 
   const columns = useMemo(() => INVOICE_COLUMNS, []);
   const {
@@ -677,6 +724,8 @@ function InvoiceTable({
   } = useDirectoryColumns("atb-invoice-directory-columns-v3", columns, {
     fluid: true,
   });
+
+  const tableGridTemplate = `${gridTemplateColumns} 44px`;
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -763,13 +812,13 @@ function InvoiceTable({
     <div className="w-full">
       <div
         className={DIRECTORY_HEADER_ROW_STICKY}
-        style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+        style={{ display: "grid", gridTemplateColumns: tableGridTemplate, gap: "1rem" }}
       >
           {visibleColumns.map((column, index) => (
             <DirectoryColumnHeader
               key={column.id}
               label={column.label}
-              isLast={index === visibleColumns.length - 1}
+              isLast={false}
               onDragStart={() => onHeaderDragStart(column.id)}
               onDrop={() => onHeaderDrop(column.id)}
               onContextMenu={(event) => {
@@ -797,32 +846,47 @@ function InvoiceTable({
               />
             </DirectoryColumnHeader>
           ))}
+          <div className="flex items-center justify-end pr-1" aria-hidden>
+            <span className="sr-only">Actions</span>
+          </div>
       </div>
 
         {sortedRows.length > 0 ? (
           <ul>
-            {sortedRows.map((invoice, index) => (
+            {sortedRows.map((invoice, index) => {
+              const actionStatus = mapDirectoryInvoiceStatus(invoice.status);
+              const actions = getActionsForStatus(actionStatus);
+              return (
               <li key={invoice.id}>
-                <Link
-                  href={hrefForCustomerInvoice(invoice.status)}
+                <div
                   className={`${DIRECTORY_BODY_ROW} ${
                     index < sortedRows.length - 1 ? "border-b border-black/10" : ""
                   }`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns,
+                    gridTemplateColumns: tableGridTemplate,
                     gap: "1rem",
                     alignItems: "center",
                   }}
                 >
                   {visibleColumns.map((column) => (
-                    <div key={column.id} className="min-w-0 overflow-hidden">
+                    <Link
+                      key={column.id}
+                      href={hrefForCustomerInvoice(invoice.status)}
+                      className="min-w-0 overflow-hidden"
+                    >
                       {renderCell(invoice, column.id)}
-                    </div>
+                    </Link>
                   ))}
-                </Link>
+                  <RowKebabMenu
+                    label={`Actions for invoice ${invoice.number}`}
+                    actions={actions}
+                    onAction={(key) => handleAction(key, actionStatus)}
+                  />
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <EmptyState
@@ -851,6 +915,13 @@ function InvoiceTable({
         onShowAll={showAllColumns}
         onClose={() => setContextMenu(null)}
       />
+      {feedbackBanner}
+      {uncollectibleModal}
+      {confirmModal}
+      {downloadModal}
+      {receiptModal}
+      {reminderModal}
+      {sendModal}
   </>
   );
 }
@@ -865,6 +936,13 @@ function QuoteTable({
   const [sortKey, setSortKey] = useState<QuoteColumnId>("number");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const {
+    handleAction,
+    feedbackBanner,
+    confirmModal,
+    downloadModal,
+    sendModal,
+  } = useQuoteActionHandler("sent");
 
   const columns = useMemo(() => QUOTE_COLUMNS, []);
   const {
@@ -882,6 +960,8 @@ function QuoteTable({
   } = useDirectoryColumns("atb-quote-directory-columns-v3", columns, {
     fluid: true,
   });
+
+  const tableGridTemplate = `${gridTemplateColumns} 44px`;
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -952,13 +1032,13 @@ function QuoteTable({
     <div className="w-full">
       <div
         className={DIRECTORY_HEADER_ROW_STICKY}
-        style={{ display: "grid", gridTemplateColumns, gap: "1rem" }}
+        style={{ display: "grid", gridTemplateColumns: tableGridTemplate, gap: "1rem" }}
       >
-          {visibleColumns.map((column, index) => (
+          {visibleColumns.map((column) => (
             <DirectoryColumnHeader
               key={column.id}
               label={column.label}
-              isLast={index === visibleColumns.length - 1}
+              isLast={false}
               onDragStart={() => onHeaderDragStart(column.id)}
               onDrop={() => onHeaderDrop(column.id)}
               onContextMenu={(event) => {
@@ -980,32 +1060,47 @@ function QuoteTable({
               />
             </DirectoryColumnHeader>
           ))}
+          <div className="flex items-center justify-end pr-1" aria-hidden>
+            <span className="sr-only">Actions</span>
+          </div>
       </div>
 
         {sortedRows.length > 0 ? (
           <ul>
-            {sortedRows.map((quote, index) => (
+            {sortedRows.map((quote, index) => {
+              const actionStatus = mapDirectoryQuoteStatus(quote.status);
+              const actions = getQuoteActionsForStatus(actionStatus);
+              return (
               <li key={quote.id}>
-                <Link
-                  href={hrefForCustomerQuote(quote.status)}
+                <div
                   className={`${DIRECTORY_BODY_ROW} ${
                     index < sortedRows.length - 1 ? "border-b border-black/10" : ""
                   }`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns,
+                    gridTemplateColumns: tableGridTemplate,
                     gap: "1rem",
                     alignItems: "center",
                   }}
                 >
                   {visibleColumns.map((column) => (
-                    <div key={column.id} className="min-w-0 overflow-hidden">
+                    <Link
+                      key={column.id}
+                      href={hrefForCustomerQuote(quote.status)}
+                      className="min-w-0 overflow-hidden"
+                    >
                       {renderCell(quote, column.id)}
-                    </div>
+                    </Link>
                   ))}
-                </Link>
+                  <RowKebabMenu
+                    label={`Actions for quote ${quote.number}`}
+                    actions={actions}
+                    onAction={(key) => handleAction(key, actionStatus)}
+                  />
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <EmptyState
@@ -1033,6 +1128,10 @@ function QuoteTable({
         onShowAll={showAllColumns}
         onClose={() => setContextMenu(null)}
       />
+      {feedbackBanner}
+      {confirmModal}
+      {downloadModal}
+      {sendModal}
     </>
   );
 }

@@ -2,6 +2,7 @@ export type QuoteStatus =
   | "drafted"
   | "sent"
   | "viewed"
+  | "accepted"
   | "rejected"
   | "expired"
   | "void";
@@ -38,6 +39,7 @@ export const QUOTE_STATUS_ACTION_MATRIX: Record<QuoteStatus, QuoteActionKey[]> =
     drafted: ["edit", "download", "duplicate", "delete"],
     sent: ["resend", "download", "copy_link", "template", "duplicate", "void"],
     viewed: ["resend", "download", "copy_link", "template", "duplicate", "void"],
+    accepted: ["download", "copy_link", "template", "duplicate"],
     rejected: ["download", "copy_link", "template", "duplicate"],
     expired: ["edit", "download", "template", "duplicate", "void"],
     void: ["download", "template", "duplicate"],

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { exportSingleInvoiceCsv } from "@/lib/csv-export";
 import { draftInvoice } from "@/lib/invoice-demo-data";
 import {
@@ -11,10 +11,12 @@ import {
 } from "@/lib/invoice-actions";
 import { DownloadPdfModal } from "./DownloadPdfModal";
 import { ManualReceiptModal } from "./ManualReceiptModal";
+import { SendInvoiceModal } from "./SendInvoiceModal";
 import { SendReminderModal } from "./SendReminderModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
+type SendModalMode = "resend" | "test" | null;
 
 function ConfirmModal({
   title,
@@ -45,13 +47,19 @@ function ConfirmModal({
   );
 }
 
-export function useInvoiceActionHandler(status: InvoiceStatus) {
+export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
   const router = useRouter();
+  const [status, setStatus] = useState(initialStatus);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [showUncollectible, setShowUncollectible] = useState(false);
   const [showDownload, setShowDownload] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
+  const [sendModal, setSendModal] = useState<SendModalMode>(null);
   const [confirm, setConfirm] = useState<"delete" | "void" | null>(null);
   const [reason, setReason] = useState<(typeof UNCOLLECTIBLE_REASON_CODES)[number]>(
     UNCOLLECTIBLE_REASON_CODES[0],
@@ -71,7 +79,8 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     }
   }
 
-  function handleAction(key: string) {
+  function handleAction(key: string, forStatus?: InvoiceStatus) {
+    if (forStatus) setStatus(forStatus);
     const action = key as InvoiceActionKey;
 
     if (action === "uncollectible") {
@@ -84,6 +93,14 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     }
     if (action === "send_reminder") {
       setShowReminder(true);
+      return;
+    }
+    if (action === "resend") {
+      setSendModal("resend");
+      return;
+    }
+    if (action === "send_test") {
+      setSendModal("test");
       return;
     }
     if (action === "mark_viewed") {
@@ -115,8 +132,6 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     const messages: Partial<Record<InvoiceActionKey, string>> = {
       template: "Saved as template (demo).",
       duplicate: "Invoice duplicated (demo).",
-      resend: "Re-send opened (demo).",
-      send_test: "Test invoice sent (demo).",
       view_history: "Opening history (demo).",
     };
 
@@ -251,8 +266,14 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
   const receiptModal = showReceipt ? (
     <ManualReceiptModal
       onClose={() => setShowReceipt(false)}
-      onSent={() =>
-        setFeedback({ kind: "info", message: "Receipt sent (demo)." })
+      onSent={(method) =>
+        setFeedback({
+          kind: "info",
+          message:
+            method === "text"
+              ? `Receipt texted to ${draftInvoice.customer.phone}.`
+              : `Receipt emailed to ${draftInvoice.customer.email}.`,
+        })
       }
     />
   ) : null;
@@ -272,6 +293,25 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     />
   ) : null;
 
+  const sendModalNode = sendModal ? (
+    <SendInvoiceModal
+      mode={sendModal}
+      navigateOnSend={false}
+      onClose={() => setSendModal(null)}
+      onSent={(method) =>
+        setFeedback({
+          kind: "info",
+          message:
+            method === "email"
+              ? `${sendModal === "test" ? "Test invoice" : "Invoice"} emailed to ${draftInvoice.customer.email}.`
+              : method === "text"
+                ? `${sendModal === "test" ? "Test invoice" : "Invoice"} texted to ${draftInvoice.customer.phone}.`
+                : "Invoice link copied.",
+        })
+      }
+    />
+  ) : null;
+
   return {
     handleAction,
     feedbackBanner,
@@ -280,5 +320,6 @@ export function useInvoiceActionHandler(status: InvoiceStatus) {
     downloadModal,
     receiptModal,
     reminderModal,
+    sendModal: sendModalNode,
   };
 }

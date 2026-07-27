@@ -11,7 +11,6 @@ import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
-import { SendQuoteModal } from "./SendQuoteModal";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { Modal } from "./ui";
@@ -242,20 +241,11 @@ export function SentQuoteView({
   const router = useRouter();
   const status = VARIANT_STATUS[variant];
   const meta = VARIANT_META[variant];
-  const { handleAction, feedbackBanner, confirmModal, downloadModal } =
+  const { handleAction, feedbackBanner, confirmModal, downloadModal, sendModal } =
     useQuoteActionHandler(status);
   const [showDecision, setShowDecision] = useState(false);
-  const [showSendModal, setShowSendModal] = useState(false);
   // Edit is a surface button when available — keep it out of More Actions.
   const moreActions = getQuoteActionsForStatus(status, ["edit"]);
-
-  function onMoreAction(key: string) {
-    if (key === "resend") {
-      setShowSendModal(true);
-      return;
-    }
-    handleAction(key);
-  }
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -275,7 +265,7 @@ export function SentQuoteView({
                 Edit
               </Link>
             ) : null}
-            <MoreActionsMenu actions={moreActions} onAction={onMoreAction} />
+            <MoreActionsMenu actions={moreActions} onAction={handleAction} />
             {meta.showDecision ? (
               <button
                 type="button"
@@ -318,9 +308,6 @@ export function SentQuoteView({
         </div>
       </main>
 
-      {showSendModal ? (
-        <SendQuoteModal onClose={() => setShowSendModal(false)} />
-      ) : null}
       {showDecision ? (
         <RecordDecisionModal
           onClose={() => setShowDecision(false)}
@@ -338,6 +325,7 @@ export function SentQuoteView({
       {feedbackBanner}
       {confirmModal}
       {downloadModal}
+      {sendModal}
     </div>
   );
 }

@@ -1,14 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { QuoteActionKey, QuoteStatus } from "@/lib/quote-actions";
 import { duplicateQuoteDetails } from "@/lib/quote-details";
 import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import { DownloadPdfModal } from "./DownloadPdfModal";
+import { SendQuoteModal } from "./SendQuoteModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
+type SendModalMode = "resend" | "test" | null;
 
 function ConfirmModal({
   title,
@@ -39,10 +41,16 @@ function ConfirmModal({
   );
 }
 
-export function useQuoteActionHandler(status: QuoteStatus) {
+export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
   const router = useRouter();
+  const [status, setStatus] = useState(initialStatus);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [showDownload, setShowDownload] = useState(false);
+  const [sendModal, setSendModal] = useState<SendModalMode>(null);
   const [confirm, setConfirm] = useState<"delete" | "void" | "mark_rejected" | null>(
     null,
   );
@@ -60,7 +68,8 @@ export function useQuoteActionHandler(status: QuoteStatus) {
     }
   }
 
-  function handleAction(key: string) {
+  function handleAction(key: string, forStatus?: QuoteStatus) {
+    if (forStatus) setStatus(forStatus);
     const action = key as QuoteActionKey;
 
     if (action === "delete" || action === "void" || action === "mark_rejected") {
@@ -93,11 +102,17 @@ export function useQuoteActionHandler(status: QuoteStatus) {
       void copyDemoLink();
       return;
     }
+    if (action === "resend") {
+      setSendModal("resend");
+      return;
+    }
+    if (action === "send_test") {
+      setSendModal("test");
+      return;
+    }
 
     const messages: Partial<Record<QuoteActionKey, string>> = {
       template: "Saved as template (demo).",
-      resend: "Re-send opened (demo).",
-      send_test: "Test quote sent (demo).",
       view_history: "Opening history (demo).",
     };
 
@@ -177,5 +192,30 @@ export function useQuoteActionHandler(status: QuoteStatus) {
     />
   ) : null;
 
-  return { handleAction, feedbackBanner, confirmModal, downloadModal };
+  const sendModalNode = sendModal ? (
+    <SendQuoteModal
+      mode={sendModal}
+      navigateOnSend={false}
+      onClose={() => setSendModal(null)}
+      onSent={(method) =>
+        setFeedback({
+          kind: "info",
+          message:
+            method === "email"
+              ? `${sendModal === "test" ? "Test quote" : "Quote"} emailed.`
+              : method === "text"
+                ? `${sendModal === "test" ? "Test quote" : "Quote"} texted.`
+                : "Quote link copied.",
+        })
+      }
+    />
+  ) : null;
+
+  return {
+    handleAction,
+    feedbackBanner,
+    confirmModal,
+    downloadModal,
+    sendModal: sendModalNode,
+  };
 }

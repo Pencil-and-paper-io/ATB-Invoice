@@ -20,7 +20,17 @@ const DEMO_DESTINATIONS = {
   link: "https://pay.atb.com/quote/0003",
 };
 
-export function SendQuoteModal({ onClose }: { onClose: () => void }) {
+export function SendQuoteModal({
+  onClose,
+  onSent,
+  mode = "send",
+  navigateOnSend = true,
+}: {
+  onClose: () => void;
+  onSent?: (method: "email" | "text" | "link") => void;
+  mode?: "send" | "resend" | "test";
+  navigateOnSend?: boolean;
+}) {
   const router = useRouter();
   const { selected, copied, sending, setCopied, setSending, selectMethod } =
     useSendMethodSelection();
@@ -30,9 +40,17 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
 
   const emailAvailable = Boolean(DEMO_DESTINATIONS.email);
   const textAvailable = Boolean(DEMO_DESTINATIONS.phone);
+  const title =
+    mode === "resend"
+      ? "Re-send quote"
+      : mode === "test"
+        ? "Send test quote"
+        : "Send quote";
+  const includeLink = mode === "send";
 
   async function handleConfirm() {
     if (!selected || sending) return;
+    if (!includeLink && selected === "link") return;
     setSending(true);
 
     if (selected === "link") {
@@ -42,11 +60,19 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
       } catch {
         // Demo: still proceed even if clipboard is blocked.
       }
-      window.setTimeout(() => router.push("/quote/sent"), 600);
+      window.setTimeout(() => {
+        onSent?.(selected);
+        if (navigateOnSend) router.push("/quote/sent");
+        else onClose();
+      }, 600);
       return;
     }
 
-    window.setTimeout(() => router.push("/quote/sent"), 200);
+    window.setTimeout(() => {
+      onSent?.(selected);
+      if (navigateOnSend) router.push("/quote/sent");
+      else onClose();
+    }, 200);
   }
 
   const confirmLabel = (() => {
@@ -59,13 +85,14 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Send quote"
+      title={title}
       titleId="send-quote-title"
       onClose={onClose}
       maxWidthClass="max-w-2xl"
+      zClass="z-[80]"
       confirmLabel={confirmLabel}
       onConfirm={() => void handleConfirm()}
-      confirmDisabled={!selected || sending}
+      confirmDisabled={!selected || sending || (!includeLink && selected === "link")}
       confirmChildren={
         <>
           {selected ? <SendButtonIcon method={selected} /> : null}
@@ -73,15 +100,23 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <div
-        className="rounded-lg border border-[#E8A317]/40 bg-[#FFF8E6] px-4 py-3.5 text-sm leading-5 text-black/80"
-        role="status"
-      >
-        Once you send this quote, the customer can accept or reject it.
-        Accepting creates a draft invoice you can continue editing.
-      </div>
+      {mode === "send" ? (
+        <div
+          className="rounded-lg border border-[#E8A317]/40 bg-[#FFF8E6] px-4 py-3.5 text-sm leading-5 text-black/80"
+          role="status"
+        >
+          Once you send this quote, the customer can accept or reject it.
+          Accepting creates a draft invoice you can continue editing.
+        </div>
+      ) : (
+        <p className="text-sm leading-5 text-black/65">
+          {mode === "test"
+            ? "Send a test copy to verify delivery before sharing with the customer."
+            : `Re-send this quote to ${contactName}.`}
+        </p>
+      )}
 
-      <div className="mt-6">
+      <div className={mode === "send" ? "mt-6" : "mt-5"}>
         <p className="text-sm font-semibold text-black">
           How do you want to send it?
         </p>
@@ -122,24 +157,28 @@ export function SendQuoteModal({ onClose }: { onClose: () => void }) {
                   </MessagePreview>
                 ),
               },
-              {
-                method: "link",
-                title: "URL link",
-                summary: "Copy a shareable link",
-                available: true,
-                children: (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm leading-6 text-black/70">
-                      Copy this link and send it in your own custom email or
-                      through your own other means. We will not send anything
-                      on your behalf.
-                    </p>
-                    <p className="break-all rounded-lg border border-black/10 bg-black/[0.02] px-3.5 py-2.5 text-sm text-black/80">
-                      {DEMO_DESTINATIONS.link}
-                    </p>
-                  </div>
-                ),
-              },
+              ...(includeLink
+                ? [
+                    {
+                      method: "link" as const,
+                      title: "URL link",
+                      summary: "Copy a shareable link",
+                      available: true,
+                      children: (
+                        <div className="flex flex-col gap-3">
+                          <p className="text-sm leading-6 text-black/70">
+                            Copy this link and send it in your own custom email
+                            or through your own other means. We will not send
+                            anything on your behalf.
+                          </p>
+                          <p className="break-all rounded-lg border border-black/10 bg-black/[0.02] px-3.5 py-2.5 text-sm text-black/80">
+                            {DEMO_DESTINATIONS.link}
+                          </p>
+                        </div>
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>
