@@ -8,6 +8,10 @@ import {
   type QuoteStatus,
 } from "@/lib/quote-actions";
 import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
+import {
+  formatActivityNow,
+  type ActivityItem,
+} from "@/lib/document-activity";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
@@ -86,10 +90,7 @@ const VARIANT_META: Record<
   },
 };
 
-const ACTIVITY: Record<
-  QuoteSentVariant,
-  { id: string; time: string; text: string }[]
-> = {
+const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
   awaiting: [
     {
       id: "q2",
@@ -313,7 +314,14 @@ export function SentQuoteView({
           onClose={() => setShowDecision(false)}
           onAccept={() => {
             setShowDecision(false);
-            markQuoteAcceptedForInvoice();
+            markQuoteAcceptedForInvoice(undefined, [
+              {
+                id: `q-accept-${Date.now()}`,
+                time: formatActivityNow(),
+                text: "Customer accepted the quote",
+              },
+              ...ACTIVITY[variant],
+            ]);
             router.push("/?from=quote");
           }}
           onReject={() => {

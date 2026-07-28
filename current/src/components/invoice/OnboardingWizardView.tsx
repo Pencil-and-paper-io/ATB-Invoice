@@ -5,10 +5,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
-  formatGstHstNumber,
   isValidGstHstNumber,
   loadOrganizationSettings,
-  parseGstHstNumber,
   paymentMethodLabel,
   saveOrganizationSettings,
   type OrganizationSettings,
@@ -18,6 +16,7 @@ import {
   DepositAccountBlock,
   paymentRequestSubtitle,
 } from "./DepositAccountConnect";
+import { GstHstNumberField } from "./GstHstNumberField";
 import {
   GST_HST_REGISTER_URL,
   GST_REGISTRATION_OPTIONS,
@@ -504,7 +503,6 @@ export function OnboardingWizardView() {
   );
   const cashMeta = CORE_PAYMENT_METHODS.find((method) => method.id === "cash");
   const heading = SETUP_STEPS[step];
-  const gstParts = parseGstHstNumber(state.gstHstNumber);
   const organizationDisplayName = state.useLegalNameOnInvoices
     ? state.businessName
     : state.tradingAsName.trim() || state.businessName;
@@ -618,7 +616,12 @@ export function OnboardingWizardView() {
             {step === 0 ? (
               <div className="flex flex-col gap-6">
                 <div>
-                  <FieldLabel htmlFor="contact-name">Contact Name</FieldLabel>
+                  <FieldLabel
+                    htmlFor="contact-name"
+                    tip="Shown as the sender on quote and invoice emails and texts (for example, “from Meganne at Horlicks Company”)."
+                  >
+                    Contact Name
+                  </FieldLabel>
                   <input
                     id="contact-name"
                     className={inputClass}
@@ -630,7 +633,12 @@ export function OnboardingWizardView() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="reply-email">Reply-To Email</FieldLabel>
+                  <FieldLabel
+                    htmlFor="reply-email"
+                    tip="Customer replies to your quotes and invoices go to this address."
+                  >
+                    Reply-To Email
+                  </FieldLabel>
                   <input
                     id="reply-email"
                     type="email"
@@ -800,67 +808,19 @@ export function OnboardingWizardView() {
                       ) : null}
                       {option.value === "registered" && selected ? (
                         <div className="mt-3 pl-7">
-                          <div
-                            className="flex flex-nowrap items-center gap-2"
-                            onBlur={(event) => {
-                              const next = event.relatedTarget as Node | null;
-                              if (next && event.currentTarget.contains(next)) {
-                                return;
-                              }
-                              setGstHstShowError(true);
+                          <GstHstNumberField
+                            id="gst-hst-bn"
+                            value={state.gstHstNumber}
+                            onChange={(gstHstNumber) => {
+                              setGstHstShowError(false);
+                              patch({ gstHstNumber });
                             }}
-                          >
-                            <input
-                              id="gst-hst-bn"
-                              inputMode="numeric"
-                              maxLength={9}
-                              className={`${inputClass} !w-[9.5rem] shrink-0`}
-                              value={gstParts.bn}
-                              onChange={(event) => {
-                                const bn = event.target.value
-                                  .replace(/[^\d]/g, "")
-                                  .slice(0, 9);
-                                setGstHstShowError(false);
-                                patch({
-                                  gstHstNumber: formatGstHstNumber(
-                                    bn,
-                                    gstParts.account,
-                                  ),
-                                });
-                              }}
-                              placeholder="123456789"
-                              aria-label="GST/HST business number, 9 digits"
-                            />
-                            <span className="shrink-0 type-body text-black">
-                              RT
-                            </span>
-                            <input
-                              id="gst-hst-account"
-                              inputMode="numeric"
-                              maxLength={4}
-                              className={`${inputClass} !w-[5.5rem] shrink-0`}
-                              value={gstParts.account}
-                              onChange={(event) => {
-                                const account = event.target.value
-                                  .replace(/[^\d]/g, "")
-                                  .slice(0, 4);
-                                setGstHstShowError(false);
-                                patch({
-                                  gstHstNumber: formatGstHstNumber(
-                                    gstParts.bn,
-                                    account,
-                                  ),
-                                });
-                              }}
-                              placeholder="0001"
-                              aria-label="GST/HST account number, 4 digits"
-                            />
-                          </div>
+                            onBlurComplete={() => setGstHstShowError(true)}
+                          />
                           {gstHstShowError &&
                           !isValidGstHstNumber(state.gstHstNumber) ? (
                             <p className="type-danger mt-2">
-                              Enter a valid CRA number (9 digits + RT + 4
-                              digits).
+                              Enter a valid 9-digit CRA business number.
                             </p>
                           ) : null}
                         </div>

@@ -7,7 +7,7 @@ export type AlbertaTaxOption = {
   hint: string;
 };
 
-/** Common tax choices for Alberta small businesses, including out-of-province clients. */
+/** Common tax choices for Alberta small businesses, including out-of-province customers. */
 export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
   {
     label: "GST - 5%",
@@ -19,13 +19,13 @@ export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
     label: "HST - 13% (ON)",
     rate: 13,
     gstRate: 13,
-    hint: "Ontario clients — combined GST/HST when place of supply rules apply.",
+    hint: "Ontario customers — combined GST/HST when place of supply rules apply.",
   },
   {
     label: "HST - 14% (NS)",
     rate: 14,
     gstRate: 14,
-    hint: "Nova Scotia clients — 14% HST when place of supply rules apply.",
+    hint: "Nova Scotia customers — 14% HST when place of supply rules apply.",
   },
   {
     label: "HST - 15% (NB / PE / NL)",
@@ -87,7 +87,7 @@ export const ALBERTA_TAX_OPTIONS: AlbertaTaxOption[] = [
 ];
 
 export const ALBERTA_TAX_TOOLTIP =
-  "Alberta has no provincial sales tax (PST). Local sales usually use GST at 5%. For clients in other provinces, place-of-supply rules may require HST or GST + provincial tax. Zero-rated is for eligible 0% commercial supplies (such as many exports). If you’re unsure, check CRA guidance or your accountant.";
+  "Alberta has no provincial sales tax (PST). Local sales usually use GST at 5%. For customers in other provinces, place-of-supply rules may require HST or GST + provincial tax. Zero-rated is for eligible 0% commercial supplies (such as many exports). If you’re unsure, check CRA guidance or your accountant.";
 
 export const TAX_RESOURCES_URL =
   "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html";

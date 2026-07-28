@@ -81,8 +81,25 @@ export function eftPaymentSelected(payments: InvoicePaymentOption[]) {
   return payments.some((option) => option.id === "eft" && option.checked);
 }
 
-export function eftCustomerReferenceNote(referenceNumber: string) {
-  const ref = referenceNumber.trim();
-  if (!ref) return null;
-  return `Include this reference number in your transaction [${ref}]`;
+/** Customer-facing EFT instruction using the document number. */
+export function eftCustomerReferenceNote(invoiceNumber: string) {
+  const inv = invoiceNumber.trim();
+  if (!inv) return null;
+  return `Add [${inv}] in the reference field to make sure your payment is matched to this invoice.`;
+}
+
+/** Demo payment methods for the customer pay-invoice portal. */
+export function customerPortalPaymentOptions(): InvoicePaymentOption[] {
+  const base = getInvoicePaymentOptions(loadOrganizationSettings());
+  const byId = new Map(base.map((option) => [option.id, option]));
+  return (["interac", "eft"] as const).map((id) => {
+    const existing = byId.get(id);
+    if (existing) return { ...existing, checked: true };
+    return {
+      id,
+      label: id === "interac" ? "Interac e-Transfer Request" : "EFT (Direct Deposit)",
+      checked: true,
+      details: [],
+    };
+  });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -10,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  archiveCustomer,
   customers,
   getAllCustomers,
   getCustomerAccountSummary,
@@ -46,6 +48,8 @@ import {
   SortHeaderButton,
   type DirectoryViewMode,
 } from "@/components/invoice/directory-table";
+import { RowKebabMenu } from "@/components/invoice/RowKebabMenu";
+import type { MenuAction } from "@/components/invoice/MoreActionsMenu";
 import { CreatePlusIcon } from "@/components/invoice/ui";
 import { useDismissOnOutsideClick } from "@/components/invoice/useDismissOnOutsideClick";
 import { UI_CLASS } from "@/lib/design-tokens";
@@ -55,8 +59,7 @@ type SortKey =
   | "email"
   | "totalInvoiced"
   | "paid"
-  | "outstanding"
-  | "actions";
+  | "outstanding";
 type SortDir = "asc" | "desc";
 type DirectoryTab = "active" | "archived";
 type ColumnId = SortKey | "tags";
@@ -68,13 +71,12 @@ type ColumnDef = {
   defaultWidth: number;
   sortable: SortKey | null;
   hideable: boolean;
-  archivedOnly?: boolean;
 };
 
 const COLUMN_DEFS: ColumnDef[] = [
   {
     id: "name",
-    label: "Legal Name",
+    label: "Customer Name",
     minWidth: 140,
     defaultWidth: 220,
     sortable: "name",
@@ -120,15 +122,6 @@ const COLUMN_DEFS: ColumnDef[] = [
     sortable: null,
     hideable: true,
   },
-  {
-    id: "actions",
-    label: "Actions",
-    minWidth: 120,
-    defaultWidth: 140,
-    sortable: "actions",
-    hideable: false,
-    archivedOnly: true,
-  },
 ];
 
 const DEFAULT_ORDER = COLUMN_DEFS.map((column) => column.id);
@@ -150,9 +143,27 @@ function sortValue(customer: Customer, key: SortKey): string | number {
       const summary = getCustomerAccountSummary(customer.id);
       return summary[key];
     }
-    case "actions":
-      return customer.name.toLowerCase();
   }
+}
+
+function getCustomerRowActions(tab: DirectoryTab): MenuAction[] {
+  if (tab === "archived") {
+    return [
+      { key: "view", label: "View customer" },
+      { key: "unarchive", label: "Unarchive customer", dividerBefore: true },
+    ];
+  }
+  return [
+    { key: "view", label: "View customer" },
+    { key: "create_invoice", label: "Create invoice" },
+    { key: "create_quote", label: "Create quote" },
+    {
+      key: "archive",
+      label: "Archive customer",
+      danger: true,
+      dividerBefore: true,
+    },
+  ];
 }
 
 function customerMatchesQuery(customer: Customer, query: string) {
@@ -244,6 +255,7 @@ function loadColumnPrefs(): {
 }
 
 export default function CustomersDirectoryPage() {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [searchQuery, setSearchQuery] = useState("");
@@ -393,15 +405,14 @@ export default function CustomersDirectoryPage() {
       .map((id) => COLUMN_DEFS.find((column) => column.id === id))
       .filter((column): column is ColumnDef => Boolean(column))
       .filter((column) => {
-        if (column.archivedOnly && tab !== "archived") return false;
         if (hiddenColumns.includes(column.id) && column.hideable) return false;
         return true;
       });
-  }, [columnOrder, hiddenColumns, tab]);
+  }, [columnOrder, hiddenColumns]);
 
-  const gridTemplateColumns = visibleColumns
+  const gridTemplateColumns = `${visibleColumns
     .map((column) => `${columnWidths[column.id] ?? column.defaultWidth}px`)
-    .join(" ");
+    .join(" ")} 44px`;
 
   const filteredSortedCustomers = useMemo(() => {
     const archived = new Set(archivedIds);
@@ -511,6 +522,33 @@ export default function CustomersDirectoryPage() {
     setArchivedIds(next);
   }
 
+  function handleArchive(customerId: string) {
+    const next = archiveCustomer(customerId);
+    setArchivedIds(next);
+  }
+
+  function handleCustomerAction(customerId: string, key: string) {
+    switch (key) {
+      case "view":
+        router.push(`/customers/new?id=${customerId}`);
+        break;
+      case "create_invoice":
+        router.push("/");
+        break;
+      case "create_quote":
+        router.push("/quote");
+        break;
+      case "archive":
+        handleArchive(customerId);
+        break;
+      case "unarchive":
+        handleUnarchive(customerId);
+        break;
+      default:
+        break;
+    }
+  }
+
   function hideColumn(columnId: ColumnId) {
     const def = COLUMN_DEFS.find((column) => column.id === columnId);
     if (!def?.hideable) return;
@@ -557,10 +595,7 @@ export default function CustomersDirectoryPage() {
   const activeTags = customerFilterTags(customerFilters);
   const activeFilterCount = customerFilterCount(customerFilters);
   const hiddenHideable = COLUMN_DEFS.filter(
-    (column) =>
-      column.hideable &&
-      hiddenColumns.includes(column.id) &&
-      (!column.archivedOnly || tab === "archived"),
+    (column) => column.hideable && hiddenColumns.includes(column.id),
   );
 
   function renderCell(customer: Customer, columnId: ColumnId) {
@@ -614,20 +649,6 @@ export default function CustomersDirectoryPage() {
               <span className="text-black/40">N/A</span>
             )}
           </span>
-        );
-      case "actions":
-        return (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              handleUnarchive(customer.id);
-            }}
-            className="text-sm font-semibold text-prime-blue underline-offset-2 transition hover:underline"
-          >
-            Unarchive Client
-          </button>
         );
       default:
         return null;
@@ -690,7 +711,7 @@ export default function CustomersDirectoryPage() {
               id="customer-search"
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search Legal Name, Email, Or Tags"
+              placeholder="Search by customer name, email, tags..."
               label="Search customers"
             />
           </div>
@@ -775,7 +796,7 @@ export default function CustomersDirectoryPage() {
                           }}
                           className="text-left text-sm font-semibold text-prime-blue underline-offset-2 hover:underline"
                         >
-                          Unarchive Client
+                          Unarchive Customer
                         </button>
                       ) : null}
                     </Link>
@@ -803,11 +824,11 @@ export default function CustomersDirectoryPage() {
                 gap: "1rem",
               }}
             >
-              {visibleColumns.map((column, index) => (
+              {visibleColumns.map((column) => (
                 <DirectoryColumnHeader
                   key={column.id}
                   label={column.label}
-                  isLast={index === visibleColumns.length - 1}
+                  isLast={false}
                   onDragStart={() => onHeaderDragStart(column.id)}
                   onDrop={() => onHeaderDrop(column.id)}
                   onContextMenu={(event) => {
@@ -870,6 +891,9 @@ export default function CustomersDirectoryPage() {
                   )}
                 </DirectoryColumnHeader>
               ))}
+              <div className="flex items-center justify-end pr-1" aria-hidden>
+                <span className="sr-only">Actions</span>
+              </div>
             </div>
 
             <ul>
@@ -889,21 +913,22 @@ export default function CustomersDirectoryPage() {
                         alignItems: "center",
                       }}
                     >
-                      {visibleColumns.map((column) => {
-                        const content = renderCell(customer, column.id);
-                        if (column.id === "actions") {
-                          return <div key={column.id}>{content}</div>;
+                      {visibleColumns.map((column) => (
+                        <Link
+                          key={column.id}
+                          href={`/customers/new?id=${customer.id}`}
+                          className="min-w-0"
+                        >
+                          {renderCell(customer, column.id)}
+                        </Link>
+                      ))}
+                      <RowKebabMenu
+                        label={`Actions for ${customer.name}`}
+                        actions={getCustomerRowActions(tab)}
+                        onAction={(key) =>
+                          handleCustomerAction(customer.id, key)
                         }
-                        return (
-                          <Link
-                            key={column.id}
-                            href={`/customers/new?id=${customer.id}`}
-                            className="min-w-0"
-                          >
-                            {content}
-                          </Link>
-                        );
-                      })}
+                      />
                     </div>
                   </li>
                 ))

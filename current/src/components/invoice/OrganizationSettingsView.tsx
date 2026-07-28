@@ -5,10 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
-  formatGstHstNumber,
   isValidGstHstNumber,
   loadOrganizationSettings,
-  parseGstHstNumber,
   paymentMethodLabel,
   saveOrganizationSettings,
   type OrganizationSettings,
@@ -23,6 +21,7 @@ import {
   DepositAccountBlock,
   paymentRequestSubtitle,
 } from "./DepositAccountConnect";
+import { GstHstNumberField } from "./GstHstNumberField";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
@@ -154,7 +153,6 @@ const FIELD = {
   paymentTerms: "Payment Terms",
   autoSend: "Auto-send",
   reminders: "Reminders",
-  receipts: "Receipts",
 } as const;
 
 const inputClass = UI_CLASS.input;
@@ -1679,81 +1677,19 @@ export function OrganizationSettingsView() {
                           {option.value === "registered" &&
                           draft.gstRegistrationStatus === "registered" ? (
                             <div className="mt-1.5 pl-6">
-                              <div
-                                className="flex flex-nowrap items-center gap-2"
-                                onBlur={(event) => {
-                                  const next = event.relatedTarget as Node | null;
-                                  if (
-                                    next &&
-                                    event.currentTarget.contains(next)
-                                  ) {
-                                    return;
-                                  }
-                                  setGstHstShowError(true);
+                              <GstHstNumberField
+                                id="org-gst-bn"
+                                value={draft.gstHstNumber}
+                                onChange={(gstHstNumber) => {
+                                  setGstHstShowError(false);
+                                  patchDraft({ gstHstNumber });
                                 }}
-                              >
-                                <input
-                                  id="org-gst-bn"
-                                  inputMode="numeric"
-                                  maxLength={9}
-                                  className={`${inputClass} !w-[9.5rem] shrink-0`}
-                                  value={
-                                    parseGstHstNumber(draft.gstHstNumber).bn
-                                  }
-                                  onChange={(event) => {
-                                    const bn = event.target.value
-                                      .replace(/[^\d]/g, "")
-                                      .slice(0, 9);
-                                    const { account } = parseGstHstNumber(
-                                      draft.gstHstNumber,
-                                    );
-                                    setGstHstShowError(false);
-                                    patchDraft({
-                                      gstHstNumber: formatGstHstNumber(
-                                        bn,
-                                        account,
-                                      ),
-                                    });
-                                  }}
-                                  placeholder="123456789"
-                                  aria-label="GST/HST business number, 9 digits"
-                                />
-                                <span className="shrink-0 type-body text-black">
-                                  RT
-                                </span>
-                                <input
-                                  id="org-gst-account"
-                                  inputMode="numeric"
-                                  maxLength={4}
-                                  className={`${inputClass} !w-[5.5rem] shrink-0`}
-                                  value={
-                                    parseGstHstNumber(draft.gstHstNumber)
-                                      .account
-                                  }
-                                  onChange={(event) => {
-                                    const account = event.target.value
-                                      .replace(/[^\d]/g, "")
-                                      .slice(0, 4);
-                                    const { bn } = parseGstHstNumber(
-                                      draft.gstHstNumber,
-                                    );
-                                    setGstHstShowError(false);
-                                    patchDraft({
-                                      gstHstNumber: formatGstHstNumber(
-                                        bn,
-                                        account,
-                                      ),
-                                    });
-                                  }}
-                                  placeholder="0001"
-                                  aria-label="GST/HST account number, 4 digits"
-                                />
-                              </div>
+                                onBlurComplete={() => setGstHstShowError(true)}
+                              />
                               {gstHstShowError &&
                               !isValidGstHstNumber(draft.gstHstNumber) ? (
                                 <p className="type-danger mt-2">
-                                  Enter a valid CRA number (9 digits + RT + 4
-                                  digits).
+                                  Enter a valid 9-digit CRA business number.
                                 </p>
                               ) : null}
                             </div>
@@ -1874,13 +1810,6 @@ export function OrganizationSettingsView() {
                         </span>
                       </div>
                     </CheckboxRow>
-                    <CheckboxRow
-                      checked={draft.receipts}
-                      onChange={(checked) =>
-                        patchDraft({ receipts: checked })
-                      }
-                      label={`${FIELD.receipts}: Auto-send a receipt when a payment is marked received.`}
-                    />
                   </div>
                 </SectionEditor>
               ) : (
@@ -1908,10 +1837,6 @@ export function OrganizationSettingsView() {
                           "Off"
                         )
                       }
-                    />
-                    <ViewField
-                      label={FIELD.receipts}
-                      value={saved.receipts ? "On" : "Off"}
                     />
                   </ViewFieldRow>
                 </ViewCard>

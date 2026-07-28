@@ -2,257 +2,421 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CloseIcon } from "./ui";
 
-type FlowNode = {
+type QuickLink = {
   id: string;
   label: string;
   href: string;
   description: string;
-  children?: FlowNode[];
+  /** Match query params for customer demo profiles, e.g. id=acme */
+  matchId?: string | null;
 };
 
-/** Prototype-only navigation — not part of the product UI. */
-const FLOW_ROOTS: FlowNode[] = [
+type QuickSection = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  links: QuickLink[];
+};
+
+const SECTIONS: QuickSection[] = [
   {
-    id: "quote-draft",
-    label: "Draft Quote",
-    href: "/quote",
-    description: "Editable quote builder",
-    children: [
+    id: "directories",
+    title: "Directories",
+    subtitle: "Searchable lists",
+    links: [
+      {
+        id: "dir-quotes",
+        label: "Quotes",
+        href: "/quotes",
+        description: "Global quote list",
+      },
+      {
+        id: "dir-invoices",
+        label: "Invoices",
+        href: "/invoices",
+        description: "Global invoice list",
+      },
+      {
+        id: "dir-customers",
+        label: "Customers",
+        href: "/customers",
+        description: "Customer directory",
+      },
+      {
+        id: "dir-dashboard",
+        label: "Dashboard",
+        href: "/dashboard",
+        description: "Metrics overview",
+      },
+    ],
+  },
+  {
+    id: "customer-view",
+    title: "Customer view",
+    subtitle: "What the customer sees",
+    links: [
+      {
+        id: "customer-quote-review",
+        label: "Quote · Review",
+        href: "/quote/review",
+        description: "Accept & Sign / Decline",
+      },
+      {
+        id: "customer-quote-accepted",
+        label: "Quote · Accepted",
+        href: "/quote/review/accepted",
+        description: "Post-accept confirmation",
+      },
+      {
+        id: "customer-quote-declined",
+        label: "Quote · Declined",
+        href: "/quote/review/declined",
+        description: "Post-decline confirmation",
+      },
+      {
+        id: "customer-invoice-pay",
+        label: "Invoice · Pay",
+        href: "/invoice/review",
+        description: "Sent invoice with payment options",
+      },
+    ],
+  },
+  {
+    id: "quotes-owner",
+    title: "Quotes · Owner",
+    subtitle: "Business owner screens",
+    links: [
+      {
+        id: "quote-draft",
+        label: "Draft",
+        href: "/quote",
+        description: "Editable quote builder",
+      },
       {
         id: "quote-preview",
-        label: "Preview Quote",
+        label: "Preview",
         href: "/quote/preview",
-        description: "Owner preview before send",
-        children: [
-          {
-            id: "quote-sent",
-            label: "Quote Sent",
-            href: "/quote/sent",
-            description: "Awaiting accept / reject",
-            children: [
-              {
-                id: "quote-viewed",
-                label: "Quote Viewed",
-                href: "/quote/viewed",
-                description: "Customer opened link or marked manually",
-              },
-              {
-                id: "client-review",
-                label: "Client portal · Quote review",
-                href: "/quote/review",
-                description: "Accept & Sign / Decline — no payment options",
-                children: [
-                  {
-                    id: "client-accepted",
-                    label: "Client · Accepted",
-                    href: "/quote/review/accepted",
-                    description: "Post-accept client confirmation",
-                  },
-                  {
-                    id: "client-declined",
-                    label: "Client · Declined",
-                    href: "/quote/review/declined",
-                    description: "Read-only rejected portal state",
-                  },
-                ],
-              },
-              {
-                id: "client-invoice-review",
-                label: "Client portal · Invoice review",
-                href: "/invoice/review",
-                description: "Payment options only — no accept / decline",
-              },
-              {
-                id: "quote-accepted",
-                label: "Quote Accepted (owner)",
-                href: "/quote/accepted",
-                description: "Owner view after accept → draft invoice",
-              },
-              {
-                id: "quote-rejected",
-                label: "Quote Rejected",
-                href: "/quote/rejected",
-                description: "Declined by client or marked offline",
-              },
-              {
-                id: "quote-expired",
-                label: "Quote Expired",
-                href: "/quote/expired",
-                description: "Past Valid Until",
-              },
-              {
-                id: "quote-void",
-                label: "Quote Void",
-                href: "/quote/void",
-                description: "Voided by owner",
-              },
-              {
-                id: "invoice-draft",
-                label: "Draft Invoice (from quote)",
-                href: "/?from=quote",
-                description: "Created when a quote is accepted",
-                children: [
-                  {
-                    id: "invoice-preview",
-                    label: "Preview Invoice",
-                    href: "/preview",
-                    description: "Customer-facing invoice preview",
-                    children: [
-                      {
-                        id: "invoice-sent",
-                        label: "Invoice Sent · Due",
-                        href: "/sent",
-                        description: "Awaiting payment",
-                        children: [
-                          {
-                            id: "invoice-viewed",
-                            label: "Invoice Viewed",
-                            href: "/sent/viewed",
-                            description: "Opened or marked viewed",
-                          },
-                          {
-                            id: "invoice-paid",
-                            label: "Paid",
-                            href: "/sent/paid",
-                            description: "Full payment recorded",
-                          },
-                          {
-                            id: "invoice-partial",
-                            label: "Partially Paid",
-                            href: "/sent/partially-paid",
-                            description: "Partial payment · balance open",
-                          },
-                          {
-                            id: "invoice-overdue",
-                            label: "Overdue",
-                            href: "/sent/overdue",
-                            description: "Under 90 days",
-                          },
-                          {
-                            id: "invoice-overdue-90",
-                            label: "Overdue 90+",
-                            href: "/sent/overdue-90",
-                            description: "Write-off candidate",
-                          },
-                          {
-                            id: "invoice-void",
-                            label: "Void",
-                            href: "/sent/void",
-                            description: "Voided invoice",
-                          },
-                          {
-                            id: "invoice-uncollectible",
-                            label: "Uncollectible",
-                            href: "/sent/uncollectible",
-                            description: "Written off",
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
+        description: "Before send",
+      },
+      {
+        id: "quote-sent",
+        label: "Sent",
+        href: "/quote/sent",
+        description: "Awaiting accept / reject",
+      },
+      {
+        id: "quote-viewed",
+        label: "Viewed",
+        href: "/quote/viewed",
+        description: "Opened or marked viewed",
+      },
+      {
+        id: "quote-accepted",
+        label: "Accepted",
+        href: "/quote/accepted",
+        description: "Creates draft invoice",
+      },
+      {
+        id: "quote-rejected",
+        label: "Rejected",
+        href: "/quote/rejected",
+        description: "Declined offline or by customer",
+      },
+      {
+        id: "quote-expired",
+        label: "Expired",
+        href: "/quote/expired",
+        description: "Past Valid Until",
+      },
+      {
+        id: "quote-void",
+        label: "Void",
+        href: "/quote/void",
+        description: "Voided by owner",
+      },
+    ],
+  },
+  {
+    id: "invoices-owner",
+    title: "Invoices · Owner",
+    subtitle: "Business owner screens",
+    links: [
+      {
+        id: "invoice-draft",
+        label: "Draft (blank)",
+        href: "/",
+        description: "Standalone create",
+      },
+      {
+        id: "invoice-draft-quote",
+        label: "Draft (from quote)",
+        href: "/?from=quote",
+        description: "After quote accept",
+      },
+      {
+        id: "invoice-preview",
+        label: "Preview",
+        href: "/preview",
+        description: "Before send",
+      },
+      {
+        id: "invoice-sent",
+        label: "Sent · Due",
+        href: "/sent",
+        description: "Awaiting payment",
+      },
+      {
+        id: "invoice-viewed",
+        label: "Viewed",
+        href: "/sent/viewed",
+        description: "Opened or marked viewed",
+      },
+      {
+        id: "invoice-paid",
+        label: "Paid",
+        href: "/sent/paid",
+        description: "Full payment recorded",
+      },
+      {
+        id: "invoice-partial",
+        label: "Partially Paid",
+        href: "/sent/partially-paid",
+        description: "Balance still open",
+      },
+      {
+        id: "invoice-overdue",
+        label: "Overdue",
+        href: "/sent/overdue",
+        description: "Under 90 days",
+      },
+      {
+        id: "invoice-overdue-90",
+        label: "Overdue 90+",
+        href: "/sent/overdue-90",
+        description: "Write-off candidate",
+      },
+      {
+        id: "invoice-void",
+        label: "Void",
+        href: "/sent/void",
+        description: "Voided invoice",
+      },
+      {
+        id: "invoice-uncollectible",
+        label: "Uncollectible",
+        href: "/sent/uncollectible",
+        description: "Written off",
+      },
+    ],
+  },
+  {
+    id: "setup",
+    title: "Setup & profiles",
+    subtitle: "Onboarding and demo customers",
+    links: [
+      {
+        id: "onboarding",
+        label: "Invoicing Onboarding",
+        href: "/onboarding",
+        description: "Wizard: brand, payments, tax, numbering",
+      },
+      {
+        id: "organization",
+        label: "Manage Organization",
+        href: "/organization",
+        description: "Business defaults",
+      },
+      {
+        id: "customer-new",
+        label: "New Customer",
+        href: "/customers/new",
+        description: "Create from scratch",
+        matchId: null,
+      },
+      {
+        id: "customer-cedar",
+        label: "Customer · No docs",
+        href: "/customers/new?id=cedar",
+        description: "Cedar — can permanently delete",
+        matchId: "cedar",
+      },
+      {
+        id: "customer-beta",
+        label: "Customer · Drafts only",
+        href: "/customers/new?id=beta",
+        description: "Beta — archive, cannot delete",
+        matchId: "beta",
+      },
+      {
+        id: "customer-acme",
+        label: "Customer · Sent history",
+        href: "/customers/new?id=acme",
+        description: "Acme — archive for audit trail",
+        matchId: "acme",
       },
     ],
   },
 ];
 
-const DIRECTORY_LINKS = [
-  {
-    href: "/quotes",
-    label: "Quotes directory",
-    description: "Global quote list · search & status filter",
-  },
-  {
-    href: "/invoices",
-    label: "Invoices directory",
-    description: "Global invoice list · search & status filter",
-  },
-  {
-    href: "/",
-    label: "Draft invoice (blank)",
-    description: "Standalone create — not from quote",
-  },
-] as const;
-
-function isActivePath(pathname: string, href: string) {
-  if (href === "/" || href.startsWith("/?")) return pathname === "/";
-  return pathname === href;
+function linkPath(href: string) {
+  return href.split("?")[0] ?? href;
 }
 
-function isOnBranch(pathname: string, node: FlowNode): boolean {
-  if (isActivePath(pathname, node.href)) return true;
-  return (node.children ?? []).some((child) => isOnBranch(pathname, child));
+function isLinkActive(
+  pathname: string,
+  customerIdParam: string | null,
+  fromParam: string | null,
+  link: QuickLink,
+) {
+  const path = linkPath(link.href);
+  if (link.matchId !== undefined) {
+    if (pathname !== "/customers/new") return false;
+    return customerIdParam === link.matchId;
+  }
+  if (link.href.startsWith("/?from=quote")) {
+    return pathname === "/" && fromParam === "quote";
+  }
+  if (path === "/") {
+    return pathname === "/" && fromParam !== "quote";
+  }
+  return pathname === path;
 }
 
-function FlowBranch({
-  node,
+function sectionHasActive(
+  section: QuickSection,
+  pathname: string,
+  customerIdParam: string | null,
+  fromParam: string | null,
+) {
+  return section.links.some((link) =>
+    isLinkActive(pathname, customerIdParam, fromParam, link),
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden
+      className={`shrink-0 text-black/45 transition ${open ? "rotate-180" : ""}`}
+    >
+      <path
+        d="M2.5 4.25 6 7.75l3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AccordionSection({
+  section,
+  open,
+  onToggle,
   pathname,
-  depth = 0,
+  customerIdParam,
+  fromParam,
   onNavigate,
 }: {
-  node: FlowNode;
+  section: QuickSection;
+  open: boolean;
+  onToggle: () => void;
   pathname: string;
-  depth?: number;
+  customerIdParam: string | null;
+  fromParam: string | null;
   onNavigate: () => void;
 }) {
-  const active = isActivePath(pathname, node.href);
-  const onBranch = isOnBranch(pathname, node);
-  const children = node.children ?? [];
+  const panelId = useId();
+  const hasActive = sectionHasActive(
+    section,
+    pathname,
+    customerIdParam,
+    fromParam,
+  );
 
   return (
-    <li className="relative">
-      {depth > 0 ? (
-        <span
-          className="absolute -left-4 top-5 h-px w-4 bg-black/20"
-          aria-hidden
-        />
-      ) : null}
-
-      <Link
-        href={node.href}
-        onClick={onNavigate}
-        className={`block rounded-lg border px-3.5 py-3 transition ${
-          active
-            ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-            : onBranch
-              ? "border-black/20 bg-white hover:border-prime-blue"
-              : "border-black/10 bg-white hover:border-black/25"
+    <div
+      className={`overflow-hidden rounded-lg border ${
+        hasActive ? "border-prime-blue/40" : "border-black/10"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition ${
+          open ? "bg-[#FAFAFA]" : "bg-white hover:bg-black/[0.02]"
         }`}
       >
-        <span className="flex items-center justify-between gap-3">
-          <span className="text-sm font-semibold text-black">{node.label}</span>
-          {active ? (
-            <span className="rounded bg-prime-blue px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-              Here
+        <div className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-midnight-ink">
+              {section.title}
+            </span>
+            {hasActive ? (
+              <span className="rounded bg-prime-blue px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                Here
+              </span>
+            ) : null}
+          </span>
+          {section.subtitle ? (
+            <span className="mt-0.5 block text-xs text-black/50">
+              {section.subtitle}
             </span>
           ) : null}
-        </span>
-        <span className="mt-0.5 block text-xs text-black/55">
-          {node.description}
-        </span>
-      </Link>
+        </div>
+        <Chevron open={open} />
+      </button>
 
-      {children.length ? (
-        <ul className="relative ml-2 mt-3 space-y-3 border-l border-black/15 pl-4">
-          {children.map((child) => (
-            <FlowBranch
-              key={child.id}
-              node={child}
-              pathname={pathname}
-              depth={depth + 1}
-              onNavigate={onNavigate}
-            />
-          ))}
+      {open ? (
+        <ul id={panelId} className="space-y-1 border-t border-black/8 bg-white p-2">
+          {section.links.map((link) => {
+            const active = isLinkActive(
+              pathname,
+              customerIdParam,
+              fromParam,
+              link,
+            );
+            return (
+              <li key={link.id}>
+                <Link
+                  href={link.href}
+                  onClick={onNavigate}
+                  className={`block rounded-md px-3 py-2.5 transition ${
+                    active
+                      ? "bg-prime-blue/8 ring-1 ring-prime-blue"
+                      : "hover:bg-black/[0.03]"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-midnight-ink">
+                      {link.label}
+                    </span>
+                    {active ? (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-prime-blue">
+                        Here
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-black/50">
+                    {link.description}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
-    </li>
+    </div>
   );
 }
 
@@ -261,8 +425,30 @@ export function QuickLinks() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("id");
+  const fromParam = searchParams.get("from");
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const activeSectionIds = useMemo(
+    () =>
+      SECTIONS.filter((section) =>
+        sectionHasActive(section, pathname, customerIdParam, fromParam),
+      ).map((section) => section.id),
+    [pathname, customerIdParam, fromParam],
+  );
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(SECTIONS.map((section) => [section.id, false])),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setExpanded((prev) => {
+      const next = { ...prev };
+      for (const id of activeSectionIds) next[id] = true;
+      return next;
+    });
+  }, [open, activeSectionIds]);
 
   useEffect(() => {
     if (!open) return;
@@ -284,6 +470,10 @@ export function QuickLinks() {
     };
   }, [open]);
 
+  function toggleSection(id: string) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
   return (
     <div
       ref={rootRef}
@@ -294,15 +484,14 @@ export function QuickLinks() {
         <div
           id={panelId}
           role="dialog"
-          aria-label="Prototype flow map"
-          className="max-h-[min(75vh,640px)] w-[min(92vw,380px)] overflow-auto rounded-xl border border-black/15 bg-white p-4 text-black shadow-2xl"
+          aria-label="Prototype quick links"
+          className="max-h-[min(78vh,680px)] w-[min(92vw,360px)] overflow-auto rounded-xl border border-black/15 bg-white p-3.5 text-black shadow-2xl"
         >
-          <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="mb-3 flex items-start justify-between gap-3 px-0.5">
             <div>
-              <p className="text-sm font-semibold text-black">Prototype flow</p>
+              <p className="text-sm font-semibold text-black">Quick Links</p>
               <p className="mt-0.5 text-xs text-black/55">
-                Not part of the product UI — jump between quote and invoice
-                stages.
+                Prototype only — jump by area. Expand a group to browse.
               </p>
             </div>
             <button
@@ -315,161 +504,20 @@ export function QuickLinks() {
             </button>
           </div>
 
-          <div className="mb-3 rounded-lg border border-dashed border-black/15 bg-[#FFF8E6] px-3 py-2 text-[11px] leading-4 text-black/70">
-            Accepting a quote creates a draft invoice. See{" "}
-            <Link
-              href="/status"
-              onClick={() => setOpen(false)}
-              className="font-semibold text-prime-blue underline"
-            >
-              plan status
-            </Link>{" "}
-            and{" "}
-            <span className="font-semibold">MUST-HAVE-REMAINING-UX.md</span> for
-            gaps.
-          </div>
-
-          <div className="mb-3">
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40">
-              Directories
-            </p>
-            <div className="space-y-2">
-              {DIRECTORY_LINKS.map((link) => (
-                <Link
-                  key={link.href + link.label}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className={`block rounded-lg border px-3.5 py-3 transition ${
-                    isActivePath(pathname, link.href)
-                      ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                      : "border-black/10 bg-white hover:border-black/25"
-                  }`}
-                >
-                  <span className="text-sm font-semibold text-black">
-                    {link.label}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-black/55">
-                    {link.description}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40">
-              Setup
-            </p>
-            <div className="space-y-2">
-              <Link
-                href="/onboarding"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/onboarding"
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  Invoicing Onboarding
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  6-step wizard: brand, payments, tax, numbering
-                </span>
-              </Link>
-              <Link
-                href="/organization"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/organization"
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  Manage Organization
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  Business, brand, and cascading defaults
-                </span>
-              </Link>
-              <Link
-                href="/customers/new?id=cedar"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/customers/new" && customerIdParam === "cedar"
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  Customer · No docs (Delete)
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  Cedar — no invoices/quotes; can permanently delete
-                </span>
-              </Link>
-              <Link
-                href="/customers/new?id=beta"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/customers/new" && customerIdParam === "beta"
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  Customer · Drafts only (Archive)
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  Beta — draft invoice/quote only; archive, cannot delete
-                </span>
-              </Link>
-              <Link
-                href="/customers/new?id=acme"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/customers/new" && customerIdParam === "acme"
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  Customer · Sent history (Archive)
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  Acme — sent invoices/quotes; archive for audit trail
-                </span>
-              </Link>
-              <Link
-                href="/customers/new"
-                onClick={() => setOpen(false)}
-                className={`block rounded-lg border px-3.5 py-3 transition ${
-                  pathname === "/customers/new" && !customerIdParam
-                    ? "border-prime-blue bg-prime-blue/5 ring-1 ring-prime-blue"
-                    : "border-black/10 bg-white hover:border-black/25"
-                }`}
-              >
-                <span className="text-sm font-semibold text-black">
-                  New Customer
-                </span>
-                <span className="mt-0.5 block text-xs text-black/55">
-                  Create a customer from scratch
-                </span>
-              </Link>
-            </div>
-          </div>
-
-          <ul className="space-y-3">
-            {FLOW_ROOTS.map((node) => (
-              <FlowBranch
-                key={node.id}
-                node={node}
+          <div className="space-y-2">
+            {SECTIONS.map((section) => (
+              <AccordionSection
+                key={section.id}
+                section={section}
+                open={Boolean(expanded[section.id])}
+                onToggle={() => toggleSection(section.id)}
                 pathname={pathname}
+                customerIdParam={customerIdParam}
+                fromParam={fromParam}
                 onNavigate={() => setOpen(false)}
               />
             ))}
-          </ul>
+          </div>
         </div>
       ) : null}
 

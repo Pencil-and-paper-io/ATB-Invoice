@@ -11,7 +11,7 @@ export type ClientPortalVariant = "review" | "accepted" | "declined";
 export type ClientPortalDocumentKind = "quote" | "invoice";
 
 /**
- * Prototype stub for client-facing document portals.
+ * Prototype stub for customer-facing document portals.
  * Quote: accept / decline, no payment options.
  * Invoice: payment options only (no accept / decline).
  */
@@ -44,13 +44,15 @@ export function ClientQuotePortalView({
       : variant === "declined"
         ? "Quote declined"
         : "Review quote"
-    : "Review invoice";
+    : variant === "review"
+      ? "Pay invoice"
+      : "Review invoice";
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <header className="border-b border-black/10 bg-white px-4 py-4 sm:px-8">
         <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-          Client {isQuote ? "quote" : "invoice"} portal · prototype stub
+          Customer {isQuote ? "quote" : "invoice"} portal · prototype stub
         </p>
         <h1 className="type-page-title mt-1">{title}</h1>
       </header>
@@ -58,15 +60,15 @@ export function ClientQuotePortalView({
       <main className="mx-auto max-w-[960px] px-4 py-10 sm:px-8">
         {isQuote && variant === "review" ? (
           <div className="mb-6 rounded-lg border border-prime-blue/25 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
-            Secure client link (demo). Accept creates a draft invoice for the
+            Secure customer link (demo). Accept creates a draft invoice for the
             business owner. Decline keeps the quote viewable without actions.
           </div>
         ) : null}
 
         {!isQuote && variant === "review" ? (
           <div className="mb-6 rounded-lg border border-prime-blue/25 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
-            Secure client invoice link (demo). Pay using the options on the
-            invoice — no accept or decline actions.
+            This is what your customer sees when they open a sent invoice. They
+            can pay using the payment options below.
           </div>
         ) : null}
 
@@ -88,6 +90,7 @@ export function ClientQuotePortalView({
           shadow="sent"
           documentKind={documentKind}
           showPaymentOptions={!isQuote}
+          usePortalPayments={!isQuote}
         />
 
         {isQuote && variant === "review" ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getActionsForStatus,
   type InvoiceStatus,
@@ -11,6 +11,11 @@ import {
   sentVariantMeta,
   type SentViewVariant,
 } from "@/lib/invoice-demo-data";
+import {
+  consumePendingInvoiceToast,
+  mergeInvoiceActivity,
+  type ActivityItem,
+} from "@/lib/document-activity";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { ModeBackButton } from "./ModeBackButton";
 import { MoreActionsMenu } from "./MoreActionsMenu";
@@ -33,7 +38,7 @@ const VARIANT_STATUS: Record<SentViewVariant, InvoiceStatus> = {
 function ActivityTimeline({
   items,
 }: {
-  items: { id: string; time: string; text: string }[];
+  items: ActivityItem[];
 }) {
   return (
     <div className="relative flex flex-col gap-4">
@@ -74,11 +79,40 @@ export function SentInvoiceView({
     sendModal,
   } = useInvoiceActionHandler(status);
   const [showPayment, setShowPayment] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>(() =>
+    mergeInvoiceActivity(meta.activity),
+  );
+  const [paymentToast, setPaymentToast] = useState<string | null>(null);
   const moreActions = getActionsForStatus(status);
   const balanceDue =
     variant === "partially_paid"
       ? Math.max(0, Number((previewMeta.amount - 1500).toFixed(2)))
       : previewMeta.amount;
+
+  useEffect(() => {
+    setActivity(mergeInvoiceActivity(meta.activity));
+  }, [meta.activity, variant]);
+
+  useEffect(() => {
+    const pending = consumePendingInvoiceToast();
+    if (pending) setPaymentToast(pending);
+  }, [variant]);
+
+  const paymentToastBanner = paymentToast ? (
+    <div
+      className="fixed bottom-28 left-1/2 z-[60] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 text-sm font-medium text-white shadow-lg"
+      role="status"
+    >
+      {paymentToast}
+      <button
+        type="button"
+        className="ml-3 underline"
+        onClick={() => setPaymentToast(null)}
+      >
+        Dismiss
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -126,7 +160,7 @@ export function SentInvoiceView({
 
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <ActivityTimeline items={meta.activity} />
+              <ActivityTimeline items={activity} />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">
@@ -144,6 +178,7 @@ export function SentInvoiceView({
           onClose={() => setShowPayment(false)}
         />
       ) : null}
+      {paymentToastBanner}
       {feedbackBanner}
       {uncollectibleModal}
       {confirmModal}

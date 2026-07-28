@@ -19,12 +19,11 @@ import {
   getCustomerDocumentLifecycle,
   getCustomerInvoices,
   getCustomerQuotes,
-  hrefForCustomerInvoice,
-  hrefForCustomerQuote,
   isCustomerArchived,
   unarchiveCustomer,
 } from "@/lib/invoice-demo-data";
 import { CreateCustomerModal } from "./CreateCustomerModal";
+import { CustomerDocumentsPanel } from "./CustomerDocumentsPanel";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
@@ -63,11 +62,11 @@ const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
 const LEGAL_NAME_TIP =
-  "Required for CRA records and Canada Small Business Financing Loan eligibility. Use the customer’s official legal business name.";
+  "Add the business or individual's full legal name";
 
 /** Single source for edit FieldLabel + view ViewField copy. */
 const FIELD = {
-  businessLegalName: "Business Legal Name",
+  businessLegalName: "Customer Legal Name",
   businessEmail: "Business Email",
   phoneNumber: "Phone Number",
   billingAddress: "Billing Address",
@@ -82,7 +81,6 @@ const FIELD = {
   paymentTerms: "Payment Terms",
   autoSend: "Auto-send",
   reminders: "Reminders",
-  receipts: "Receipts",
   internalNotes: "Internal Notes",
   province: "Province / Territory",
 } as const;
@@ -111,7 +109,6 @@ type CustomerFormState = {
   autoSend: boolean;
   reminders: boolean;
   reminderDays: string;
-  receipts: boolean;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -147,7 +144,6 @@ function emptyCustomerForm(
     autoSend: cascade.autoSend,
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
-    receipts: cascade.receipts,
     addressLine1: "",
     addressLine2: "",
     city: "",
@@ -704,23 +700,8 @@ function formFromCustomerId(id: string | null): CustomerFormState {
   };
 }
 
-function SortHeader({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      {label}
-      <svg width="8" height="10" viewBox="0 0 8 10" fill="none" aria-hidden>
-        <path d="M4 1 7 4H1L4 1Z" fill="currentColor" opacity="0.45" />
-        <path d="M4 9 1 6h6L4 9Z" fill="currentColor" opacity="0.45" />
-      </svg>
-    </span>
-  );
-}
-
 const CUSTOMER_TABS = ["Account Summary", "Customer Settings"] as const;
 type CustomerTab = (typeof CUSTOMER_TABS)[number];
-
-const DOCUMENT_TABS = ["Quotes", "Invoices", "Notes"] as const;
-type DocumentTab = (typeof DOCUMENT_TABS)[number];
 
 /** Customer Details card order (filled cards keep this sequence above Add links). */
 const CUSTOMER_DETAIL_ORDER = [
@@ -751,7 +732,6 @@ function CustomerFormInner() {
   const [tab, setTab] = useState<CustomerTab>(() =>
     customerId ? "Account Summary" : "Customer Settings",
   );
-  const [documentTab, setDocumentTab] = useState<DocumentTab>("Quotes");
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [lifecycleConfirm, setLifecycleConfirm] = useState<
     "delete" | "archive" | null
@@ -962,9 +942,6 @@ function CustomerFormInner() {
           )
       : internalNotesView);
 
-  /** Account Summary: show notes only when present or actively editing — no Add CTA. */
-  const accountSummaryNotes = internalNotesEditor ?? internalNotesView;
-
   const legalName = saved.businessName.trim();
   const customerDisplayName = legalName || "this customer";
 
@@ -1004,7 +981,7 @@ function CustomerFormInner() {
                 }}
                 className="ui-btn-secondary h-11 px-5"
               >
-                Unarchive Client
+                Unarchive Customer
               </button>
             ) : null}
             {!showCreateModal && !archived ? (
@@ -1054,7 +1031,7 @@ function CustomerFormInner() {
                         Quote
                       </span>
                       <span className="text-xs font-normal leading-4 text-black/55">
-                        An estimate to help your client understand costs. This
+                        An estimate to help your customer understand costs. This
                         can be turned into an invoice later.
                       </span>
                     </button>
@@ -1156,165 +1133,8 @@ function CustomerFormInner() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-              <div className="flex flex-wrap gap-1 border-b border-black/10 px-5 py-3">
-                {DOCUMENT_TABS.map((id) => {
-                  const active = documentTab === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setDocumentTab(id)}
-                      className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                        active
-                          ? "bg-midnight-ink text-white"
-                          : "bg-transparent text-black hover:bg-black/[0.04]"
-                      }`}
-                    >
-                      {id}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {documentTab === "Notes" ? (
-                <div className="px-5 py-5">
-                  {accountSummaryNotes ?? (
-                    <div className="text-center">
-                      <p className="type-body-muted">
-                        No internal notes for this customer.
-                      </p>
-                      {!archived ? (
-                        <div className="mt-3 flex justify-center">
-                          <TertiaryButton onClick={() => startEdit("notes")}>
-                            Add Internal Notes
-                          </TertiaryButton>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              ) : documentTab === "Quotes" ? (
-                <>
-                  <div className="overflow-x-auto">
-                    <div className="grid min-w-[640px] grid-cols-[1fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
-                      <SortHeader label="Quote ID" />
-                      <SortHeader label="Date Created" />
-                      <SortHeader label="Expiry Date" />
-                      <SortHeader label="Total Amount" />
-                      <SortHeader label="Status" />
-                    </div>
-                    {quotes.length > 0 ? (
-                      <ul className="min-w-[640px]">
-                        {quotes.map((quote, index) => (
-                          <li key={quote.id}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                router.push(hrefForCustomerQuote(quote.status))
-                              }
-                              className={`grid w-full grid-cols-[1fr_1.1fr_1.1fr_1fr_0.9fr] gap-3 px-5 py-3.5 text-left text-sm text-black transition hover:bg-prime-blue/5 ${
-                                index < quotes.length - 1
-                                  ? "border-b border-black/10"
-                                  : ""
-                              }`}
-                            >
-                              <span className="font-medium">{quote.number}</span>
-                              <span>{quote.dateCreated}</span>
-                              <span>{quote.expiryDate}</span>
-                              <span className="font-medium">
-                                {formatMoney(quote.amount)}
-                              </span>
-                              <span>{quote.status}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="px-5 py-12 text-center">
-                        <p className="type-body-muted">
-                          No quotes yet for this customer.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => router.push("/quote")}
-                          className={`${UI_CLASS.btnPrimary} mt-3 inline-flex h-11 items-center gap-2 px-5`}
-                        >
-                          <CreatePlusIcon />
-                          Create Quote
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <div className="grid min-w-[860px] grid-cols-[0.8fr_1fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 border-b border-black/10 bg-cloud-grey px-5 py-3 text-xs font-semibold text-black/55">
-                      <SortHeader label="Invoice ID" />
-                      <SortHeader label="Milestone Phase" />
-                      <SortHeader label="Date Issued" />
-                      <SortHeader label="Due Date" />
-                      <SortHeader label="Total Amount" />
-                      <SortHeader label="Balance Outstanding" />
-                      <SortHeader label="Status" />
-                    </div>
-                    {invoices.length > 0 ? (
-                      <ul className="min-w-[860px]">
-                        {invoices.map((invoice, index) => (
-                          <li key={invoice.id}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                router.push(
-                                  hrefForCustomerInvoice(invoice.status),
-                                )
-                              }
-                              className={`grid w-full grid-cols-[0.8fr_1fr_1fr_1fr_1fr_1.1fr_1fr] gap-3 px-5 py-3.5 text-left text-sm text-black transition hover:bg-prime-blue/5 ${
-                                index < invoices.length - 1
-                                  ? "border-b border-black/10"
-                                  : ""
-                              }`}
-                            >
-                              <span className="font-medium">
-                                {invoice.number}
-                              </span>
-                              <span>
-                                {invoice.milestonePhase ?? (
-                                  <span className="text-black/40">—</span>
-                                )}
-                              </span>
-                              <span>{invoice.dateIssued}</span>
-                              <span>{invoice.dueDate}</span>
-                              <span className="font-medium">
-                                {formatMoney(invoice.amount)}
-                              </span>
-                              <span className="font-medium">
-                                {formatMoney(invoice.balanceOutstanding)}
-                              </span>
-                              <span>{invoice.status}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="px-5 py-12 text-center">
-                        <p className="type-body-muted">
-                          No invoices yet for this customer.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => router.push("/")}
-                          className={`${UI_CLASS.btnPrimary} mt-3 inline-flex h-11 items-center gap-2 px-5`}
-                        >
-                          <CreatePlusIcon />
-                          Create Invoice
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+            <div className="mt-5">
+              <CustomerDocumentsPanel invoices={invoices} quotes={quotes} />
             </div>
           </section>
         ) : (
@@ -1681,11 +1501,6 @@ function CustomerFormInner() {
                       </span>
                     </div>
                   </CheckboxRow>
-                  <CheckboxRow
-                    checked={draft.receipts}
-                    onChange={(checked) => patchDraft({ receipts: checked })}
-                    label={`${FIELD.receipts}: Automatically email a receipt when you mark a payment as received.`}
-                  />
                 </div>
               </SectionEditor>
             ) : (
@@ -1707,10 +1522,6 @@ function CustomerFormInner() {
                           : "On"
                         : "Off"
                     }
-                  />
-                  <ViewField
-                    label={FIELD.receipts}
-                    value={saved.receipts ? "On" : "Off"}
                   />
                 </ViewFieldRow>
               </ViewCard>
@@ -1835,7 +1646,7 @@ function CustomerFormInner() {
                           hideTitle
                           onEdit={archived ? undefined : () => startEdit("business")}
                         >
-                          <ViewFieldRow>
+                          <ViewFieldList>
                             <ViewField
                               label={FIELD.businessLegalName}
                               value={saved.businessName.trim() || null}
@@ -1859,7 +1670,7 @@ function CustomerFormInner() {
                               label={FIELD.phoneNumber}
                               value={saved.phone.trim() || null}
                             />
-                          </ViewFieldRow>
+                          </ViewFieldList>
                         </ViewCard>
                       ),
                   },
@@ -2037,7 +1848,7 @@ function CustomerFormInner() {
                           hideTitle
                           onEdit={archived ? undefined : () => startEdit("contact")}
                         >
-                          <ViewFieldRow>
+                          <ViewFieldList>
                             <ViewField
                               label={FIELD.contactName}
                               value={saved.contactName.trim() || null}
@@ -2058,7 +1869,7 @@ function CustomerFormInner() {
                                 ) : null
                               }
                             />
-                          </ViewFieldRow>
+                          </ViewFieldList>
                         </ViewCard>
                       ),
                   },

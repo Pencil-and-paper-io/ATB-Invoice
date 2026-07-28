@@ -126,7 +126,7 @@ type QuoteColumnId =
 const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
   { id: "number", label: "Invoice #", minWidth: 88, defaultWidth: 100 },
   { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
-  { id: "customer", label: "Customer", minWidth: 120, defaultWidth: 220 },
+  { id: "customer", label: "Customer Name", minWidth: 120, defaultWidth: 220 },
   { id: "issued", label: "Issued", minWidth: 88, defaultWidth: 110 },
   { id: "due", label: "Due", minWidth: 88, defaultWidth: 110 },
   { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
@@ -137,7 +137,7 @@ const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
 const QUOTE_COLUMNS: DirectoryColumnDef<QuoteColumnId>[] = [
   { id: "number", label: "Quote #", minWidth: 88, defaultWidth: 100 },
   { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
-  { id: "customer", label: "Customer", minWidth: 120, defaultWidth: 240 },
+  { id: "customer", label: "Customer Name", minWidth: 120, defaultWidth: 240 },
   { id: "created", label: "Created", minWidth: 88, defaultWidth: 110 },
   { id: "expiry", label: "Expiry", minWidth: 88, defaultWidth: 110 },
   { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
@@ -478,8 +478,8 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
               }}
               placeholder={
                 isInvoices
-                  ? "Search invoices or customers…"
-                  : "Search quotes or customers…"
+                  ? "Search by status, customer name, invoice number..."
+                  : "Search by status, customer name, quote number..."
               }
               label={isInvoices ? "Search invoices" : "Search quotes"}
             />

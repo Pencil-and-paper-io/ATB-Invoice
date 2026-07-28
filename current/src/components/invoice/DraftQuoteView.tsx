@@ -17,7 +17,6 @@ import {
   type InvoicePaymentOption,
 } from "@/lib/organization-settings";
 import {
-  eftPaymentSelected,
   loadDocumentPayments,
   persistDocumentPayments,
 } from "@/lib/draft-document-payments";
@@ -51,7 +50,6 @@ function automationsFromCascade(): DocumentAutomationsState {
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
     reminderChannel: cascade.reminders ? "email" : null,
-    receipts: cascade.receipts,
   };
 }
 
@@ -168,9 +166,6 @@ export function DraftQuoteView() {
   const { handleAction, feedbackBanner, confirmModal, downloadModal } =
     useQuoteActionHandler("drafted");
   const moreActions = getQuoteActionsForStatus("drafted", ["edit", "template"]);
-  const referenceRequired = eftPaymentSelected(payments);
-  const referenceMissing =
-    referenceRequired && !details.referenceNumber?.trim();
 
   function togglePayment(id: InvoicePaymentOption["id"]) {
     setPayments((prev) => {
@@ -205,20 +200,9 @@ export function DraftQuoteView() {
           <div className="flex flex-wrap items-center gap-2.5">
             <TemplatePicker />
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            {referenceMissing ? (
-              <button
-                type="button"
-                disabled
-                className="ui-btn-primary cursor-not-allowed opacity-40"
-                title="Add a reference number to use EFT"
-              >
-                Save and Preview
-              </button>
-            ) : (
-              <Link href="/quote/preview" className="ui-btn-primary">
-                Save and Preview
-              </Link>
-            )}
+            <Link href="/quote/preview" className="ui-btn-primary">
+              Save and Preview
+            </Link>
           </div>
         </div>
 
@@ -263,7 +247,6 @@ export function DraftQuoteView() {
                 documentKind="quote"
                 details={details}
                 onChange={updateDetails}
-                referenceRequired={referenceRequired}
               />
             </SectionCard>
 

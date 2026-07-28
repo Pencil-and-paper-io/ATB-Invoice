@@ -184,7 +184,7 @@ export function DashboardView() {
               <thead>
                 <tr className="border-b border-black/10 text-black/50">
                   <th className="pb-3 font-medium">Invoice #</th>
-                  <th className="pb-3 font-medium">Customer</th>
+                  <th className="pb-3 font-medium">Customer Name</th>
                   <th className="pb-3 font-medium">Due</th>
                   <th className="pb-3 font-medium">Amount</th>
                   <th className="pb-3 font-medium">Status</th>

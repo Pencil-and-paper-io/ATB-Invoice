@@ -15,7 +15,6 @@ export type DocumentAutomationsState = {
   reminders: boolean;
   reminderDays: string;
   reminderChannel: ReminderChannel | null;
-  receipts: boolean;
 };
 
 const inputClass = UI_CLASS.input;
@@ -183,13 +182,6 @@ export function DocumentAutomationsSection({
           </div>
         </div>
       </CheckboxRow>
-      {isInvoice ? (
-        <CheckboxRow
-          checked={value.receipts}
-          onChange={(receipts) => onChange({ ...value, receipts })}
-          label="Receipts: Email a receipt when payment is recorded."
-        />
-      ) : null}
     </div>
   );
 }

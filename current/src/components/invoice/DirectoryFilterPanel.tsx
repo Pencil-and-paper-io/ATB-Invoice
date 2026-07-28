@@ -504,7 +504,7 @@ function CustomerComboboxField({
 
   return (
     <div>
-      <FieldLabel>Customer</FieldLabel>
+      <FieldLabel>Customer Name</FieldLabel>
       <div ref={ref} className="relative">
         <div className="relative">
           <input
@@ -523,7 +523,7 @@ function CustomerComboboxField({
             placeholder="Any customer"
             aria-haspopup="listbox"
             aria-expanded={open}
-            aria-label="Customer"
+            aria-label="Customer Name"
             className={`${inputClass} pr-10`}
           />
           <button

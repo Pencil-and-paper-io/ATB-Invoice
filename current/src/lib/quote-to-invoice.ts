@@ -3,6 +3,11 @@ import {
   peekNextInvoiceNumber,
   todayIso,
 } from "@/lib/document-numbers";
+import {
+  DEFAULT_QUOTE_TIMELINE_FOR_INVOICE,
+  saveQuoteTimelineForInvoice,
+  type ActivityItem,
+} from "@/lib/document-activity";
 import type { InvoiceDetailsState } from "@/components/invoice/InvoiceDetailsPanel";
 
 const CONVERSION_KEY = "atb-quote-accepted-conversion";
@@ -17,7 +22,10 @@ function canUseStorage() {
 }
 
 /** Persist that a quote was accepted so the invoice draft can prefill. */
-export function markQuoteAcceptedForInvoice(quoteNumber?: string) {
+export function markQuoteAcceptedForInvoice(
+  quoteNumber?: string,
+  quoteTimeline: ActivityItem[] = DEFAULT_QUOTE_TIMELINE_FOR_INVOICE,
+) {
   if (!canUseStorage()) return;
   const details = loadQuoteDetails();
   const payload: QuoteAcceptancePayload = {
@@ -28,6 +36,7 @@ export function markQuoteAcceptedForInvoice(quoteNumber?: string) {
     acceptedAt: Date.now(),
   };
   sessionStorage.setItem(CONVERSION_KEY, JSON.stringify(payload));
+  saveQuoteTimelineForInvoice(quoteTimeline);
 }
 
 export function peekQuoteAcceptance(): QuoteAcceptancePayload | null {

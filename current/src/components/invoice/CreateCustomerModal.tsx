@@ -11,7 +11,7 @@ import type { Customer } from "@/lib/invoice-demo-data";
 import { InfoTooltip, Modal } from "./ui";
 
 const LEGAL_NAME_TIP =
-  "Required for CRA records and Canada Small Business Financing Loan eligibility. Use the customer’s official legal business name.";
+  "Add the business or individual's full legal name";
 
 const inputClass = UI_CLASS.input;
 
@@ -57,7 +57,7 @@ export function CreateCustomerModal({
         <div>
           <div className="mb-2 flex items-center gap-1.5">
             <label htmlFor="create-business-name" className="type-label">
-              Business Legal Name <span className="type-danger">*</span>
+              Customer Legal Name <span className="type-danger">*</span>
             </label>
             <InfoTooltip text={LEGAL_NAME_TIP} />
           </div>

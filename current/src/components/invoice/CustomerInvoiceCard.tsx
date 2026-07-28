@@ -9,6 +9,8 @@ import {
   previewMeta,
 } from "@/lib/invoice-demo-data";
 import {
+  customerPortalPaymentOptions,
+  eftCustomerReferenceNote,
   loadDocumentPayments,
 } from "@/lib/draft-document-payments";
 import { loadInvoiceDetails } from "@/lib/invoice-details";
@@ -157,6 +159,7 @@ export function CustomerInvoiceCard({
   showDraftWatermark = false,
   isExpired = false,
   showPaymentOptions,
+  usePortalPayments = false,
 }: {
   shadow?: "preview" | "sent";
   documentKind?: "invoice" | "quote";
@@ -164,6 +167,8 @@ export function CustomerInvoiceCard({
   isExpired?: boolean;
   /** Override payment block visibility (quotes in portal hide; invoices show). */
   showPaymentOptions?: boolean;
+  /** Force Interac + EFT options (customer pay-invoice demo). */
+  usePortalPayments?: boolean;
 }) {
   const [quoteDetails, setQuoteDetails] = useState<InvoiceDetailsState | null>(
     null,
@@ -183,7 +188,11 @@ export function CustomerInvoiceCard({
         setInvoiceDetails(loadInvoiceDetails());
       }
       setPaymentOptions(
-        loadDocumentPayments(documentKind).filter((option) => option.checked),
+        usePortalPayments
+          ? customerPortalPaymentOptions()
+          : loadDocumentPayments(documentKind).filter(
+              (option) => option.checked,
+            ),
       );
       const org = loadOrganizationSettings();
       setGstHstNumber(
@@ -192,7 +201,7 @@ export function CustomerInvoiceCard({
           : "",
       );
     }, 0);
-  }, [documentKind]);
+  }, [documentKind, usePortalPayments]);
 
   const previewTotals = useMemo(
     () =>
@@ -221,16 +230,12 @@ export function CustomerInvoiceCard({
       : invoiceDetails?.invoiceNumber?.trim()
         ? invoiceDetails.invoiceNumber.trim()
         : previewMeta.invoiceNumber;
-  const referenceNumber =
-    (documentKind === "quote"
-      ? quoteDetails?.referenceNumber
-      : invoiceDetails?.referenceNumber
-    )?.trim() ||
-    (documentKind === "quote"
-      ? quoteDetails?.invoiceNumber?.trim()
-      : invoiceDetails?.invoiceNumber?.trim()) ||
-    (documentKind === "invoice" ? previewMeta.invoiceNumber.replace(/\s+/g, " ") : "") ||
-    documentNumber;
+  const invoiceNumberForEft =
+    documentKind === "invoice"
+      ? invoiceDetails?.invoiceNumber?.trim() ||
+        previewMeta.invoiceNumber.replace(/\s+/g, " ")
+      : documentNumber;
+  const eftNote = eftCustomerReferenceNote(invoiceNumberForEft);
   const showPayment =
     showPaymentOptions === false ? false : paymentOptions.length > 0;
 
@@ -407,14 +412,15 @@ export function CustomerInvoiceCard({
                     </div>
                   ) : null}
                   {option.id === "eft" ? (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <button type="button" className="ui-btn-primary shrink-0">
+                    <div className="flex flex-col gap-2.5">
+                      <button type="button" className="ui-btn-primary w-fit">
                         Email me direct deposit info
                       </button>
-                      <p className="text-sm leading-5 text-black">
-                        Include this reference number in your transaction [
-                        {referenceNumber}]
-                      </p>
+                      {eftNote ? (
+                        <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-3.5 py-3 text-sm leading-5 text-midnight-ink">
+                          {eftNote}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

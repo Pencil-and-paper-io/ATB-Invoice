@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney, previewMeta } from "@/lib/invoice-demo-data";
+import {
+  appendInvoicePaymentActivity,
+  buildPaymentActivityItem,
+  setPendingInvoiceToast,
+  toastMessageForPayment,
+  type RecordedPaymentSummary,
+} from "@/lib/document-activity";
 import { Modal } from "./ui";
 
 const PAYMENT_METHODS = ["Cash", "Cheque", "E-Transfer", "Other"] as const;
@@ -12,10 +19,12 @@ const INVOICE_TOTAL = previewMeta.amount;
 export function RecordPaymentModal({
   onClose,
   balanceDue = INVOICE_TOTAL,
+  onSaved,
 }: {
   onClose: () => void;
   /** Outstanding balance (defaults to full invoice total). */
   balanceDue?: number;
+  onSaved?: (payment: RecordedPaymentSummary) => void;
 }) {
   const router = useRouter();
   const [amount, setAmount] = useState(String(balanceDue));
@@ -45,6 +54,22 @@ export function RecordPaymentModal({
   function handleSave() {
     if (!canSave) return;
     setSaving(true);
+
+    const payment: RecordedPaymentSummary = {
+      amount: amountValue,
+      method,
+      isPartial,
+      remaining,
+      voidRemainder,
+      chequeRef: method === "Cheque" ? chequeRef : undefined,
+    };
+
+    appendInvoicePaymentActivity(
+      buildPaymentActivityItem(payment, formatMoney),
+    );
+    setPendingInvoiceToast(toastMessageForPayment(payment));
+    onSaved?.(payment);
+
     window.setTimeout(() => {
       if (!isPartial || voidRemainder) {
         router.push("/sent/paid");

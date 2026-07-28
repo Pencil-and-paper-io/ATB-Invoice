@@ -16,6 +16,7 @@ import {
   consumeQuoteAcceptance,
   invoiceDetailsFromAcceptedQuote,
 } from "@/lib/quote-to-invoice";
+import { ensureQuoteTimelineForInvoice } from "@/lib/document-activity";
 import { loadQuoteDetails } from "@/lib/quote-details";
 import {
   getCustomerCascadeDefaults,
@@ -24,7 +25,6 @@ import {
   type InvoicePaymentOption,
 } from "@/lib/organization-settings";
 import {
-  eftPaymentSelected,
   loadDocumentPayments,
   persistDocumentPayments,
 } from "@/lib/draft-document-payments";
@@ -62,7 +62,6 @@ function automationsFromCascade(): DocumentAutomationsState {
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
     reminderChannel: cascade.reminders ? "email" : null,
-    receipts: cascade.receipts,
   };
 }
 
@@ -130,6 +129,9 @@ export function DraftInvoiceView() {
       const cascade = getCustomerCascadeDefaults(org);
       const acceptance =
         !fresh && fromQuote ? consumeQuoteAcceptance() : null;
+      if (fromQuote && !fresh) {
+        ensureQuoteTimelineForInvoice();
+      }
       if (acceptance) {
         const fromAccepted = invoiceDetailsFromAcceptedQuote(acceptance);
         const next = {
@@ -182,9 +184,6 @@ export function DraftInvoiceView() {
     "drafted",
     isFirstInvoicePlaythrough ? ["edit", "template"] : ["edit"],
   );
-  const referenceRequired = eftPaymentSelected(payments);
-  const referenceMissing =
-    referenceRequired && !details.referenceNumber?.trim();
 
   function togglePayment(id: InvoicePaymentOption["id"]) {
     setPayments((prev) => {
@@ -236,8 +235,7 @@ export function DraftInvoiceView() {
                 <span className="font-semibold">{acceptedQuoteNumber}</span>
               </>
             ) : null}
-            . Reference # is set to the quote number. Review payment options and
-            due date before sending.
+            . Review payment options and due date before sending.
           </div>
         ) : null}
         <GstMissingWarning
@@ -253,20 +251,9 @@ export function DraftInvoiceView() {
           <div className="flex flex-wrap items-center gap-2.5">
             {isFirstInvoicePlaythrough ? null : <TemplatePicker />}
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            {referenceMissing ? (
-              <button
-                type="button"
-                disabled
-                className="ui-btn-primary cursor-not-allowed opacity-40"
-                title="Add a reference number to use EFT"
-              >
-                Save and Preview
-              </button>
-            ) : (
-              <Link href="/preview" className="ui-btn-primary">
-                Save and Preview
-              </Link>
-            )}
+            <Link href="/preview" className="ui-btn-primary">
+              Save and Preview
+            </Link>
           </div>
         </div>
 
@@ -313,7 +300,6 @@ export function DraftInvoiceView() {
               <InvoiceDetailsPanel
                 details={details}
                 onChange={updateDetails}
-                referenceRequired={referenceRequired}
               />
             </SectionCard>
 

@@ -32,7 +32,7 @@ export const CORE_PAYMENT_METHODS: readonly {
       { label: "Cost to customer", text: "Free" },
       {
         label: "Limits",
-        text: "Typically capped at $3,000 per day (dependent on client's personal bank plan)",
+        text: "Typically capped at $3,000 per day (dependent on customer's personal bank plan)",
       },
     ],
   },
@@ -50,11 +50,11 @@ export const CORE_PAYMENT_METHODS: readonly {
       { label: "Cost to customer", text: "Typically free" },
       {
         label: "Limits",
-        text: "$3,000 to $10,000 per day (dependent on client's personal bank security limits)",
+        text: "$3,000 to $10,000 per day (dependent on customer's personal bank security limits)",
       },
       {
         label: "Note",
-        text: "Selecting this will display your bank deposit info on the invoice. You can turn this payment mechanism for specific clients later.",
+        text: "Selecting this will display your bank deposit info on the invoice. You can turn this payment mechanism for specific customers later.",
         italic: true,
       },
     ],

@@ -43,7 +43,7 @@ export function exportInvoicesCsv(
   const csv = toCsv(
     [
       "Invoice #",
-      "Customer",
+      "Customer Name",
       "Status",
       "Date Issued",
       "Due Date",
@@ -70,7 +70,7 @@ export function exportQuotesCsv(
   filename = "quotes-export.csv",
 ) {
   const csv = toCsv(
-    ["Quote #", "Customer", "Status", "Created", "Expiry", "Amount"],
+    ["Quote #", "Customer Name", "Status", "Created", "Expiry", "Amount"],
     rows.map((row) => [
       row.number,
       customerName(row.customerId),
