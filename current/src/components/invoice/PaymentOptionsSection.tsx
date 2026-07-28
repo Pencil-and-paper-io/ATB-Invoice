@@ -209,23 +209,14 @@ function PaymentOptionRow({
   );
 }
 
-export type PartialPaymentState = {
-  enabled: boolean;
-  minimum: string;
-};
-
 export function PaymentOptionsSection({
   payments,
   onToggle,
   onChange,
-  partialPayment,
-  onPartialPaymentChange,
 }: {
   payments: InvoicePaymentOption[];
   onToggle: (id: InvoicePaymentOption["id"]) => void;
   onChange?: (next: InvoicePaymentOption[]) => void;
-  partialPayment?: PartialPaymentState;
-  onPartialPaymentChange?: (next: PartialPaymentState) => void;
 }) {
   const [accountDrafts, setAccountDrafts] = useState<
     Partial<Record<PaymentMethodId, string>>
@@ -233,15 +224,6 @@ export function PaymentOptionsSection({
   const [organizationName, setOrganizationName] = useState("");
   const [organizationEmail, setOrganizationEmail] = useState("");
   const [addOptionsOpen, setAddOptionsOpen] = useState(false);
-  const [localPartial, setLocalPartial] = useState<PartialPaymentState>({
-    enabled: false,
-    minimum: "",
-  });
-  const partial = partialPayment ?? localPartial;
-  function setPartial(next: PartialPaymentState) {
-    if (onPartialPaymentChange) onPartialPaymentChange(next);
-    else setLocalPartial(next);
-  }
 
   useEffect(() => {
     const settings = loadOrganizationSettings();
@@ -321,52 +303,6 @@ export function PaymentOptionsSection({
         <TertiaryButton onClick={() => setAddOptionsOpen(true)}>
           Add more payment options
         </TertiaryButton>
-
-        <div className="mt-1 border-t border-black/10 pt-3">
-          <label className="flex items-start gap-2.5 text-sm text-black">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-prime-blue"
-              checked={partial.enabled}
-              onChange={(event) =>
-                setPartial({
-                  ...partial,
-                  enabled: event.target.checked,
-                  minimum: event.target.checked ? partial.minimum : "",
-                })
-              }
-            />
-            <span>Allow partial payment</span>
-          </label>
-          {partial.enabled ? (
-            <div className="mt-2 pl-6">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm text-black/65">
-                  Minimum payment{" "}
-                  <span className="text-black/40">(optional)</span>
-                </span>
-                <div className="relative max-w-[220px]">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-black/45">
-                    $
-                  </span>
-                  <input
-                    inputMode="decimal"
-                    className={`${inputClass} pl-7`}
-                    value={partial.minimum}
-                    placeholder="0.00"
-                    onChange={(event) =>
-                      setPartial({
-                        ...partial,
-                        minimum: event.target.value.replace(/[^\d.]/g, ""),
-                      })
-                    }
-                    aria-label="Minimum partial payment amount"
-                  />
-                </div>
-              </label>
-            </div>
-          ) : null}
-        </div>
       </div>
 
       {addOptionsOpen ? (

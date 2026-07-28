@@ -523,6 +523,9 @@ function LineItemsTotals({
   const [shipping, setShipping] = useState<InvoiceAddon | null>(null);
   const [editing, setEditing] = useState<"discount" | "shipping" | null>(null);
   const [savedAddons, setSavedAddons] = useState<SavedInvoiceAddon[]>([]);
+  const [allowPartialPayment, setAllowPartialPayment] = useState(false);
+  const [minimumPayment, setMinimumPayment] = useState("");
+  const [editingMinimum, setEditingMinimum] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -624,7 +627,166 @@ function LineItemsTotals({
           <span className="w-4 shrink-0" aria-hidden />
         </div>
       </div>
+
+      <div className="my-1 h-px bg-black/10" />
+
+      <div className="flex h-10 items-center justify-end gap-5 px-[30px]">
+        <label className="flex min-w-0 flex-1 items-center gap-2.5 text-sm text-black">
+          <input
+            type="checkbox"
+            className="h-4 w-4 shrink-0 accent-prime-blue"
+            checked={allowPartialPayment}
+            onChange={(event) => {
+              setAllowPartialPayment(event.target.checked);
+              if (!event.target.checked) {
+                setMinimumPayment("");
+                setEditingMinimum(false);
+              }
+            }}
+          />
+          <span>Allow partial payment</span>
+        </label>
+        {allowPartialPayment ? (
+          <>
+            <span className="shrink-0 text-sm text-black">Minimum Payment</span>
+            {!minimumPayment.trim() ? (
+              <div className="w-40 text-right">
+                <button
+                  type="button"
+                  onClick={() => setEditingMinimum(true)}
+                  className="text-sm font-semibold text-midnight-ink transition hover:text-prime-blue"
+                >
+                  Add
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingMinimum(true)}
+                className="group flex items-center gap-5 text-sm text-black transition hover:text-prime-blue"
+                aria-label="Edit Minimum Payment"
+              >
+                <span className="w-40 text-right">
+                  {formatMoney(Number(minimumPayment) || 0)}
+                </span>
+                <span className="flex w-4 shrink-0 justify-center text-black/30 transition group-hover:text-prime-blue">
+                  <PencilIcon />
+                </span>
+              </button>
+            )}
+            {!minimumPayment.trim() ? (
+              <span className="w-4 shrink-0" aria-hidden />
+            ) : null}
+          </>
+        ) : (
+          <span className="w-4 shrink-0" aria-hidden />
+        )}
+      </div>
+
+      {allowPartialPayment && editingMinimum ? (
+        <MinimumPaymentModal
+          initial={minimumPayment}
+          onSave={(value) => {
+            setMinimumPayment(value);
+            setEditingMinimum(false);
+          }}
+          onCancel={() => setEditingMinimum(false)}
+          onDelete={
+            minimumPayment.trim()
+              ? () => {
+                  setMinimumPayment("");
+                  setEditingMinimum(false);
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </>
+  );
+}
+
+function MinimumPaymentModal({
+  initial,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  initial: string;
+  onSave: (value: string) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const [amount, setAmount] = useState(initial);
+
+  function handleSave() {
+    const cleaned = amount.replace(/[^\d.]/g, "").trim();
+    onSave(cleaned);
+  }
+
+  const isEditing = Boolean(initial.trim());
+
+  return (
+    <Modal
+      title={isEditing ? "Edit minimum payment" : "Add minimum payment"}
+      titleId="minimum-payment-modal"
+      onClose={onCancel}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          {isEditing && onDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="type-danger transition hover:underline"
+            >
+              Delete
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="type-danger transition hover:underline"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            className="ui-btn-primary h-11"
+          >
+            {isEditing ? "Update" : "Save"}
+          </button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-black">Minimum amount</span>
+          <div className={inputShellClass}>
+            <span
+              className="flex items-center pl-3 text-sm text-black/50"
+              aria-hidden
+            >
+              $
+            </span>
+            <input
+              className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm text-midnight-ink outline-none"
+              value={amount}
+              onChange={(event) =>
+                setAmount(event.target.value.replace(/[^\d.]/g, ""))
+              }
+              inputMode="decimal"
+              placeholder="0.00"
+              aria-label="Minimum payment amount"
+              autoFocus
+            />
+            <span className="flex shrink-0 items-center pr-3 text-sm text-black/50 select-none">
+              CAD
+            </span>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
