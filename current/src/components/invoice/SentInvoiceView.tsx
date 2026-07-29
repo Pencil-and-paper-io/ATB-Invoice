@@ -153,6 +153,7 @@ export function SentInvoiceView({
                 anchorLabel={dueAnchor}
                 customerId="acme"
                 showScheduledReminder={SHOW_SCHEDULED_REMINDER[variant]}
+                allowSendNow
               />
             </section>
 

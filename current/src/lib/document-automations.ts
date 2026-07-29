@@ -25,6 +25,7 @@ export function defaultAutomationsFromCascade(
   const cascade = getAutomationDefaultsForCustomer(customerId);
   return {
     autoSend: cascade.autoSend,
+    autoSendInvoice: false,
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
     reminderChannel: cascade.reminders
@@ -32,6 +33,7 @@ export function defaultAutomationsFromCascade(
         ? "text"
         : "email"
       : null,
+    reminderSendDate: null,
   };
 }
 
@@ -99,10 +101,58 @@ function normalizeAutomations(
         : null;
   return {
     autoSend: Boolean(value.autoSend),
+    autoSendInvoice: Boolean(value.autoSendInvoice),
     reminders,
     reminderDays: String(value.reminderDays ?? "3").replace(/[^\d]/g, "") || "3",
     reminderChannel: reminders ? channel : null,
+    reminderSendDate:
+      typeof value.reminderSendDate === "string" &&
+      (/^\d{4}-\d{2}-\d{2}$/.test(value.reminderSendDate) ||
+        value.reminderSendDate === "now")
+        ? value.reminderSendDate
+        : null,
   };
+}
+
+export function todayIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+export function formatReminderSendDateLabel(
+  sendDate: string | null | undefined,
+  daysBefore: number,
+  anchorLabel: string,
+): string {
+  if (sendDate === "now") return "Now";
+  if (sendDate && /^\d{4}-\d{2}-\d{2}$/.test(sendDate)) {
+    const [year, month, day] = sendDate.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-CA", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(year, month - 1, day));
+  }
+  return formatScheduledReminderDate(daysBefore, anchorLabel);
+}
+
+/** Convert a display/anchor label into YYYY-MM-DD when possible. */
+export function isoFromScheduledReminderDate(
+  daysBefore: number,
+  anchorLabel: string,
+): string | null {
+  const parsed = tryParseAnchorDate(anchorLabel);
+  if (!parsed || !Number.isFinite(daysBefore) || daysBefore < 0) return null;
+  const scheduled = new Date(parsed);
+  scheduled.setDate(scheduled.getDate() - daysBefore);
+  return `${scheduled.getFullYear()}-${String(scheduled.getMonth() + 1).padStart(2, "0")}-${String(scheduled.getDate()).padStart(2, "0")}`;
+}
+
+/** Convert due/expiry display labels to YYYY-MM-DD when parseable. */
+export function isoFromAnchorLabel(anchorLabel: string): string | null {
+  const parsed = tryParseAnchorDate(anchorLabel);
+  if (!parsed) return null;
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
 }
 
 /** Approximate scheduled send date for demo display. */

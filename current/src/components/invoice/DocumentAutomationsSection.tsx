@@ -12,9 +12,13 @@ export type ReminderChannel = "email" | "text";
 
 export type DocumentAutomationsState = {
   autoSend: boolean;
+  /** Quote-only: send invoice automatically when the quote is accepted. */
+  autoSendInvoice: boolean;
   reminders: boolean;
   reminderDays: string;
   reminderChannel: ReminderChannel | null;
+  /** Absolute send date (YYYY-MM-DD) for preview/sent scheduling; null = derive from days. */
+  reminderSendDate: string | null;
 };
 
 function DefaultCheckIcon() {
@@ -78,7 +82,15 @@ function AutomationsEditor({
           onChange={(autoSend) => onChange({ ...value, autoSend })}
           label="Auto-send: Send this invoice automatically on its issuance date."
         />
-      ) : null}
+      ) : (
+        <CheckboxRow
+          checked={value.autoSendInvoice}
+          onChange={(autoSendInvoice) =>
+            onChange({ ...value, autoSendInvoice })
+          }
+          label="Auto-Send Invoice: When the quote is accepted, automatically send an invoice"
+        />
+      )}
       <CheckboxRow
         checked={value.reminders}
         onChange={(reminders) =>
@@ -129,6 +141,12 @@ export function DocumentAutomationsSection({
     summaryItems.push({
       id: "auto-send",
       label: "Auto-send on issuance date",
+    });
+  }
+  if (!isInvoice && value.autoSendInvoice) {
+    summaryItems.push({
+      id: "auto-send-invoice",
+      label: "Auto-send invoice when accepted",
     });
   }
   if (value.reminders) {
@@ -190,7 +208,6 @@ export function DocumentAutomationsSection({
           onConfirm={saveEdit}
           maxWidthClass="max-w-3xl"
           zClass="z-[220]"
-          subtitle={`Starts from organization and customer defaults (reminders are off unless you turned them on). Change them only for this ${documentKind}.`}
         >
           <AutomationsEditor
             value={draft}
