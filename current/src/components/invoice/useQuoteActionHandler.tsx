@@ -35,9 +35,8 @@ function ConfirmModal({
       confirmLabel={confirmLabel}
       onConfirm={onConfirm}
       confirmDanger={danger}
-    >
-      <p className="type-body-muted text-center leading-5">{body}</p>
-    </Modal>
+      body={body}
+    />
   );
 }
 

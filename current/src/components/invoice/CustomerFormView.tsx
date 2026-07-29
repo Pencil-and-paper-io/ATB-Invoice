@@ -1986,12 +1986,8 @@ function CustomerFormInner() {
             setLifecycleConfirm(null);
             router.push("/customers");
           }}
-        >
-          <p className="text-center text-sm leading-5 text-black/70">
-            Are you sure you want to permanently delete {customerDisplayName}?
-            This action cannot be undone.
-          </p>
-        </Modal>
+          body={`Are you sure you want to permanently delete ${customerDisplayName}? This action cannot be undone.`}
+        />
       ) : null}
 
       {lifecycleConfirm === "archive" ? (
@@ -2010,13 +2006,8 @@ function CustomerFormInner() {
             }
             setLifecycleConfirm(null);
           }}
-        >
-          <p className="text-center text-sm leading-5 text-black/70">
-            Are you sure you want to archive {customerDisplayName}? They will be
-            hidden from active lists but their financial records will be
-            preserved.
-          </p>
-        </Modal>
+          body={`Are you sure you want to archive ${customerDisplayName}? They will be hidden from active lists but their financial records will be preserved.`}
+        />
       ) : null}
     </div>
   );

@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
+  formatGstHstNumber,
   isValidGstHstNumber,
   loadOrganizationSettings,
+  parseGstHstNumber,
   paymentMethodLabel,
   saveOrganizationSettings,
   type OrganizationSettings,
@@ -16,12 +18,8 @@ import {
   DepositAccountBlock,
   paymentRequestSubtitle,
 } from "./DepositAccountConnect";
-import { GstHstNumberField } from "./GstHstNumberField";
-import {
-  GST_HST_REGISTER_URL,
-  GST_REGISTRATION_OPTIONS,
-  type GstRegistrationStatus,
-} from "@/lib/place-of-supply";
+import { GST_HST_ACCOUNT_SUFFIX } from "./GstHstNumberField";
+import { type GstRegistrationStatus } from "@/lib/place-of-supply";
 import { ONBOARDING_JUST_COMPLETED_KEY } from "@/components/invoice/OnboardingCompleteModal";
 import {
   OnboardingWelcomeHero,
@@ -29,7 +27,7 @@ import {
 } from "@/components/invoice/OnboardingWelcomeHero";
 import { TermsAndConditionsView, TERMS_ACCEPTED_KEY } from "@/components/invoice/TermsAndConditionsView";
 import { TopNav } from "@/components/invoice/TopNav";
-import { EditCloseButton, InfoTooltip, PencilIcon } from "@/components/invoice/ui";
+import { EditCloseButton, InfoTooltip } from "@/components/invoice/ui";
 
 const SETUP_STEPS = [
   {
@@ -37,8 +35,12 @@ const SETUP_STEPS = [
     subtitle: "How do you want your contact info to appear as?",
   },
   {
+    title: "Legal Name",
+    subtitle: "Is this the name registered under the CRA?",
+  },
+  {
     title: "Display Name",
-    subtitle: "Do you want to use this name in your communications?",
+    subtitle: "What name do you want to use in your communications?",
   },
   {
     title: "Sales Tax",
@@ -50,21 +52,24 @@ const SETUP_STEPS = [
   },
 ] as const;
 
-/** Step header icons (Your Info, Display Name, Sales Tax, Payment Options). */
+/** Step header icons (Your Info, Legal Name, Display Name, Sales Tax, Payment Options). */
 const STEP_ICONS = [
   "/onboard-icon-people.png",
+  "/onboard-icon-join.png",
   "/onboard-icon-join.png",
   "/onboard-moments-icon.png",
   "/onboard-icon-connect.png",
 ] as const;
 
-type StepIndex = 0 | 1 | 2 | 3;
+type StepIndex = 0 | 1 | 2 | 3 | 4;
 type OnboardingPhase = "terms" | "welcome" | "wizard";
 
 type PaymentTermsChoice = "receipt" | "7" | "15" | "30" | "custom";
 
 type WizardState = {
   businessName: string;
+  craFoundName: string;
+  craNameIsCorrect: boolean;
   useLegalNameOnInvoices: boolean;
   tradingAsName: string;
   brandColor: string;
@@ -83,23 +88,234 @@ type WizardState = {
   invoiceStartNumber: string;
 };
 
-const inputClass = UI_CLASS.input;
+const GST_WHEN_REGISTER_URL =
+  "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html";
 
-function FieldLabel({
-  children,
-  htmlFor,
-  tip,
+function ChoiceCheckIcon({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+        selected
+          ? "bg-sunshine-yellow text-midnight-ink"
+          : "bg-black/[0.08] text-white"
+      }`}
+      aria-hidden
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M2.5 7.2L5.6 10.3L11.5 3.7"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function UnderlineField({
+  id,
+  value,
+  onChange,
+  placeholder,
+  "aria-label": ariaLabel,
+  onDark = false,
+  active,
+  inputMode,
+  maxLength,
+  suffix,
+  onBlur,
+  type = "text",
 }: {
-  children: ReactNode;
-  htmlFor?: string;
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  "aria-label": string;
+  onDark?: boolean;
+  /** When true, auto-focus. When false, not tabbable (collapsed choice). Omit for always-enabled fields. */
+  active?: boolean;
+  inputMode?: "text" | "numeric" | "email";
+  maxLength?: number;
+  suffix?: string;
+  onBlur?: () => void;
+  type?: "text" | "email";
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (active !== true) return;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+
+  return (
+    <div
+      className={`flex w-full items-end gap-2 border-b transition-colors duration-150 ${
+        focused
+          ? "border-sunshine-yellow"
+          : onDark
+            ? "border-white/35"
+            : "border-black/25"
+      }`}
+    >
+      <input
+        ref={inputRef}
+        id={id}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          onBlur?.();
+        }}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        aria-describedby={suffix ? `${id}-suffix` : undefined}
+        tabIndex={active === false ? -1 : 0}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        className={`min-w-0 flex-1 border-0 bg-transparent py-2 text-sm outline-none ring-0 placeholder:font-normal caret-sunshine-yellow ${
+          onDark
+            ? "text-white placeholder:text-white/40"
+            : "text-midnight-ink placeholder:text-black/35"
+        }`}
+      />
+      {suffix ? (
+        <span
+          id={`${id}-suffix`}
+          className={`shrink-0 pb-2 text-sm select-none ${
+            onDark ? "text-white/45" : "text-black/40"
+          }`}
+        >
+          {suffix}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoFieldCard({
+  htmlFor,
+  label,
+  tip,
+  children,
+}: {
+  htmlFor: string;
+  label: ReactNode;
   tip?: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5">
-      <label htmlFor={htmlFor} className="type-label">
-        {children}
-      </label>
-      {tip ? <InfoTooltip text={tip} /> : null}
+    <div className="flex min-h-[5.5rem] flex-col justify-center rounded-[12px] bg-midnight-ink px-6 py-6">
+      <div className="mb-3 flex items-center gap-1.5">
+        <label htmlFor={htmlFor} className="type-headline-6 text-white">
+          {label}
+        </label>
+        {tip ? <InfoTooltip text={tip} onDark /> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ChoiceCard({
+  name,
+  checked,
+  onChange,
+  title,
+  description,
+  children,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: () => void;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
+  const hasExpand = children != null && children !== false;
+
+  return (
+    <div
+      role="radio"
+      aria-checked={checked}
+      tabIndex={0}
+      onClick={onChange}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onChange();
+        }
+      }}
+      className={`flex h-full min-w-0 flex-1 cursor-pointer flex-col rounded-[12px] px-6 pt-[94px] pb-[94px] transition ${
+        checked ? "bg-midnight-ink" : "bg-page-grey hover:bg-black/[0.06]"
+      }`}
+    >
+      <div className="flex min-h-0 flex-1 items-center">
+        <div className="flex w-full items-center gap-4 text-left">
+          <input
+            type="radio"
+            name={name}
+            className="sr-only"
+            checked={checked}
+            onChange={onChange}
+            tabIndex={-1}
+            aria-hidden
+          />
+          <ChoiceCheckIcon selected={checked} />
+          <span className="min-w-0 flex-1">
+            <span
+              className={`block type-headline-6 ${
+                checked ? "text-white" : "text-midnight-ink"
+              }`}
+            >
+              {title}
+            </span>
+            {description ? (
+              <span
+                className={`mt-1 block text-sm font-normal leading-5 ${
+                  checked ? "text-white/90" : "text-black/55"
+                }`}
+              >
+                {description}
+              </span>
+            ) : null}
+          </span>
+        </div>
+      </div>
+      {hasExpand ? (
+        <div
+          className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+            checked ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div
+              className={`pl-12 pt-4 transition-opacity duration-300 ease-out ${
+                checked
+                  ? "opacity-100"
+                  : "pointer-events-none opacity-0"
+              }`}
+              aria-hidden={!checked}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {children}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -251,8 +467,11 @@ function settingsToWizard(settings: OrganizationSettings): WizardState {
     }
   }
 
+  const craFoundName = "Horlicks Beverage Corporation";
   return {
-    businessName: settings.businessName || "Horlicks Company",
+    businessName: craFoundName,
+    craFoundName,
+    craNameIsCorrect: true,
     useLegalNameOnInvoices: settings.useLegalNameOnInvoices !== false,
     tradingAsName: settings.tradingAsName || "",
     brandColor: settings.brandColor || "#FF7F30",
@@ -276,8 +495,8 @@ function settingsToWizard(settings: OrganizationSettings): WizardState {
     paymentTermsChoice,
     customPaymentDays,
     quoteExpiryDays: settings.quoteExpiryDays || "30",
-    gstRegistrationStatus: settings.gstRegistrationStatus || "registered",
-    gstHstNumber: settings.gstHstNumber || "",
+    gstRegistrationStatus: "small_supplier",
+    gstHstNumber: "",
     quoteStartNumber: settings.quoteStartNumber || "QT-1001",
     invoiceStartNumber: settings.invoiceStartNumber || "INV-1001",
   };
@@ -363,7 +582,6 @@ export function OnboardingWizardView() {
   const [hydrated, setHydrated] = useState(false);
   const [step, setStep] = useState<StepIndex>(0);
   const [finishing, setFinishing] = useState(false);
-  const [editingBusinessName, setEditingBusinessName] = useState(false);
   const [showPaymentConfirmError, setShowPaymentConfirmError] = useState(false);
   const [gstHstShowError, setGstHstShowError] = useState(false);
   const [state, setState] = useState<WizardState>(() =>
@@ -400,18 +618,22 @@ export function OnboardingWizardView() {
     setState((prev) => ({ ...prev, ...partial }));
   }
 
+  const lastStep = (SETUP_STEPS.length - 1) as StepIndex;
+
   const stepValid = useMemo(() => {
     if (step === 0) {
       return true;
     }
     if (step === 1) {
-      if (!state.businessName.trim()) return false;
+      return Boolean(state.businessName.trim());
+    }
+    if (step === 2) {
       if (!state.useLegalNameOnInvoices && !state.tradingAsName.trim()) {
         return false;
       }
       return true;
     }
-    if (step === 2) {
+    if (step === 3) {
       if (
         state.gstRegistrationStatus === "registered" &&
         !isValidGstHstNumber(state.gstHstNumber)
@@ -420,7 +642,7 @@ export function OnboardingWizardView() {
       }
       return true;
     }
-    if (step === 3) {
+    if (step === 4) {
       if (
         state.paymentEnabled.interac &&
         !state.paymentAccountsSaved.interac
@@ -436,7 +658,7 @@ export function OnboardingWizardView() {
   }, [state, step]);
 
   function goNext() {
-    if (step === 3) {
+    if (step === lastStep) {
       const needsInteracConfirm =
         state.paymentEnabled.interac && !state.paymentAccountsSaved.interac;
       const needsEftConfirm =
@@ -459,7 +681,7 @@ export function OnboardingWizardView() {
       }, 400);
       return;
     }
-    if (step < 3 && stepValid) {
+    if (step < lastStep && stepValid) {
       setStep((prev) => (prev + 1) as StepIndex);
     }
   }
@@ -591,7 +813,11 @@ export function OnboardingWizardView() {
             onClick={() => closeFlow({ saveWizard: true })}
             className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
           />
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-8 pt-10 sm:px-16 sm:pt-12">
+          <div
+            className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-8 pt-10 sm:px-16 sm:pt-12 ${
+              step < 4 ? "justify-center" : ""
+            }`}
+          >
             <div className="flex w-full shrink-0 flex-col items-center text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -612,226 +838,216 @@ export function OnboardingWizardView() {
               ) : null}
             </div>
 
-            <div className="mx-auto mt-10 flex w-full max-w-[560px] flex-1 flex-col gap-6">
+            <div
+              className={`mx-auto mt-10 flex w-full flex-col gap-6 ${
+                step === 0
+                  ? "max-w-[504px]"
+                  : step < 4
+                    ? "max-w-[720px]"
+                    : "max-w-[720px] flex-1"
+              }`}
+            >
             {step === 0 ? (
-              <div className="flex flex-col gap-6">
-                <div>
-                  <FieldLabel
-                    htmlFor="contact-name"
-                    tip="Shown as the sender on quote and invoice emails and texts (for example, “from Meganne at Horlicks Company”)."
-                  >
-                    Contact Name
-                  </FieldLabel>
-                  <input
+              <div className="flex flex-col gap-4">
+                <InfoFieldCard
+                  htmlFor="contact-name"
+                  label="Contact Name"
+                  tip="Shown as the sender on quote and invoice emails and texts (for example, “from Meganne at Horlicks Company”)."
+                >
+                  <UnderlineField
                     id="contact-name"
-                    className={inputClass}
                     value={state.contactName}
-                    onChange={(event) =>
-                      patch({ contactName: event.target.value })
-                    }
+                    onChange={(contactName) => patch({ contactName })}
                     placeholder="Who customers reply to"
+                    aria-label="Contact name"
+                    onDark
                   />
-                </div>
-                <div>
-                  <FieldLabel
-                    htmlFor="reply-email"
-                    tip="Customer replies to your quotes and invoices go to this address."
-                  >
-                    Reply-To Email
-                  </FieldLabel>
-                  <input
+                </InfoFieldCard>
+                <InfoFieldCard
+                  htmlFor="reply-email"
+                  label="Reply-To Email"
+                  tip="Customer replies to your quotes and invoices go to this address."
+                >
+                  <UnderlineField
                     id="reply-email"
                     type="email"
-                    className={inputClass}
                     value={state.replyToEmail}
-                    onChange={(event) =>
-                      patch({ replyToEmail: event.target.value })
-                    }
+                    onChange={(replyToEmail) => patch({ replyToEmail })}
                     placeholder="name@business.com"
+                    aria-label="Reply-to email"
+                    inputMode="email"
+                    onDark
                   />
-                </div>
+                </InfoFieldCard>
               </div>
             ) : null}
 
             {step === 1 ? (
-              <div className="flex flex-col gap-6">
-                <p className="type-body text-black">
-                  We found the name registered under Canada Revenue Agency as
+              <div className="flex flex-col gap-10">
+                <p className="mx-auto w-fit rounded-[10px] bg-page-grey px-6 py-5 text-center type-headline-6 text-black">
+                  {state.craFoundName || "—"}
                 </p>
-                {editingBusinessName ? (
-                  <div className="flex flex-col gap-2">
-                    <input
-                      id="business-name"
-                      className={inputClass}
-                      value={state.businessName}
-                      onChange={(event) =>
-                        patch({ businessName: event.target.value })
-                      }
-                      onBlur={() => {
-                        if (state.businessName.trim()) {
-                          setEditingBusinessName(false);
-                        }
-                      }}
-                      autoFocus
-                      aria-label="CRA-registered business name"
-                    />
-                    <p className="type-danger">
-                      This must match your business&apos;s exact Canada Revenue
-                      Agency (CRA) registration. Only change the pre-filled name
-                      if it&apos;s incorrect.
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setEditingBusinessName(true)}
-                    className="flex w-full items-center justify-between gap-3 rounded border border-black/20 bg-white px-3 py-2.5 text-left transition hover:border-prime-blue"
-                    aria-label="Edit CRA-registered business name"
+                <div
+                  className="flex items-stretch gap-4"
+                  role="radiogroup"
+                  aria-label="CRA-registered legal name"
+                >
+                  <ChoiceCard
+                    name="cra-name-correct"
+                    checked={state.craNameIsCorrect}
+                    onChange={() =>
+                      patch({
+                        craNameIsCorrect: true,
+                        businessName: state.craFoundName,
+                      })
+                    }
+                    title="Yes"
+                  />
+                  <ChoiceCard
+                    name="cra-name-correct"
+                    checked={!state.craNameIsCorrect}
+                    onChange={() => patch({ craNameIsCorrect: false })}
+                    title="No"
                   >
-                    <span className="type-body font-semibold text-black/55">
-                      {state.businessName || "—"}
-                    </span>
-                    <span className="shrink-0 text-black/35" aria-hidden>
-                      <PencilIcon />
-                    </span>
-                  </button>
-                )}
-                <div className="flex flex-col gap-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="legal-name-toggle"
-                      checked={state.useLegalNameOnInvoices}
-                      onChange={() =>
-                        patch({ useLegalNameOnInvoices: true })
-                      }
+                    <UnderlineField
+                      id="legal-business-name"
+                      value={state.businessName}
+                      onChange={(businessName) => patch({ businessName })}
+                      placeholder="Legal business name"
+                      aria-label="CRA-registered business name"
+                      onDark
+                      active={!state.craNameIsCorrect}
                     />
-                    Yes, use my legal business name (default)
-                  </label>
-                  <div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="legal-name-toggle"
-                        checked={!state.useLegalNameOnInvoices}
-                        onChange={() =>
-                          patch({ useLegalNameOnInvoices: false })
-                        }
-                      />
-                      No, I want to use a different name
-                    </label>
-                    {!state.useLegalNameOnInvoices ? (
-                      <div className="mt-1.5 pl-6">
-                        <FieldLabel htmlFor="trading-as">
-                          Trading As / Operating Name
-                        </FieldLabel>
-                        <input
-                          id="trading-as"
-                          className={inputClass}
-                          value={state.tradingAsName}
-                          onChange={(event) =>
-                            patch({ tradingAsName: event.target.value })
-                          }
-                          placeholder="Shown on invoice headers"
-                        />
-                        <p className="type-body-muted mt-2">
-                          Note: To keep you CRA compliant, we will still show a
-                          footnote on your invoices automatically with your
-                          legal business name.
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
+                    <p className="mt-2 text-sm leading-5 text-white/80">
+                      Tip: This should match your business&apos;s exact Canada
+                      Revenue Agency (CRA) registration.
+                    </p>
+                  </ChoiceCard>
                 </div>
               </div>
             ) : null}
 
             {step === 2 ? (
-              <div className="flex flex-col gap-3" role="radiogroup" aria-label="GST/HST registration">
-                {GST_REGISTRATION_OPTIONS.map((option) => {
-                  const selected =
-                    state.gstRegistrationStatus === option.value;
-                  const showThresholdNote =
-                    option.value === "small_supplier" && selected && option.tip;
-                  return (
-                    <div
-                      key={option.value}
-                      className={`rounded-[10px] border px-4 py-3 transition ${
-                        selected
-                          ? "border-prime-blue bg-prime-blue/[0.04]"
-                          : "border-black/10 bg-white hover:border-black/20"
-                      }`}
-                    >
-                      <label className="flex w-full cursor-pointer items-start gap-3 text-left">
-                        <input
-                          type="radio"
-                          name="gst-registration"
-                          className="mt-1 h-4 w-4 shrink-0 accent-prime-blue"
-                          checked={selected}
-                          onChange={() => {
-                            setGstHstShowError(false);
-                            patch({
-                              gstRegistrationStatus: option.value,
-                              gstHstNumber:
-                                option.value === "registered"
-                                  ? state.gstHstNumber
-                                  : "",
-                            });
-                          }}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="text-sm font-normal leading-5 text-black">
-                            {option.label}
-                          </span>
-                          {showThresholdNote ? (
-                            <span className="mt-1.5 block text-sm font-normal leading-5 text-black/60">
-                              {option.tip}
-                            </span>
-                          ) : null}
-                        </span>
-                      </label>
-                      {option.value === "pending_number" && selected ? (
-                        <p className="mt-3 pl-7 text-sm leading-5 text-black">
-                          You need a GST/HST number once you exceed $30,000 in
-                          revenue.{" "}
-                          <a
-                            href={GST_HST_REGISTER_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-prime-blue underline underline-offset-2"
-                          >
-                            Register with the CRA
-                          </a>
-                          , then add this in later in your organization
-                          settings.
-                        </p>
-                      ) : null}
-                      {option.value === "registered" && selected ? (
-                        <div className="mt-3 pl-7">
-                          <GstHstNumberField
-                            id="gst-hst-bn"
-                            value={state.gstHstNumber}
-                            onChange={(gstHstNumber) => {
-                              setGstHstShowError(false);
-                              patch({ gstHstNumber });
-                            }}
-                            onBlurComplete={() => setGstHstShowError(true)}
-                          />
-                          {gstHstShowError &&
-                          !isValidGstHstNumber(state.gstHstNumber) ? (
-                            <p className="type-danger mt-2">
-                              Enter a valid 9-digit CRA business number.
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+              <div
+                className="flex items-stretch gap-4"
+                role="radiogroup"
+                aria-label="Display name"
+              >
+                <ChoiceCard
+                  name="display-name-toggle"
+                  checked={state.useLegalNameOnInvoices}
+                  onChange={() => patch({ useLegalNameOnInvoices: true })}
+                  title={
+                    <>
+                      Use my legal business name,{" "}
+                      {state.businessName.trim() || "—"}
+                    </>
+                  }
+                />
+                <ChoiceCard
+                  name="display-name-toggle"
+                  checked={!state.useLegalNameOnInvoices}
+                  onChange={() => patch({ useLegalNameOnInvoices: false })}
+                  title="Use a different name"
+                >
+                  <UnderlineField
+                    id="display-as-name"
+                    value={state.tradingAsName}
+                    onChange={(tradingAsName) => patch({ tradingAsName })}
+                    placeholder="Shown on invoice headers"
+                    aria-label="Display name"
+                    onDark
+                    active={!state.useLegalNameOnInvoices}
+                  />
+                  <p className="mt-2 text-sm leading-5 text-white/75">
+                    Tip: To keep you CRA compliant, we will still show a
+                    footnote on your invoices automatically with your legal
+                    business name.
+                  </p>
+                </ChoiceCard>
               </div>
             ) : null}
 
             {step === 3 ? (
+              <div className="flex flex-col gap-4">
+                <div
+                  className="flex items-stretch gap-4"
+                  role="radiogroup"
+                  aria-label="GST/HST registration"
+                >
+                  <ChoiceCard
+                    name="gst-registration"
+                    checked={state.gstRegistrationStatus !== "registered"}
+                    onChange={() => {
+                      setGstHstShowError(false);
+                      patch({
+                        gstRegistrationStatus: "small_supplier",
+                        gstHstNumber: "",
+                      });
+                    }}
+                    title="No, I do not"
+                  />
+                  <ChoiceCard
+                    name="gst-registration"
+                    checked={state.gstRegistrationStatus === "registered"}
+                    onChange={() => {
+                      setGstHstShowError(false);
+                      patch({ gstRegistrationStatus: "registered" });
+                    }}
+                    title="Yes, I have a GST/HST number"
+                  >
+                    <UnderlineField
+                      id="gst-hst-bn"
+                      value={parseGstHstNumber(state.gstHstNumber).bn}
+                      onChange={(nextBn) => {
+                        setGstHstShowError(false);
+                        const digits = nextBn
+                          .replace(/[^\d]/g, "")
+                          .slice(0, 9);
+                        patch({
+                          gstHstNumber: digits
+                            ? formatGstHstNumber(
+                                digits,
+                                GST_HST_ACCOUNT_SUFFIX,
+                              )
+                            : "",
+                        });
+                      }}
+                      onBlur={() => setGstHstShowError(true)}
+                      placeholder="123456789"
+                      aria-label="GST/HST business number, 9 digits"
+                      onDark
+                      active={state.gstRegistrationStatus === "registered"}
+                      inputMode="numeric"
+                      maxLength={9}
+                      suffix={`RT${GST_HST_ACCOUNT_SUFFIX}`}
+                    />
+                    {gstHstShowError &&
+                    !isValidGstHstNumber(state.gstHstNumber) ? (
+                      <p className="type-danger mt-2">
+                        Enter a valid 9-digit CRA business number.
+                      </p>
+                    ) : null}
+                  </ChoiceCard>
+                </div>
+                <p className="text-sm leading-5 text-black/60">
+                  Businesses with taxable revenue of over $30,000 may require a
+                  GST/HST number. You can add this in later in your organization
+                  settings. For more information, check the{" "}
+                  <a
+                    href={GST_WHEN_REGISTER_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-prime-blue underline underline-offset-2"
+                  >
+                    CRA
+                  </a>
+                  .
+                </p>
+              </div>
+            ) : null}
+
+            {step === 4 ? (
               <div className="flex flex-col gap-3">
                 <CheckboxRow
                   checked={state.paymentEnabled.interac}
@@ -1031,7 +1247,7 @@ export function OnboardingWizardView() {
                 disabled={!stepValid || finishing}
                 className={`${UI_CLASS.btnPrimary} h-11 px-6 disabled:cursor-not-allowed disabled:opacity-40`}
               >
-                {step === 3 ? "Finish setup" : "Continue"}
+                {step === lastStep ? "Finish setup" : "Continue"}
               </button>
             </div>
           </div>

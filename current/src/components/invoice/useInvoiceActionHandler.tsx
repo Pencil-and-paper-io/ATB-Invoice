@@ -41,9 +41,8 @@ function ConfirmModal({
       confirmLabel={confirmLabel}
       onConfirm={onConfirm}
       confirmDanger={danger}
-    >
-      <p className="type-body-muted text-center leading-5">{body}</p>
-    </Modal>
+      body={body}
+    />
   );
 }
 
@@ -182,18 +181,16 @@ export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
       confirmLabel="Mark Uncollectible"
       onConfirm={confirmUncollectible}
       confirmDanger
-    >
-      {(status === "overdue_under_90" ||
+      body={
+        status === "overdue_under_90" ||
         status === "overdue_over_90" ||
         status === "viewed" ||
-        status === "partially_paid") && (
-        <p className="type-body-muted text-center leading-5">
-          Are you sure you want to write this off? Marking this invoice as
-          uncollectible will record it as bad debt in your reports. If this
-          invoice was simply created in error, you should Void it instead.
-        </p>
-      )}
-      <label className="mt-5 flex flex-col gap-2 text-sm">
+        status === "partially_paid"
+          ? "Are you sure you want to write this off? Marking this invoice as uncollectible will record it as bad debt in your reports. If this invoice was simply created in error, you should Void it instead."
+          : undefined
+      }
+    >
+      <label className="flex flex-col gap-2 text-sm">
         <span className="font-medium">Reason code</span>
         <select
           className="rounded border border-black/20 bg-input-grey px-3 py-2.5 outline-none focus:border-prime-blue focus:bg-input-grey"

@@ -176,12 +176,13 @@ function RecordDecisionModal({
   onReject: () => void;
 }) {
   return (
-    <Modal title="Record decision" titleId="record-decision-title" onClose={onClose}>
-      <p className="type-body-muted text-center">
-        Choose how the customer responded to this quote.
-      </p>
-
-      <div className="mt-5 flex flex-col gap-2.5">
+    <Modal
+      title="Record decision"
+      titleId="record-decision-title"
+      onClose={onClose}
+      body="Choose how the customer responded to this quote."
+    >
+      <div className="flex flex-col gap-2.5">
         <button
           type="button"
           onClick={onAccept}

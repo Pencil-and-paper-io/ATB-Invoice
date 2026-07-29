@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
+  EMPTY_ORGANIZATION_SETTINGS,
   isValidGstHstNumber,
   loadOrganizationSettings,
   paymentMethodLabel,
@@ -12,10 +14,7 @@ import {
   type OrganizationSettings,
   type PaymentMethodId,
 } from "@/lib/organization-settings";
-import {
-  GST_HST_REGISTER_URL,
-  GST_REGISTRATION_OPTIONS,
-} from "@/lib/place-of-supply";
+import { CA_PROVINCES_TERRITORIES, provinceLabel } from "@/lib/canada";
 import { TAX_SETTING_OPTIONS } from "@/lib/tax-suggestions";
 import {
   DepositAccountBlock,
@@ -25,7 +24,7 @@ import { GstHstNumberField } from "./GstHstNumberField";
 import { ReminderDeliveryControls } from "./ReminderDeliveryControls";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
+import { EditCloseButton, InfoTooltip, Modal, PencilIcon } from "./ui";
 
 const TABS = ["Business Details", "Permissions", "Sub Users"] as const;
 type TabId = (typeof TABS)[number];
@@ -133,12 +132,14 @@ const PAYMENT_TERMS_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
 
 /** Single source for edit FieldLabel + view ViewField copy. */
 const FIELD = {
-  businessName: "Business Name",
+  legalName: "Legal Name",
+  displayName: "Display Name",
+  contactName: "Contact Name",
   gstHstNumber: "GST/HST Number",
   gstRegistration:
-    "A GST/HST number is needed to charge tax on your invoices once your business has earned $30,000 or more.",
+    "Do you have a GST/HST number?",
   gstRegistrationStatus: "GST/HST status",
-  email: "Email",
+  email: "Reply-To Email",
   phoneNumber: "Phone Number",
   businessAddress: "Business Address",
   addressLine1: "Address Line 1",
@@ -155,6 +156,18 @@ const FIELD = {
   autoSend: "Auto-send",
   reminders: "Reminders",
 } as const;
+
+const GST_WHEN_REGISTER_URL =
+  "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html";
+
+/** Prefill when entering Legal Name for the first time (CRA lookup demo). */
+const CRA_LEGAL_NAME_PREFILL = "Horlicks Beverage Corporation";
+
+function organizationDisplayName(settings: OrganizationSettings) {
+  return settings.useLegalNameOnInvoices
+    ? settings.businessName
+    : settings.tradingAsName.trim() || settings.businessName;
+}
 
 const inputClass = UI_CLASS.input;
 const hoverCardClass = UI_CLASS.hoverCard;
@@ -177,10 +190,13 @@ function formatAddress(parts: {
   province: string;
   postalCode: string;
 }) {
+  const province = parts.province.trim()
+    ? provinceLabel(parts.province.trim())
+    : "";
   const lines = [
     parts.addressLine1,
     parts.addressLine2,
-    [parts.city, parts.province].filter(Boolean).join(", "),
+    [parts.city, province].filter(Boolean).join(", "),
     parts.postalCode,
   ].filter(Boolean);
   return lines.length ? lines.join(", ") : undefined;
@@ -190,15 +206,18 @@ function FieldLabel({
   children,
   htmlFor,
   tip,
+  required = false,
 }: {
   children: ReactNode;
   htmlFor?: string;
   tip?: string;
+  required?: boolean;
 }) {
   return (
     <div className="mb-2 flex items-center gap-1.5">
       <label htmlFor={htmlFor} className="type-label">
         {children}
+        {required ? <span className="type-danger"> *</span> : null}
       </label>
       {tip ? <InfoTooltip text={tip} /> : null}
     </div>
@@ -239,7 +258,47 @@ function BoxTitle({
 
 /** Stacked label + value pairs for view-mode cards. */
 function EmptyValue() {
-  return <span className="text-black/40">N/A</span>;
+  return <span className="text-black/40">Not available</span>;
+}
+
+function NoneSelected() {
+  return <span className="text-black/40">None selected</span>;
+}
+
+function MissingInfoFlag({
+  label = "Missing Information",
+  message,
+}: {
+  label?: string;
+  message: string;
+}) {
+  return (
+    <div
+      role="status"
+      className="mt-5 flex items-start gap-2.5 rounded-[10px] border border-[#F5C2C0] bg-[#FDECEC] px-3.5 py-3"
+    >
+      <span className="mt-0.5 shrink-0 text-[#C62828]" aria-hidden>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path
+            d="M9 2.25 16.5 15.75H1.5L9 2.25Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M9 7.5v3.75"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <circle cx="9" cy="13.5" r="0.75" fill="currentColor" />
+        </svg>
+      </span>
+      <p className="type-body text-midnight-ink">
+        <span className="font-semibold">{label}:</span> {message}
+      </p>
+    </div>
+  );
 }
 
 function displayOrNa(value: string | null | undefined) {
@@ -250,13 +309,18 @@ function displayOrNa(value: string | null | undefined) {
 function ViewField({
   label,
   value,
+  required = false,
 }: {
   label: string;
   value: ReactNode;
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="type-subtitle-1 text-black">{label}</p>
+      <p className="type-subtitle-1 text-black">
+        {label}
+        {required ? <span className="type-danger"> *</span> : null}
+      </p>
       <div className="type-body">{value}</div>
     </div>
   );
@@ -721,6 +785,7 @@ export function OrganizationSettingsView() {
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [discardWarning, setDiscardWarning] = useState(false);
   const [gstHstShowError, setGstHstShowError] = useState(false);
+  const [legalNameFocused, setLegalNameFocused] = useState(false);
   const [accountDrafts, setAccountDrafts] = useState<
     Record<"interac" | "eft", string>
   >({ interac: "", eft: "" });
@@ -748,7 +813,12 @@ export function OrganizationSettingsView() {
 
   useEffect(() => {
     window.setTimeout(() => {
-      const next = loadOrganizationSettings();
+      const emptyDemo =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("empty") === "1";
+      const next = emptyDemo
+        ? cloneSettings(EMPTY_ORGANIZATION_SETTINGS)
+        : loadOrganizationSettings();
       setSaved(cloneSettings(next));
       setDraft(cloneSettings(next));
       setEditing(null);
@@ -795,8 +865,34 @@ export function OrganizationSettingsView() {
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     setDiscardWarning(false);
-    if (saved) setDraft(cloneSettings(saved));
+    if (saved) {
+      setDraft(cloneSettings(saved));
+      syncAccountConnectState(saved);
+    }
+    setGstHstShowError(false);
     setEditing(null);
+    action?.();
+  }
+
+  function saveAndCloseFromWarning() {
+    if (!draft) return;
+    if (
+      editing === "tax" &&
+      draft.gstRegistrationStatus === "registered" &&
+      !isValidGstHstNumber(draft.gstHstNumber)
+    ) {
+      return;
+    }
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    const next = cloneSettings(draft);
+    setSaved(next);
+    setDraft(next);
+    setEditing(null);
+    setDiscardWarning(false);
+    setGstHstShowError(false);
+    saveOrganizationSettings(next);
+    syncAccountConnectState(next);
     action?.();
   }
 
@@ -830,21 +926,37 @@ export function OrganizationSettingsView() {
     });
   }
 
+  function draftForSection(
+    settings: OrganizationSettings,
+    section: SectionKey,
+  ) {
+    const next = cloneSettings(settings);
+    if (section === "business" && !next.businessName.trim()) {
+      next.businessName = CRA_LEGAL_NAME_PREFILL;
+    }
+    if (section === "address" && !next.province.trim()) {
+      next.province = "AB";
+    }
+    return next;
+  }
+
   function startEdit(section: SectionKey) {
     if (!saved) return;
     if (editing && editing !== section) {
       runOrWarn(() => {
-        const next = cloneSettings(saved);
+        const next = draftForSection(saved, section);
         setDraft(next);
         setGstHstShowError(false);
+        setLegalNameFocused(false);
         if (section === "payments") syncAccountConnectState(next);
         setEditing(section);
       });
       return;
     }
-    const next = cloneSettings(saved);
+    const next = draftForSection(saved, section);
     setDraft(next);
     setGstHstShowError(false);
+    setLegalNameFocused(false);
     if (section === "payments") syncAccountConnectState(next);
     setEditing(section);
   }
@@ -856,6 +968,7 @@ export function OrganizationSettingsView() {
         syncAccountConnectState(saved);
       }
       setGstHstShowError(false);
+      setLegalNameFocused(false);
       setEditing(null);
     });
   }
@@ -866,6 +979,7 @@ export function OrganizationSettingsView() {
     setSaved(next);
     setDraft(next);
     setEditing(null);
+    setLegalNameFocused(false);
     setDiscardWarning(false);
     pendingActionRef.current = null;
     saveOrganizationSettings(next);
@@ -1004,6 +1118,15 @@ export function OrganizationSettingsView() {
     postalCode: saved.postalCode,
   });
   const addressEmpty = !businessAddress;
+  const businessDetailsComplete =
+    Boolean(saved.businessName.trim()) &&
+    Boolean(saved.contactName.trim()) &&
+    Boolean(saved.email.trim()) &&
+    (saved.useLegalNameOnInvoices || Boolean(saved.tradingAsName.trim()));
+  const paymentOptionsComplete = saved.paymentMethods.some(
+    (method) => method.enabled,
+  );
+  const showSetupBanner = !businessDetailsComplete || !paymentOptionsComplete;
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -1012,6 +1135,26 @@ export function OrganizationSettingsView() {
       <main className="mx-auto max-w-[960px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
         <div className="mb-6">
           <h1 className="type-page-title">Manage Organization</h1>
+          {showSetupBanner ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-[12px] border border-black/10 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="type-headline-6 text-midnight-ink">
+                  Organization Setup Incomplete
+                </p>
+                <p className="mt-1 type-paragraph-1 text-black/60">
+                  You haven&apos;t finished onboarding yet, so business details
+                  aren&apos;t filled in. Complete setup to add your legal name,
+                  display name, and sales tax.
+                </p>
+              </div>
+              <Link
+                href="/onboarding"
+                className={`${UI_CLASS.btnPrimary} inline-flex h-11 shrink-0 items-center justify-center px-5`}
+              >
+                Complete Setup
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         <div className="mb-6 border-b border-black/15">
@@ -1063,24 +1206,122 @@ export function OrganizationSettingsView() {
                 >
                   <div>
                     <FieldLabel
-                      htmlFor="org-business-name"
-                      tip="The official name of your business—the one you use on government paperwork and contracts."
+                      htmlFor="org-legal-name"
+                      tip="The legal name of your company as registered under the CRA"
+                      required
                     >
-                      {FIELD.businessName}
+                      {FIELD.legalName}
                     </FieldLabel>
                     <input
-                      id="org-business-name"
+                      id="org-legal-name"
                       className={inputClass}
                       value={draft.businessName}
                       onChange={(event) =>
                         patchDraft({ businessName: event.target.value })
                       }
+                      onFocus={() => setLegalNameFocused(true)}
+                      onBlur={() => setLegalNameFocused(false)}
+                    />
+                    <p
+                      className={`mt-2 text-sm leading-5 ${
+                        legalNameFocused
+                          ? "text-delete-red"
+                          : "type-body-muted"
+                      }`}
+                    >
+                      Tip: This should match your business&apos;s exact Canada
+                      Revenue Agency (CRA) registration.
+                    </p>
+                  </div>
+                  <div>
+                    <FieldLabel
+                      tip="The name shown on quotes, invoices, and customer communications."
+                      required
+                    >
+                      {FIELD.displayName}
+                    </FieldLabel>
+                    <div
+                      className="flex flex-col gap-2"
+                      role="radiogroup"
+                      aria-label={FIELD.displayName}
+                    >
+                      <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                        <input
+                          type="radio"
+                          name="org-display-name"
+                          className="mt-0.5 accent-prime-blue"
+                          checked={draft.useLegalNameOnInvoices}
+                          onChange={() =>
+                            patchDraft({ useLegalNameOnInvoices: true })
+                          }
+                        />
+                        <span>
+                          Use my legal business name
+                          {draft.businessName.trim()
+                            ? `, ${draft.businessName.trim()}`
+                            : ""}
+                        </span>
+                      </label>
+                      <div>
+                        <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                          <input
+                            type="radio"
+                            name="org-display-name"
+                            className="mt-0.5 accent-prime-blue"
+                            checked={!draft.useLegalNameOnInvoices}
+                            onChange={() =>
+                              patchDraft({ useLegalNameOnInvoices: false })
+                            }
+                          />
+                          <span>Use a different name</span>
+                        </label>
+                        {!draft.useLegalNameOnInvoices ? (
+                          <div className="mt-1.5 pl-6">
+                            <input
+                              id="org-trading-as"
+                              className={inputClass}
+                              value={draft.tradingAsName}
+                              onChange={(event) =>
+                                patchDraft({
+                                  tradingAsName: event.target.value,
+                                })
+                              }
+                              placeholder="Shown on invoice headers"
+                              aria-label="Display name"
+                            />
+                            <p className="type-body-muted mt-2">
+                              Tip: To keep you CRA compliant, we will still show
+                              a footnote on your invoices automatically with
+                              your legal business name.
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel
+                      htmlFor="org-contact-name"
+                      tip="Shown as the sender on quote and invoice emails and texts."
+                      required
+                    >
+                      {FIELD.contactName}
+                    </FieldLabel>
+                    <input
+                      id="org-contact-name"
+                      className={inputClass}
+                      value={draft.contactName}
+                      onChange={(event) =>
+                        patchDraft({ contactName: event.target.value })
+                      }
+                      placeholder="Who customers reply to"
                     />
                   </div>
                   <div>
                     <FieldLabel
                       htmlFor="org-email"
-                      tip="The email customers use to reach you about quotes and invoices."
+                      tip="Customer replies to your quotes and invoices go to this address."
+                      required
                     >
                       {FIELD.email}
                     </FieldLabel>
@@ -1119,18 +1360,40 @@ export function OrganizationSettingsView() {
                 >
                   <ViewFieldRow>
                     <ViewField
-                      label={FIELD.businessName}
+                      label={FIELD.legalName}
                       value={displayOrNa(saved.businessName)}
+                      required
+                    />
+                    <ViewField
+                      label={FIELD.displayName}
+                      value={
+                        saved.businessName.trim() || saved.tradingAsName.trim()
+                          ? displayOrNa(organizationDisplayName(saved))
+                          : <EmptyValue />
+                      }
+                      required
+                    />
+                    <ViewField
+                      label={FIELD.contactName}
+                      value={displayOrNa(saved.contactName)}
+                      required
                     />
                     <ViewField
                       label={FIELD.email}
                       value={displayOrNa(saved.email)}
+                      required
                     />
                     <ViewField
                       label={FIELD.phoneNumber}
                       value={displayOrNa(saved.phone)}
                     />
                   </ViewFieldRow>
+                  {!businessDetailsComplete ? (
+                    <MissingInfoFlag
+                      label="Missing information"
+                      message="Confirm your details in order to send your first quote or invoice."
+                    />
+                  ) : null}
                 </ViewCard>
               )}
 
@@ -1182,13 +1445,11 @@ export function OrganizationSettingsView() {
                       <FieldLabel htmlFor="org-province">
                         {FIELD.province}
                       </FieldLabel>
-                      <input
-                        id="org-province"
-                        className={inputClass}
-                        value={draft.province}
-                        onChange={(event) =>
-                          patchDraft({ province: event.target.value })
-                        }
+                      <SelectField
+                        ariaLabel={FIELD.province}
+                        value={draft.province || "AB"}
+                        options={CA_PROVINCES_TERRITORIES}
+                        onChange={(value) => patchDraft({ province: value })}
                       />
                     </div>
                   </div>
@@ -1206,21 +1467,14 @@ export function OrganizationSettingsView() {
                     />
                   </div>
                 </SectionEditor>
-              ) : addressEmpty ? (
-                <TertiaryButton onClick={() => startEdit("address")}>
-                  Add Business Address
-                </TertiaryButton>
               ) : (
                 <ViewCard
                   title="Business Address"
                   onEdit={() => startEdit("address")}
                 >
-                  <ViewFieldList>
-                    <ViewField
-                      label={FIELD.businessAddress}
-                      value={businessAddress || <EmptyValue />}
-                    />
-                  </ViewFieldList>
+                  <div className="type-body">
+                    {addressEmpty ? <EmptyValue /> : businessAddress}
+                  </div>
                 </ViewCard>
               )}
 
@@ -1239,8 +1493,14 @@ export function OrganizationSettingsView() {
                     </p>
                     <div className="flex max-w-sm items-center gap-3 rounded border border-black/20 bg-input-grey px-3 py-2.5">
                       <span
-                        className="h-6 w-6 shrink-0 rounded-full border border-black/10"
-                        style={{ background: draft.brandColor }}
+                        className={`h-6 w-6 shrink-0 rounded-full border border-black/10 ${
+                          draft.brandColor.trim() ? "" : "bg-white"
+                        }`}
+                        style={
+                          draft.brandColor.trim()
+                            ? { background: draft.brandColor }
+                            : undefined
+                        }
                         aria-hidden
                       />
                       <input
@@ -1249,6 +1509,7 @@ export function OrganizationSettingsView() {
                         onChange={(event) =>
                           patchDraft({ brandColor: event.target.value })
                         }
+                        placeholder="None selected"
                         aria-label={FIELD.brandColor}
                       />
                       <input
@@ -1256,7 +1517,7 @@ export function OrganizationSettingsView() {
                         value={
                           /^#[0-9A-Fa-f]{6}$/.test(draft.brandColor)
                             ? draft.brandColor
-                            : "#FF7F30"
+                            : "#FFFFFF"
                         }
                         onChange={(event) =>
                           patchDraft({
@@ -1329,34 +1590,38 @@ export function OrganizationSettingsView() {
                     <ViewField
                       label={FIELD.brandColor}
                       value={
-                        <span className="flex items-center gap-3">
-                          <span
-                            className="h-8 w-8 shrink-0 rounded-full border border-black/10"
-                            style={{ background: saved.brandColor }}
-                            aria-hidden
-                          />
-                          {saved.brandColor}
-                        </span>
+                        saved.brandColor.trim() ? (
+                          <span className="flex items-center gap-3">
+                            <span
+                              className="h-8 w-8 shrink-0 rounded-full border border-black/10"
+                              style={{ background: saved.brandColor }}
+                              aria-hidden
+                            />
+                            {saved.brandColor}
+                          </span>
+                        ) : (
+                          <NoneSelected />
+                        )
                       }
                     />
                     <ViewField
                       label={FIELD.brandLogo}
                       value={
-                        <span className="flex items-center gap-3">
-                          <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md bg-cloud-grey text-black/35">
-                            {saved.logoDataUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
+                        saved.logoDataUrl ? (
+                          <span className="flex items-center gap-3">
+                            <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md bg-cloud-grey text-black/35">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={saved.logoDataUrl}
                                 alt="Brand logo"
                                 className="h-full w-full object-contain"
                               />
-                            ) : (
-                              <ImagePlaceholderIcon />
-                            )}
+                            </span>
+                            Uploaded
                           </span>
-                          {saved.logoDataUrl ? "Uploaded" : "No logo yet"}
-                        </span>
+                        ) : (
+                          <NoneSelected />
+                        )
                       }
                     />
                   </ViewFieldRow>
@@ -1390,9 +1655,7 @@ export function OrganizationSettingsView() {
                       );
                       if (!meta) return null;
                       const label = paymentMethodLabel(method.id);
-                      const orgDisplayName = draft.useLegalNameOnInvoices
-                        ? draft.businessName
-                        : draft.tradingAsName.trim() || draft.businessName;
+                      const orgDisplayName = organizationDisplayName(draft);
                       const needsAccount = needsDepositAccount(method.id);
 
                       return (
@@ -1493,11 +1756,14 @@ export function OrganizationSettingsView() {
                       );
                     })}
                     {!saved.paymentMethods.some((method) => method.enabled) ? (
-                      <p className="type-body-muted py-3.5">
-                        No payment options enabled by default.
+                      <p className="type-body py-3.5 text-black/40">
+                        None selected
                       </p>
                     ) : null}
                   </div>
+                  {!paymentOptionsComplete ? (
+                    <MissingInfoFlag message="Select a payment options so that you can receive payment from customers, or you will not be able to send an invoice." />
+                  ) : null}
                 </ViewCard>
               )}
 
@@ -1625,79 +1891,83 @@ export function OrganizationSettingsView() {
                     <p className="type-body mb-3 text-black">
                       {FIELD.gstRegistration}
                     </p>
-                    <div className="mt-1 flex flex-col gap-3">
-                      {GST_REGISTRATION_OPTIONS.map((option) => (
-                        <div key={option.value}>
-                          <label className="flex items-start gap-2 text-sm leading-5 text-black">
-                            <input
-                              type="radio"
-                              name="org-gst-registration"
-                              className="mt-0.5 accent-prime-blue"
-                              checked={
-                                draft.gstRegistrationStatus === option.value
-                              }
-                              onChange={() => {
+                    <div
+                      className="flex flex-col gap-3"
+                      role="radiogroup"
+                      aria-label={FIELD.gstRegistration}
+                    >
+                      <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                        <input
+                          type="radio"
+                          name="org-gst-registration"
+                          className="mt-0.5 accent-prime-blue"
+                          checked={
+                            draft.gstRegistrationStatus !== "registered"
+                          }
+                          onChange={() => {
+                            setGstHstShowError(false);
+                            patchDraft({
+                              gstRegistrationStatus: "small_supplier",
+                              taxStatus: "Tax-exempt",
+                              gstHstNumber: "",
+                            });
+                          }}
+                        />
+                        <span>No, I do not</span>
+                      </label>
+                      <div>
+                        <label className="flex items-start gap-2 text-sm leading-5 text-black">
+                          <input
+                            type="radio"
+                            name="org-gst-registration"
+                            className="mt-0.5 accent-prime-blue"
+                            checked={
+                              draft.gstRegistrationStatus === "registered"
+                            }
+                            onChange={() => {
+                              setGstHstShowError(false);
+                              patchDraft({
+                                gstRegistrationStatus: "registered",
+                                taxStatus: "Taxable",
+                              });
+                            }}
+                          />
+                          <span>Yes, I have a GST/HST number</span>
+                        </label>
+                        {draft.gstRegistrationStatus === "registered" ? (
+                          <div className="mt-1.5 pl-6">
+                            <GstHstNumberField
+                              id="org-gst-bn"
+                              value={draft.gstHstNumber}
+                              onChange={(gstHstNumber) => {
                                 setGstHstShowError(false);
-                                patchDraft({
-                                  gstRegistrationStatus: option.value,
-                                  taxStatus:
-                                    option.value === "small_supplier"
-                                      ? "Tax-exempt"
-                                      : "Taxable",
-                                  gstHstNumber:
-                                    option.value === "registered"
-                                      ? draft.gstHstNumber
-                                      : "",
-                                });
+                                patchDraft({ gstHstNumber });
                               }}
+                              onBlurComplete={() => setGstHstShowError(true)}
                             />
-                            <span className="inline-flex items-start gap-1.5">
-                              <span>{option.label}</span>
-                              {option.tip ? (
-                                <InfoTooltip text={option.tip} />
-                              ) : null}
-                            </span>
-                          </label>
-                          {option.value === "pending_number" &&
-                          draft.gstRegistrationStatus === "pending_number" ? (
-                            <p className="mt-1.5 pl-6 text-sm leading-5 text-black">
-                              You need a GST/HST number once you exceed $30,000
-                              in revenue.{" "}
-                              <a
-                                href={GST_HST_REGISTER_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-semibold text-prime-blue underline underline-offset-2"
-                              >
-                                Register with the CRA
-                              </a>
-                              , then add this in later in your organization
-                              settings.
-                            </p>
-                          ) : null}
-                          {option.value === "registered" &&
-                          draft.gstRegistrationStatus === "registered" ? (
-                            <div className="mt-1.5 pl-6">
-                              <GstHstNumberField
-                                id="org-gst-bn"
-                                value={draft.gstHstNumber}
-                                onChange={(gstHstNumber) => {
-                                  setGstHstShowError(false);
-                                  patchDraft({ gstHstNumber });
-                                }}
-                                onBlurComplete={() => setGstHstShowError(true)}
-                              />
-                              {gstHstShowError &&
-                              !isValidGstHstNumber(draft.gstHstNumber) ? (
-                                <p className="type-danger mt-2">
-                                  Enter a valid 9-digit CRA business number.
-                                </p>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
+                            {gstHstShowError &&
+                            !isValidGstHstNumber(draft.gstHstNumber) ? (
+                              <p className="type-danger mt-2">
+                                Enter a valid 9-digit CRA business number.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
+                    <p className="mt-4 text-sm leading-5 text-black/60">
+                      Businesses with taxable revenue of over $30,000 may
+                      require a GST/HST number. For more information, check the{" "}
+                      <a
+                        href={GST_WHEN_REGISTER_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-prime-blue underline underline-offset-2"
+                      >
+                        CRA
+                      </a>
+                      .
+                    </p>
                   </div>
 
                   {isValidGstHstNumber(draft.gstHstNumber) ? (
@@ -1740,7 +2010,8 @@ export function OrganizationSettingsView() {
                 </SectionEditor>
               ) : (
                 <ViewCard title="Tax Info" onEdit={() => startEdit("tax")}>
-                  {isValidGstHstNumber(saved.gstHstNumber) ? (
+                  {saved.gstRegistrationStatus === "registered" &&
+                  isValidGstHstNumber(saved.gstHstNumber) ? (
                     <ViewFieldRow>
                       <ViewField
                         label={FIELD.gstHstNumber}
@@ -1755,13 +2026,16 @@ export function OrganizationSettingsView() {
                         }
                       />
                     </ViewFieldRow>
+                  ) : saved.gstRegistrationStatus === "registered" ? (
+                    <ViewField
+                      label={FIELD.gstRegistrationStatus}
+                      value="Yes — GST/HST number needed"
+                    />
                   ) : (
-                    <p className="type-body whitespace-nowrap">
-                      {GST_REGISTRATION_OPTIONS.find(
-                        (option) =>
-                          option.value === saved.gstRegistrationStatus,
-                      )?.label ?? "—"}
-                    </p>
+                    <ViewField
+                      label={FIELD.gstRegistrationStatus}
+                      value="No GST/HST number"
+                    />
                   )}
                 </ViewCard>
               )}
@@ -2001,26 +2275,24 @@ export function OrganizationSettingsView() {
 
       {discardWarning ? (
         <Modal
-          title="Unsaved changes"
+          title="Unsaved Changes"
           titleId="discard-warning-title"
-          describedBy="discard-warning-desc"
           role="alertdialog"
           onClose={keepEditing}
           closeOnBackdrop={false}
           zClass="z-[220]"
-          cancelLabel="Keep editing"
-          onCancel={keepEditing}
-          confirmLabel="Discard"
-          onConfirm={confirmDiscard}
-          confirmDanger
-        >
-          <p
-            id="discard-warning-desc"
-            className="type-body-muted text-center"
-          >
-            You have unsaved edits in this section. Discard them?
-          </p>
-        </Modal>
+          cancelLabel="Discard"
+          onCancel={confirmDiscard}
+          confirmLabel="Save and Close"
+          onConfirm={saveAndCloseFromWarning}
+          confirmDisabled={
+            !draft ||
+            (editing === "tax" &&
+              draft.gstRegistrationStatus === "registered" &&
+              !isValidGstHstNumber(draft.gstHstNumber))
+          }
+          body="You have unsaved edits in this section. Discard them?"
+        />
       ) : null}
     </div>
   );

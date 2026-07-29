@@ -267,18 +267,37 @@ function CreatePrimaryLink({
 
 function EmptyState({
   label,
+  detail,
   href,
   cta,
+  secondaryHref,
+  secondaryCta,
 }: {
   label: string;
+  detail?: string;
   href: string;
   cta: string;
+  secondaryHref?: string;
+  secondaryCta?: string;
 }) {
   return (
     <div className="px-5 py-16 text-center">
-      <p className="type-body-muted">{label}</p>
-      <div className="mt-4 flex justify-center">
+      <p className="type-headline-6 text-midnight-ink">{label}</p>
+      {detail ? (
+        <p className="mx-auto mt-2 max-w-md type-paragraph-1 text-black/55">
+          {detail}
+        </p>
+      ) : null}
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
         <CreatePrimaryLink href={href}>{cta}</CreatePrimaryLink>
+        {secondaryHref && secondaryCta ? (
+          <Link
+            href={secondaryHref}
+            className={`${UI_CLASS.btnSecondary} inline-flex h-11 items-center px-5`}
+          >
+            {secondaryCta}
+          </Link>
+        ) : null}
       </div>
     </div>
   );
@@ -294,6 +313,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusParam = searchParams.get("status");
+  const forceEmpty = searchParams.get("empty") === "1";
 
   const [invoiceFilters, setInvoiceFilters] = useState<InvoiceDirectoryFilters>(
     () => defaultInvoiceFilters(invoiceStatusFromParam(statusParam)),
@@ -313,6 +333,23 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     : "Estimates of proposed work — convert to an invoice when accepted.";
   const createHref = isInvoices ? "/" : "/quote";
   const createLabel = isInvoices ? "Create Invoice" : "Create Quote";
+  const emptyLabel = isInvoices ? "No invoices yet." : "No quotes yet.";
+  const emptyDetail =
+    "Nothing has been created yet, and organization setup has not been completed.";
+  const filterEmptyLabel = isInvoices
+    ? "No invoices match your filters."
+    : "No quotes match your filters.";
+
+  const directoryEmptyState = (
+    <EmptyState
+      label={forceEmpty ? emptyLabel : filterEmptyLabel}
+      detail={forceEmpty ? emptyDetail : undefined}
+      href={createHref}
+      cta={createLabel}
+      secondaryHref={forceEmpty ? "/onboarding" : undefined}
+      secondaryCta={forceEmpty ? "Complete setup" : undefined}
+    />
+  );
 
   useEffect(() => {
     if (isInvoices) {
@@ -349,6 +386,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   }
 
   const invoices = useMemo(() => {
+    if (forceEmpty) return [];
     const q = query.trim().toLowerCase();
     return customerInvoices.filter((row) => {
       if (!matchesInvoiceStatus(row, invoiceFilters.status)) return false;
@@ -377,9 +415,10 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.balanceOutstanding).toLowerCase().includes(q)
       );
     });
-  }, [query, invoiceFilters]);
+  }, [query, invoiceFilters, forceEmpty]);
 
   const quotes = useMemo(() => {
+    if (forceEmpty) return [];
     const q = query.trim().toLowerCase();
     return customerQuotes.filter((row) => {
       if (
@@ -412,7 +451,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         formatMoney(row.amount).toLowerCase().includes(q)
       );
     });
-  }, [query, quoteFilters]);
+  }, [query, quoteFilters, forceEmpty]);
 
   useEffect(() => {
     setPage(1);
@@ -506,7 +545,11 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           }}
         />
 
-        {viewMode === "card" ? (
+        {totalItems === 0 ? (
+          <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
+            {directoryEmptyState}
+          </div>
+        ) : viewMode === "card" ? (
           isInvoices ? (
             <InvoiceCardGrid rows={pagedInvoices} query={query} />
           ) : (
@@ -550,15 +593,7 @@ function InvoiceCardGrid({
   query: string;
 }) {
   if (rows.length === 0) {
-    return (
-      <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-        <EmptyState
-          label="No invoices match your filters."
-          href="/"
-          cta="Create Invoice"
-        />
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -627,15 +662,7 @@ function QuoteCardGrid({
   query: string;
 }) {
   if (rows.length === 0) {
-    return (
-      <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
-        <EmptyState
-          label="No quotes match your filters."
-          href="/quote"
-          cta="Create Quote"
-        />
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -888,13 +915,7 @@ function InvoiceTable({
               );
             })}
           </ul>
-        ) : (
-          <EmptyState
-            label="No invoices match your filters."
-            href="/"
-            cta="Create Invoice"
-          />
-        )}
+        ) : null}
     </div>
 
       <ColumnContextMenu
@@ -1102,13 +1123,7 @@ function QuoteTable({
               );
             })}
           </ul>
-        ) : (
-          <EmptyState
-            label="No quotes match your filters."
-            href="/quote"
-            cta="Create Quote"
-          />
-        )}
+        ) : null}
     </div>
 
       <ColumnContextMenu

@@ -54,10 +54,7 @@ export function OnboardingCustomerPrompt() {
         dismiss();
         router.push("/customers/new");
       }}
-    >
-      <p className="text-sm leading-6 text-black/70">
-        Want to create an invoice? Start with creating a customer.
-      </p>
-    </Modal>
+      body="Want to create an invoice? Start with creating a customer."
+    />
   );
 }

@@ -38,6 +38,12 @@ export function WelcomeSkippedModal() {
       titleId="welcome-skipped-title"
       onClose={dismiss}
       hideCancel
+      body={
+        <>
+          Explore our features at your own pace. You can set up your details
+          later by clicking on &quot;New Invoice&quot; or &quot;New Quote&quot;.
+        </>
+      }
       footer={
         <div className="flex justify-end">
           <button
@@ -49,11 +55,6 @@ export function WelcomeSkippedModal() {
           </button>
         </div>
       }
-    >
-      <p className="text-center text-sm leading-6 text-black/70">
-        Explore our features at your own pace. You can set up your details later
-        by clicking on &quot;New Invoice&quot; or &quot;New Quote&quot;.
-      </p>
-    </Modal>
+    />
   );
 }

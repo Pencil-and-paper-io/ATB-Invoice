@@ -1,0 +1,16 @@
+---
+description: Do not start or connect to Storybook unless the user explicitly asks
+alwaysApply: true
+---
+
+# Storybook — stopped until user says otherwise
+
+**Do not** start, restart, open, connect to, or rely on Storybook on this machine until the user explicitly asks.
+
+Forbidden unless the user says so:
+- Running `npm run storybook`, `storybook dev`, or any Storybook CLI
+- Opening or using `http://localhost:6006` (or other Storybook ports)
+- Killing/restarting Storybook “to help” or as part of boot/dev setup
+- Pointing the ATB Invoice / PnP Vibes work at the design-system Storybook
+
+If Storybook appears running, leave it alone unless the user asks to stop or use it.

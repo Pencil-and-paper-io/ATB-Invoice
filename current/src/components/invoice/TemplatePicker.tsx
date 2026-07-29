@@ -51,12 +51,9 @@ function SaveTemplateModal({
       confirmLabel="Save Template"
       onConfirm={submit}
       confirmDisabled={!name.trim()}
+      body="Name this invoice setup so you can reuse it later."
     >
-      <p className="type-body-muted text-center">
-        Name this invoice setup so you can reuse it later.
-      </p>
-
-      <label className="mt-5 flex flex-col gap-2">
+      <label className="flex flex-col gap-2">
         <span className="text-sm text-black">Template name</span>
         <input
           ref={inputRef}

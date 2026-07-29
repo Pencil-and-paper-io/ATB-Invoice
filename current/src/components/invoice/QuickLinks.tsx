@@ -12,6 +12,8 @@ type QuickLink = {
   description: string;
   /** Match query params for customer demo profiles, e.g. id=acme */
   matchId?: string | null;
+  /** When true, active only if `empty=1` is on the URL. */
+  matchEmpty?: boolean;
 };
 
 type QuickSection = {
@@ -259,6 +261,41 @@ const SECTIONS: QuickSection[] = [
       },
     ],
   },
+  {
+    id: "empty-states",
+    title: "Empty States",
+    subtitle: "Pre-onboarding / nothing created yet",
+    links: [
+      {
+        id: "empty-organization",
+        label: "My Organization",
+        href: "/organization?empty=1",
+        description: "No onboarding — business details not supplied",
+        matchEmpty: true,
+      },
+      {
+        id: "empty-quotes",
+        label: "Quotes",
+        href: "/quotes?empty=1",
+        description: "No quotes yet — setup not completed",
+        matchEmpty: true,
+      },
+      {
+        id: "empty-invoices",
+        label: "Invoices",
+        href: "/invoices?empty=1",
+        description: "No invoices yet — setup not completed",
+        matchEmpty: true,
+      },
+      {
+        id: "empty-customers",
+        label: "Customers",
+        href: "/customers?empty=1",
+        description: "No customers yet — setup not completed",
+        matchEmpty: true,
+      },
+    ],
+  },
 ];
 
 function linkPath(href: string) {
@@ -269,18 +306,32 @@ function isLinkActive(
   pathname: string,
   customerIdParam: string | null,
   fromParam: string | null,
+  emptyParam: string | null,
   link: QuickLink,
 ) {
   const path = linkPath(link.href);
+  const isEmpty = emptyParam === "1";
+
   if (link.matchId !== undefined) {
     if (pathname !== "/customers/new") return false;
     return customerIdParam === link.matchId;
+  }
+  if (link.matchEmpty) {
+    return pathname === path && isEmpty;
   }
   if (link.href.startsWith("/?from=quote")) {
     return pathname === "/" && fromParam === "quote";
   }
   if (path === "/") {
     return pathname === "/" && fromParam !== "quote";
+  }
+  if (
+    path === "/organization" ||
+    path === "/quotes" ||
+    path === "/invoices" ||
+    path === "/customers"
+  ) {
+    return pathname === path && !isEmpty;
   }
   return pathname === path;
 }
@@ -290,9 +341,10 @@ function sectionHasActive(
   pathname: string,
   customerIdParam: string | null,
   fromParam: string | null,
+  emptyParam: string | null,
 ) {
   return section.links.some((link) =>
-    isLinkActive(pathname, customerIdParam, fromParam, link),
+    isLinkActive(pathname, customerIdParam, fromParam, emptyParam, link),
   );
 }
 
@@ -324,6 +376,7 @@ function AccordionSection({
   pathname,
   customerIdParam,
   fromParam,
+  emptyParam,
   onNavigate,
 }: {
   section: QuickSection;
@@ -332,6 +385,7 @@ function AccordionSection({
   pathname: string;
   customerIdParam: string | null;
   fromParam: string | null;
+  emptyParam: string | null;
   onNavigate: () => void;
 }) {
   const panelId = useId();
@@ -340,6 +394,7 @@ function AccordionSection({
     pathname,
     customerIdParam,
     fromParam,
+    emptyParam,
   );
 
   return (
@@ -384,6 +439,7 @@ function AccordionSection({
               pathname,
               customerIdParam,
               fromParam,
+              emptyParam,
               link,
             );
             return (
@@ -426,15 +482,22 @@ export function QuickLinks() {
   const searchParams = useSearchParams();
   const customerIdParam = searchParams.get("id");
   const fromParam = searchParams.get("from");
+  const emptyParam = searchParams.get("empty");
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
 
   const activeSectionIds = useMemo(
     () =>
       SECTIONS.filter((section) =>
-        sectionHasActive(section, pathname, customerIdParam, fromParam),
+        sectionHasActive(
+          section,
+          pathname,
+          customerIdParam,
+          fromParam,
+          emptyParam,
+        ),
       ).map((section) => section.id),
-    [pathname, customerIdParam, fromParam],
+    [pathname, customerIdParam, fromParam, emptyParam],
   );
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
@@ -514,6 +577,7 @@ export function QuickLinks() {
                 pathname={pathname}
                 customerIdParam={customerIdParam}
                 fromParam={fromParam}
+                emptyParam={emptyParam}
                 onNavigate={() => setOpen(false)}
               />
             ))}

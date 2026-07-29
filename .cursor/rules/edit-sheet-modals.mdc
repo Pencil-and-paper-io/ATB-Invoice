@@ -16,7 +16,9 @@ For draft/edit sheets that explain a scoped change (payment options, automations
 
 2. **Do not** put a separate centered subtitle paragraph in `children`. Pass it as `subtitle` so title/subtitle spacing stays consistent (`mt-4` above the title block, `space-y-5` between title and subtitle, `mb-10` below before body).
 
-3. Body content goes in `children` only (forms, lists, controls). Footer actions stay on Modal’s Save/Cancel.
+3. For confirm/alert body copy (when there is no edit-sheet `subtitle`), pass `body` — rendered as **Paragraph 1** (`type-paragraph-1`). Do not hand-roll `type-body-muted` / `text-sm` body paragraphs in `children`.
+
+4. Form/control content goes in `children` only. Footer actions stay on Modal’s Save/Cancel.
 
 ```tsx
 <Modal

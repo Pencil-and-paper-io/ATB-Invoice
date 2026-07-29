@@ -186,6 +186,37 @@ export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   onboardingCompleted: false,
 };
 
+/** Blank org profile for pre-onboarding / empty-state prototypes. */
+export const EMPTY_ORGANIZATION_SETTINGS: OrganizationSettings = {
+  ...DEFAULT_ORGANIZATION_SETTINGS,
+  businessName: "",
+  useLegalNameOnInvoices: true,
+  tradingAsName: "",
+  gstHstNumber: "",
+  gstRegistrationStatus: "small_supplier",
+  contactName: "",
+  email: "",
+  phone: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  province: "",
+  postalCode: "",
+  brandColor: "",
+  logoDataUrl: null,
+  taxStatus: "Tax-exempt",
+  paymentPreferences: [],
+  paymentMethods: CORE_PAYMENT_METHODS.map((method) => ({
+    id: method.id,
+    enabled: false,
+    accountLabel: "",
+  })),
+  autoSend: false,
+  reminders: false,
+  reminderChannel: null,
+  onboardingCompleted: false,
+};
+
 /** Demo deposit accounts for onboarding Interac / EFT binding. */
 export const DEMO_DEPOSIT_ACCOUNTS = [
   { id: "chequing", label: "Business Chequing ····4521" },

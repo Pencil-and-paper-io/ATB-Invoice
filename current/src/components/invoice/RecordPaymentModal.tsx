@@ -89,13 +89,9 @@ export function RecordPaymentModal({
       }
       onConfirm={handleSave}
       confirmDisabled={!canSave}
+      body={`Invoice total ${formatMoney(INVOICE_TOTAL)}. Balance due ${formatMoney(balanceDue)}.`}
     >
-      <p className="type-body-muted text-center">
-        Invoice total {formatMoney(INVOICE_TOTAL)}. Balance due{" "}
-        {formatMoney(balanceDue)}.
-      </p>
-
-      <div className="mt-5 flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-black">Amount</span>
           <input

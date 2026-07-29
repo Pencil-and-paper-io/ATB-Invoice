@@ -7,7 +7,13 @@ import {
   type ReactNode,
 } from "react";
 
-export function InfoTooltip({ text }: { text: string }) {
+export function InfoTooltip({
+  text,
+  onDark = false,
+}: {
+  text: string;
+  onDark?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const id = useId();
 
@@ -15,7 +21,11 @@ export function InfoTooltip({ text }: { text: string }) {
     <span className="relative inline-flex">
       <button
         type="button"
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/25 text-[10px] font-semibold leading-none text-black/50 transition hover:border-prime-blue hover:text-prime-blue"
+        className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] font-semibold leading-none transition hover:border-prime-blue hover:text-prime-blue ${
+          onDark
+            ? "border-white/35 text-white/70"
+            : "border-black/25 text-black/50"
+        }`}
         aria-label="More information"
         aria-describedby={open ? id : undefined}
         onClick={(event) => event.stopPropagation()}
@@ -116,6 +126,7 @@ export function Modal({
   titleId,
   onClose,
   children,
+  body,
   cancelLabel = "Cancel",
   onCancel,
   hideCancel = false,
@@ -137,7 +148,12 @@ export function Modal({
   title: string;
   titleId?: string;
   onClose: () => void;
-  children: ReactNode;
+  children?: ReactNode;
+  /**
+   * Centered paragraph-1 body copy under the title (confirm / alert modals).
+   * Prefer this over hand-rolling type styles in children.
+   */
+  body?: ReactNode;
   cancelLabel?: string;
   onCancel?: () => void;
   hideCancel?: boolean;
@@ -163,6 +179,7 @@ export function Modal({
   const generatedId = useId();
   const resolvedTitleId = titleId ?? generatedId;
   const subtitleId = useId();
+  const bodyId = useId();
   const handleCancel = onCancel ?? onClose;
 
   useEffect(() => {
@@ -175,6 +192,13 @@ export function Modal({
 
   const showDefaultFooter =
     footer === undefined && (Boolean(confirmLabel) || !hideCancel);
+  const describedByIds = [
+    describedBy,
+    subtitle ? subtitleId : null,
+    body && !describedBy ? bodyId : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -182,7 +206,7 @@ export function Modal({
       role={role}
       aria-modal="true"
       aria-labelledby={resolvedTitleId}
-      aria-describedby={describedBy ?? (subtitle ? subtitleId : undefined)}
+      aria-describedby={describedByIds || undefined}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onClose();
@@ -222,7 +246,25 @@ export function Modal({
             {title}
           </h2>
         )}
-        <div className={subtitle ? undefined : "mt-10"}>{children}</div>
+        {body ? (
+          <p
+            id={bodyId}
+            className={`px-4 text-center type-paragraph-1 text-black ${
+              subtitle ? "" : "mt-10"
+            }`}
+          >
+            {body}
+          </p>
+        ) : null}
+        {children ? (
+          <div
+            className={
+              subtitle || body ? (body ? "mt-6" : undefined) : "mt-10"
+            }
+          >
+            {children}
+          </div>
+        ) : null}
         {footer !== undefined ? (
           <div className="mt-10">{footer}</div>
         ) : showDefaultFooter ? (
