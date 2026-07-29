@@ -278,7 +278,12 @@ export function DraftInvoiceView() {
                 isFirstInvoicePlaythrough ? null : defaultDraftCustomer
               }
               onCustomerChange={handleCustomerChange}
-            />
+            >
+              <InvoiceDetailsPanel
+                details={details}
+                onChange={updateDetails}
+              />
+            </BillToSection>
 
             <SectionCard title="Line Items" className="gap-2.5">
               <LineItemsSection
@@ -295,13 +300,6 @@ export function DraftInvoiceView() {
           </div>
 
           <aside className="flex flex-col gap-[15px]">
-            <SectionCard title="Details">
-              <InvoiceDetailsPanel
-                details={details}
-                onChange={updateDetails}
-              />
-            </SectionCard>
-
             <PaymentOptionsSection
               payments={payments}
               onToggle={togglePayment}

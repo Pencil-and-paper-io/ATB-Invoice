@@ -71,12 +71,7 @@ function AutomationsEditor({
   const previewKind: ReminderPreviewKind = isInvoice ? "invoice" : "quote";
 
   return (
-    <div className="flex flex-col">
-      <p className="mb-8 text-center type-headline-6 text-black">
-        Starts from organization and customer defaults (reminders are off unless
-        you turned them on). Change them only for this {documentKind}.
-      </p>
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {isInvoice ? (
         <CheckboxRow
           checked={value.autoSend}
@@ -111,7 +106,6 @@ function AutomationsEditor({
           previewKind={previewKind}
         />
       </CheckboxRow>
-      </div>
     </div>
   );
 }
@@ -196,6 +190,7 @@ export function DocumentAutomationsSection({
           onConfirm={saveEdit}
           maxWidthClass="max-w-3xl"
           zClass="z-[220]"
+          subtitle={`Starts from organization and customer defaults (reminders are off unless you turned them on). Change them only for this ${documentKind}.`}
         >
           <AutomationsEditor
             value={draft}

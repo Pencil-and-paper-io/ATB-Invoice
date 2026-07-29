@@ -1,0 +1,33 @@
+---
+description: Edit-sheet Modal format (title + subtitle + max-w-3xl)
+globs: current/src/components/invoice/**/*.tsx
+alwaysApply: false
+---
+
+# Edit-sheet modals
+
+For draft/edit sheets that explain a scoped change (payment options, automations, details, scheduled reminder, and similar):
+
+1. Use `Modal` from `./ui` with:
+   - `title` — short action title (e.g. "Edit Automations")
+   - `subtitle` — centered intro copy (rendered as headline 6; **do not** hand-roll `type-headline-6` under the title)
+   - `maxWidthClass="max-w-3xl"`
+   - `zClass="z-[220]"` when opened over a draft/preview surface
+
+2. **Do not** put a separate centered subtitle paragraph in `children`. Pass it as `subtitle` so title/subtitle spacing stays consistent (`mt-4` above the title block, `space-y-5` between title and subtitle, `mb-10` below before body).
+
+3. Body content goes in `children` only (forms, lists, controls). Footer actions stay on Modal’s Save/Cancel.
+
+```tsx
+<Modal
+  title="Edit Example"
+  subtitle="Short explanation of what this change affects."
+  maxWidthClass="max-w-3xl"
+  zClass="z-[220]"
+  confirmLabel="Save"
+  onConfirm={save}
+  onClose={onClose}
+>
+  {/* fields only */}
+</Modal>
+```

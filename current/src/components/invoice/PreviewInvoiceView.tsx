@@ -6,7 +6,7 @@ import { getActionsForStatus } from "@/lib/invoice-actions";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
-import { PreviewInvoiceActivity } from "./PreviewInvoiceActivity";
+import { PreviewDocumentActivity } from "./PreviewInvoiceActivity";
 import { SendInvoiceModal } from "./SendInvoiceModal";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
@@ -88,7 +88,7 @@ export function PreviewInvoiceView() {
 
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <PreviewInvoiceActivity />
+              <PreviewDocumentActivity documentKind="invoice" />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">

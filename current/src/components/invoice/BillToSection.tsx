@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   customers,
   getActiveCustomers,
@@ -156,9 +156,11 @@ function CustomerDropdown({
 export function BillToSection({
   defaultCustomer,
   onCustomerChange,
+  children,
 }: {
   defaultCustomer?: Customer | null;
   onCustomerChange?: (customer: Customer | null) => void;
+  children?: ReactNode;
 }) {
   const [customer, setCustomer] = useState<Customer | null>(
     defaultCustomer ?? null,
@@ -171,7 +173,7 @@ export function BillToSection({
   }
 
   return (
-    <SectionCard title="Bill to">
+    <SectionCard title="Bill to" className="gap-2.5">
       {customer ? (
         <div className="relative rounded-[10px] border border-black/10 p-[30px] transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue">
           <ContactBlock
@@ -212,6 +214,8 @@ export function BillToSection({
           onCreateNew={() => setCreateOpen(true)}
         />
       )}
+
+      {children}
 
       {createOpen ? (
         <CreateCustomerModal

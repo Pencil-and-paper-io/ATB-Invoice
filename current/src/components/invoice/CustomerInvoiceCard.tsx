@@ -392,7 +392,14 @@ export function CustomerInvoiceCard({
         </p>
       </div>
 
-      <DashedDivider />
+      {draftInvoice.customerNotes.map((note) => (
+        <div key={note.id} className="flex flex-col gap-5 px-4 sm:px-[30px]">
+          <div>
+            <p className="text-base font-bold text-black">{note.title}</p>
+            <p className="mt-2.5 text-sm leading-5 text-black">{note.body}</p>
+          </div>
+        </div>
+      ))}
 
       {showPayment ? (
         <div className="flex flex-col gap-5 px-4 sm:px-[30px]">
@@ -400,7 +407,10 @@ export function CustomerInvoiceCard({
           <div className="flex flex-col gap-4">
             {paymentOptions.map((option) => {
               return (
-                <div key={option.id} className="flex flex-col gap-1.5">
+                <div
+                  key={option.id}
+                  className="flex flex-col gap-1.5 rounded-[10px] border border-black/10 px-4 py-4"
+                >
                   <p className="text-sm font-semibold text-black">
                     {option.label}
                   </p>
@@ -429,15 +439,6 @@ export function CustomerInvoiceCard({
           </div>
         </div>
       ) : null}
-
-      {draftInvoice.customerNotes.map((note) => (
-        <div key={note.id} className="flex flex-col gap-5 px-4 sm:px-[30px]">
-          <div>
-            <p className="text-base font-bold text-black">{note.title}</p>
-            <p className="mt-2.5 text-sm leading-5 text-black">{note.body}</p>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

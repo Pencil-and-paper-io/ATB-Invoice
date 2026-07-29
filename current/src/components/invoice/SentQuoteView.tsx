@@ -15,9 +15,9 @@ import {
 } from "@/lib/document-activity";
 import { loadQuoteDetails } from "@/lib/quote-details";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
+import { DocumentActivityTimeline } from "./DocumentActivityTimeline";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
-import { ScheduledReminderPanel } from "./ScheduledReminderPanel";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { Modal } from "./ui";
@@ -166,32 +166,6 @@ const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
   ],
 };
 
-function ActivityTimeline({
-  items,
-}: {
-  items: { id: string; time: string; text: string }[];
-}) {
-  return (
-    <div className="relative flex flex-col gap-4">
-      {items.length > 1 ? (
-        <span
-          className="absolute left-[2.5px] top-2 bottom-8 w-px bg-midnight-ink"
-          aria-hidden
-        />
-      ) : null}
-      {items.map((item) => (
-        <div key={item.id} className="relative flex flex-col gap-1">
-          <div className="flex items-center gap-5">
-            <span className="relative z-10 h-1.5 w-1.5 shrink-0 rounded-full bg-midnight-ink" />
-            <span className="text-sm text-black">{item.time}</span>
-          </div>
-          <p className="pl-[26px] text-sm text-[#666666]">{item.text}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function RecordDecisionModal({
   onClose,
   onAccept,
@@ -318,20 +292,15 @@ export function SentQuoteView({
               </span>
             </section>
 
-            {showScheduledReminder ? (
-              <ScheduledReminderPanel
-                documentKind="quote"
-                anchorLabel={expiryAnchor}
-                customerId="acme"
-                onActivityChange={() =>
-                  setActivity(mergeQuoteActivity(ACTIVITY[variant]))
-                }
-              />
-            ) : null}
-
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <ActivityTimeline items={activity} />
+              <DocumentActivityTimeline
+                documentKind="quote"
+                pastItems={activity}
+                anchorLabel={expiryAnchor}
+                customerId="acme"
+                showScheduledReminder={showScheduledReminder}
+              />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">

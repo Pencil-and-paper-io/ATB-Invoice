@@ -272,11 +272,8 @@ export function AddPaymentOptionsModal({
       maxWidthClass="max-w-3xl"
       confirmLabel="Save"
       onConfirm={save}
+      subtitle="Adjust your payment options for this invoice. Choices here do not update your organization or customer defaults."
     >
-      <p className="mb-8 text-center type-headline-6 text-black">
-        Adjust your payment options for this invoice. Choices here do not update
-        your organization or customer defaults.
-      </p>
       <div className="flex flex-col gap-3">
         {paymentMethods.map((method) => {
           const meta = CORE_PAYMENT_METHODS.find(

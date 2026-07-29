@@ -224,7 +224,13 @@ export function DraftQuoteView() {
             <BillToSection
               defaultCustomer={defaultDraftCustomer}
               onCustomerChange={handleCustomerChange}
-            />
+            >
+              <InvoiceDetailsPanel
+                documentKind="quote"
+                details={details}
+                onChange={updateDetails}
+              />
+            </BillToSection>
 
             <SectionCard title="Line Items" className="gap-2.5">
               <LineItemsSection
@@ -241,14 +247,6 @@ export function DraftQuoteView() {
           </div>
 
           <aside className="flex flex-col gap-[15px]">
-            <SectionCard title="Details">
-              <InvoiceDetailsPanel
-                documentKind="quote"
-                details={details}
-                onChange={updateDetails}
-              />
-            </SectionCard>
-
             <PaymentOptionsSection
               payments={payments}
               onToggle={togglePayment}

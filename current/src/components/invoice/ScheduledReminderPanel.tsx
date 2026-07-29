@@ -20,15 +20,15 @@ import type {
 import { ReminderDeliveryControls } from "./ReminderDeliveryControls";
 import { Modal } from "./ui";
 
-function EditScheduledReminderModal({
+export function EditScheduledReminderModal({
   documentKind,
   value,
-  anchorLabel,
   onClose,
   onSave,
 }: {
   documentKind: DocumentKind;
   value: DocumentAutomationsState;
+  /** Kept for call-site compatibility (schedule date still uses this outside the modal). */
   anchorLabel: string;
   onClose: () => void;
   onSave: (next: DocumentAutomationsState) => void;
@@ -37,9 +37,6 @@ function EditScheduledReminderModal({
   const [channel, setChannel] = useState<ReminderChannel>(
     value.reminderChannel === "text" ? "text" : "email",
   );
-
-  const daysNum = Number(days) || 0;
-  const scheduledLabel = formatScheduledReminderDate(daysNum, anchorLabel);
 
   function handleSave() {
     onSave({
@@ -57,23 +54,17 @@ function EditScheduledReminderModal({
       onClose={onClose}
       confirmLabel="Save"
       onConfirm={handleSave}
-      maxWidthClass="max-w-2xl"
+      maxWidthClass="max-w-3xl"
+      zClass="z-[220]"
+      subtitle="Select when and how the reminder is sent"
     >
-      <div className="flex flex-col gap-4 text-sm">
-        <ReminderDeliveryControls
-          reminderDays={days}
-          reminderChannel={channel}
-          onDaysChange={setDays}
-          onChannelChange={setChannel}
-          previewKind={documentKind}
-        />
-        <p className="rounded-lg border border-black/10 bg-page-grey/60 px-3 py-2 text-black/70">
-          Scheduled for{" "}
-          <span className="font-semibold">{scheduledLabel}</span>
-          {" · "}
-          {channelLabel(channel)}
-        </p>
-      </div>
+      <ReminderDeliveryControls
+        reminderDays={days}
+        reminderChannel={channel}
+        onDaysChange={setDays}
+        onChannelChange={setChannel}
+        previewKind={documentKind}
+      />
     </Modal>
   );
 }

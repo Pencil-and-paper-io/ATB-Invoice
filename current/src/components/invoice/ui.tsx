@@ -132,6 +132,7 @@ export function Modal({
   role = "dialog",
   describedBy,
   aboveTitle,
+  subtitle,
 }: {
   title: string;
   titleId?: string;
@@ -153,9 +154,15 @@ export function Modal({
   role?: "dialog" | "alertdialog";
   describedBy?: string;
   aboveTitle?: ReactNode;
+  /**
+   * Centered headline-6 intro under the title (edit-sheet format).
+   * When set, title→content spacing is tightened automatically.
+   */
+  subtitle?: string;
 }) {
   const generatedId = useId();
   const resolvedTitleId = titleId ?? generatedId;
+  const subtitleId = useId();
   const handleCancel = onCancel ?? onClose;
 
   useEffect(() => {
@@ -175,7 +182,7 @@ export function Modal({
       role={role}
       aria-modal="true"
       aria-labelledby={resolvedTitleId}
-      aria-describedby={describedBy}
+      aria-describedby={describedBy ?? (subtitle ? subtitleId : undefined)}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onClose();
@@ -192,13 +199,30 @@ export function Modal({
         {aboveTitle ? (
           <div className="mb-5 flex justify-center">{aboveTitle}</div>
         ) : null}
-        <h2
-          id={resolvedTitleId}
-          className="type-headline-3 px-8 text-center text-black"
-        >
-          {title}
-        </h2>
-        <div className="mt-10">{children}</div>
+        {subtitle ? (
+          <header className="mt-4 mb-10 space-y-5">
+            <h2
+              id={resolvedTitleId}
+              className="type-headline-3 px-8 text-center text-black"
+            >
+              {title}
+            </h2>
+            <p
+              id={subtitleId}
+              className="px-4 text-center type-headline-6 text-black"
+            >
+              {subtitle}
+            </p>
+          </header>
+        ) : (
+          <h2
+            id={resolvedTitleId}
+            className="type-headline-3 px-8 text-center text-black"
+          >
+            {title}
+          </h2>
+        )}
+        <div className={subtitle ? undefined : "mt-10"}>{children}</div>
         {footer !== undefined ? (
           <div className="mt-10">{footer}</div>
         ) : showDefaultFooter ? (

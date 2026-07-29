@@ -6,6 +6,7 @@ import { getQuoteActionsForStatus } from "@/lib/quote-actions";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
+import { PreviewDocumentActivity } from "./PreviewInvoiceActivity";
 import { SendQuoteModal } from "./SendQuoteModal";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
@@ -80,15 +81,7 @@ export function PreviewQuoteView() {
 
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-5">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-midnight-ink" />
-                  <span className="text-sm text-black">July 3, 2026</span>
-                </div>
-                <p className="pl-[26px] text-sm text-[#666666]">
-                  Quote was created for $353.00
-                </p>
-              </div>
+              <PreviewDocumentActivity documentKind="quote" />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">
@@ -98,16 +91,22 @@ export function PreviewQuoteView() {
           </aside>
 
           <div className="flex flex-col gap-5">
-            <div>
-              <p className="text-base font-semibold text-black">
+            <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-4 py-4">
+              <p className="type-headline-5 text-midnight-ink">
                 Below is what your customer will see:
               </p>
-              <p className="mt-1 text-sm leading-5 text-black/55">
+              <p className="mt-2 type-paragraph-1 text-midnight-ink">
                 Once you send this quote, you can still make adjustments until
-                the customer accepts it.
+                the customer accepts it. Payment options are hidden on quotes
+                because customers can’t pay them here—they’ll appear when this
+                quote becomes an invoice.
               </p>
             </div>
-            <CustomerInvoiceCard shadow="preview" documentKind="quote" />
+            <CustomerInvoiceCard
+              shadow="preview"
+              documentKind="quote"
+              showPaymentOptions={false}
+            />
           </div>
         </div>
       </main>
