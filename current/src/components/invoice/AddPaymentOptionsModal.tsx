@@ -264,20 +264,20 @@ export function AddPaymentOptionsModal({
 
   return (
     <Modal
-      title="Payment Options"
-      titleId="add-payment-options-title"
+      title="Edit Payment Options"
+      titleId="edit-payment-options-title"
       onClose={onClose}
       closeOnBackdrop={false}
       zClass="z-[220]"
-      maxWidthClass="max-w-xl"
+      maxWidthClass="max-w-3xl"
       confirmLabel="Save"
       onConfirm={save}
     >
-      <p className="mb-4 text-sm leading-5 text-black/70">
-        Choose how you want to receive payments by default. Saving updates your
-        organization and this invoice or quote.
+      <p className="mb-8 text-center type-headline-6 text-black">
+        Adjust your payment options for this invoice. Choices here do not update
+        your organization or customer defaults.
       </p>
-      <div className="flex max-h-[min(60vh,28rem)] flex-col gap-3 overflow-y-auto pr-1">
+      <div className="flex flex-col gap-3">
         {paymentMethods.map((method) => {
           const meta = CORE_PAYMENT_METHODS.find(
             (entry) => entry.id === method.id,

@@ -72,16 +72,22 @@ export function loadQuoteTimelineForInvoice(): ActivityItem[] {
   }
 }
 
-export function appendInvoicePaymentActivity(item: ActivityItem) {
+/** Live timeline extras (payments, reminder schedule changes, etc.). */
+export function appendInvoiceActivityExtra(item: ActivityItem) {
   if (!canUseStorage()) return;
-  const existing = loadInvoicePaymentActivity();
+  const existing = loadInvoiceActivityExtras();
   sessionStorage.setItem(
     INVOICE_PAYMENT_ACTIVITY_KEY,
     JSON.stringify([item, ...existing]),
   );
 }
 
-export function loadInvoicePaymentActivity(): ActivityItem[] {
+/** @deprecated Prefer appendInvoiceActivityExtra */
+export function appendInvoicePaymentActivity(item: ActivityItem) {
+  appendInvoiceActivityExtra(item);
+}
+
+export function loadInvoiceActivityExtras(): ActivityItem[] {
   if (!canUseStorage()) return [];
   try {
     const raw = sessionStorage.getItem(INVOICE_PAYMENT_ACTIVITY_KEY);
@@ -91,6 +97,45 @@ export function loadInvoicePaymentActivity(): ActivityItem[] {
   } catch {
     return [];
   }
+}
+
+export function loadInvoicePaymentActivity(): ActivityItem[] {
+  return loadInvoiceActivityExtras();
+}
+
+const QUOTE_ACTIVITY_EXTRAS_KEY = "atb-quote-activity-extras";
+
+export function appendQuoteActivityExtra(item: ActivityItem) {
+  if (!canUseStorage()) return;
+  const existing = loadQuoteActivityExtras();
+  sessionStorage.setItem(
+    QUOTE_ACTIVITY_EXTRAS_KEY,
+    JSON.stringify([item, ...existing]),
+  );
+}
+
+export function loadQuoteActivityExtras(): ActivityItem[] {
+  if (!canUseStorage()) return [];
+  try {
+    const raw = sessionStorage.getItem(QUOTE_ACTIVITY_EXTRAS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ActivityItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function mergeQuoteActivity(base: ActivityItem[]): ActivityItem[] {
+  const extras = loadQuoteActivityExtras();
+  const seen = new Set<string>();
+  const out: ActivityItem[] = [];
+  for (const item of [...extras, ...base]) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push(item);
+  }
+  return out;
 }
 
 export function setPendingInvoiceToast(message: string) {
@@ -114,16 +159,20 @@ function isDemoPaymentPlaceholder(item: ActivityItem) {
 
 /** Merge live payments + base invoice events + originating quote history. */
 export function mergeInvoiceActivity(base: ActivityItem[]): ActivityItem[] {
-  const payments = loadInvoicePaymentActivity();
+  const extras = loadInvoiceActivityExtras();
   const quote = loadQuoteTimelineForInvoice();
-  const rest =
-    payments.length > 0
-      ? base.filter((item) => !isDemoPaymentPlaceholder(item))
-      : base;
+  const hasPaymentExtra = extras.some(
+    (item) =>
+      /^Payment of \$/i.test(item.text) ||
+      /^Partial payment of \$/i.test(item.text),
+  );
+  const rest = hasPaymentExtra
+    ? base.filter((item) => !isDemoPaymentPlaceholder(item))
+    : base;
 
   const seen = new Set<string>();
   const out: ActivityItem[] = [];
-  for (const item of [...payments, ...rest, ...quote]) {
+  for (const item of [...extras, ...rest, ...quote]) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
     out.push(item);

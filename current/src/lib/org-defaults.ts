@@ -20,5 +20,6 @@ export const ORGANIZATION_DEFAULTS = {
   autoSend: DEFAULT_ORGANIZATION_SETTINGS.autoSend,
   reminders: DEFAULT_ORGANIZATION_SETTINGS.reminders,
   reminderDays: DEFAULT_ORGANIZATION_SETTINGS.reminderDays,
+  reminderChannel: DEFAULT_ORGANIZATION_SETTINGS.reminderChannel,
   receipts: DEFAULT_ORGANIZATION_SETTINGS.receipts,
 };

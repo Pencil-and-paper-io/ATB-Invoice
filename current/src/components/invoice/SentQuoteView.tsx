@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getQuoteActionsForStatus,
@@ -10,11 +10,14 @@ import {
 import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
 import {
   formatActivityNow,
+  mergeQuoteActivity,
   type ActivityItem,
 } from "@/lib/document-activity";
+import { loadQuoteDetails } from "@/lib/quote-details";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
+import { ScheduledReminderPanel } from "./ScheduledReminderPanel";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import { Modal } from "./ui";
@@ -245,8 +248,33 @@ export function SentQuoteView({
   const { handleAction, feedbackBanner, confirmModal, downloadModal, sendModal } =
     useQuoteActionHandler(status);
   const [showDecision, setShowDecision] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>(() =>
+    mergeQuoteActivity(ACTIVITY[variant]),
+  );
+  const [expiryAnchor, setExpiryAnchor] = useState("August 5, 2026");
   // Edit is a surface button when available — keep it out of More Actions.
   const moreActions = getQuoteActionsForStatus(status, ["edit"]);
+  const showScheduledReminder =
+    variant === "awaiting" || variant === "viewed";
+
+  useEffect(() => {
+    setActivity(mergeQuoteActivity(ACTIVITY[variant]));
+  }, [variant]);
+
+  useEffect(() => {
+    const validUntil = loadQuoteDetails()?.validUntil?.trim();
+    if (validUntil) {
+      setExpiryAnchor(
+        /^\d{4}-\d{2}-\d{2}$/.test(validUntil)
+          ? new Date(`${validUntil}T12:00:00`).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })
+          : validUntil,
+      );
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -290,9 +318,20 @@ export function SentQuoteView({
               </span>
             </section>
 
+            {showScheduledReminder ? (
+              <ScheduledReminderPanel
+                documentKind="quote"
+                anchorLabel={expiryAnchor}
+                customerId="acme"
+                onActivityChange={() =>
+                  setActivity(mergeQuoteActivity(ACTIVITY[variant]))
+                }
+              />
+            ) : null}
+
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <ActivityTimeline items={ACTIVITY[variant]} />
+              <ActivityTimeline items={activity} />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">

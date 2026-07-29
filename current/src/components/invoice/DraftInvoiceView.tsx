@@ -43,6 +43,11 @@ import {
   type DocumentAutomationsState,
 } from "./DocumentAutomationsSection";
 import {
+  defaultAutomationsFromCascade,
+  loadOrInitDocumentAutomations,
+  persistDocumentAutomations,
+} from "@/lib/document-automations";
+import {
   InvoiceDetailsPanel,
   type InvoiceDetailsState,
 } from "./InvoiceDetailsPanel";
@@ -55,14 +60,10 @@ import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 import { ContactBlock, SectionCard, TextLink } from "./ui";
 
-function automationsFromCascade(): DocumentAutomationsState {
-  const cascade = getCustomerCascadeDefaults();
-  return {
-    autoSend: cascade.autoSend,
-    reminders: cascade.reminders,
-    reminderDays: cascade.reminderDays,
-    reminderChannel: cascade.reminders ? "email" : null,
-  };
+function automationsFromCascade(
+  customerId?: string | null,
+): DocumentAutomationsState {
+  return defaultAutomationsFromCascade(customerId);
 }
 
 function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
@@ -93,7 +94,7 @@ export function DraftInvoiceView() {
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
   const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
-    automationsFromCascade(),
+    loadOrInitDocumentAutomations("invoice"),
   );
   const [details, setDetails] = useState<InvoiceDetailsState>(() =>
     defaultInvoiceDetails(),
@@ -165,7 +166,12 @@ export function DraftInvoiceView() {
         if (quoteNumber) setAcceptedQuoteNumber(quoteNumber);
         rememberDocumentNumber("invoice", next.invoiceNumber);
       }
-      setAutomations(automationsFromCascade());
+      setAutomations(
+        loadOrInitDocumentAutomations(
+          "invoice",
+          fresh ? null : (defaultDraftCustomer?.id ?? null),
+        ),
+      );
       const customerId = fresh ? null : (defaultDraftCustomer?.id ?? null);
       const taxRec = getCustomerTaxRecommendation(customerId);
       setDefaultTaxLabel(taxRec?.label ?? "");
@@ -212,13 +218,20 @@ export function DraftInvoiceView() {
     const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
     setDefaultTaxLabel(taxRec?.label ?? "");
     setRecommendedTaxNote(taxRec?.note ?? "");
-    setAutomations(automationsFromCascade());
+    const nextAutomations = automationsFromCascade(customer?.id ?? null);
+    setAutomations(nextAutomations);
+    persistDocumentAutomations("invoice", nextAutomations);
     if (!customer) return;
     const cascade = getCustomerCascadeDefaults();
     updateDetails({
       ...details,
       dueDate: normalizeDueDateOption(cascade.paymentTerms),
     });
+  }
+
+  function updateAutomations(next: DocumentAutomationsState) {
+    setAutomations(next);
+    persistDocumentAutomations("invoice", next);
   }
 
   return (
@@ -276,20 +289,6 @@ export function DraftInvoiceView() {
               />
             </SectionCard>
 
-            <PaymentOptionsSection
-              payments={payments}
-              onToggle={togglePayment}
-              onChange={updatePayments}
-            />
-
-            <SectionCard title="Automations" className="gap-2.5">
-              <DocumentAutomationsSection
-                value={automations}
-                onChange={setAutomations}
-                documentKind="invoice"
-              />
-            </SectionCard>
-
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection />
             </SectionCard>
@@ -302,6 +301,19 @@ export function DraftInvoiceView() {
                 onChange={updateDetails}
               />
             </SectionCard>
+
+            <PaymentOptionsSection
+              payments={payments}
+              onToggle={togglePayment}
+              onChange={updatePayments}
+              compact
+            />
+
+            <DocumentAutomationsSection
+              value={automations}
+              onChange={updateAutomations}
+              documentKind="invoice"
+            />
 
             <SectionCard title="Note to Self" className="gap-2.5">
               <NoteToSelfSection />

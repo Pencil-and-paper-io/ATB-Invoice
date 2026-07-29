@@ -8,7 +8,20 @@ const ISSUE_DATE_PRESETS = [
   "Send at end-of-month",
 ] as const;
 
-const DUE_DATE_OPTIONS = ["Net 30", "Net 15", "Upon receipt"] as const;
+const DUE_DATE_OPTIONS: { label: string; hint: string }[] = [
+  {
+    label: "Net 30",
+    hint: "Payment is due 30 days after the issue date",
+  },
+  {
+    label: "Net 15",
+    hint: "Payment is due 15 days after the issue date",
+  },
+  {
+    label: "Upon receipt",
+    hint: "Payment is due as soon as the customer receives the invoice",
+  },
+];
 
 function CaretIcon() {
   return (
@@ -320,6 +333,8 @@ function DueDateField({
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
 
+  const selected = DUE_DATE_OPTIONS.find((option) => option.label === value);
+
   return (
     <div ref={ref} className="relative flex flex-col gap-2.5">
       <span className="text-sm text-black">Due Date</span>
@@ -330,7 +345,7 @@ function DueDateField({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span>{value}</span>
+        <span>{selected?.label ?? value}</span>
         <CaretIcon />
       </button>
       {open ? (
@@ -340,20 +355,27 @@ function DueDateField({
         >
           <ul className="py-1">
             {DUE_DATE_OPTIONS.map((option) => (
-              <li key={option}>
+              <li key={option.label}>
                 <button
                   type="button"
                   role="option"
-                  aria-selected={option === value}
-                  className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-black/[0.04]"
+                  aria-selected={option.label === value}
+                  className="flex w-full items-start gap-2 px-4 py-2.5 text-left transition hover:bg-black/[0.04]"
                   onClick={() => {
-                    onChange(option);
+                    onChange(option.label);
                     setOpen(false);
                   }}
                 >
-                  <span>{option}</span>
-                  {option === value ? (
-                    <span className="text-prime-blue">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-black">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs text-black/50">
+                      {option.hint}
+                    </span>
+                  </span>
+                  {option.label === value ? (
+                    <span className="mt-0.5 text-prime-blue">
                       <CheckIcon />
                     </span>
                   ) : null}

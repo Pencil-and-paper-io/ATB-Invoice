@@ -1218,6 +1218,7 @@ function LineItemForm({
   onClose,
   recommendedTaxLabel = "",
   recommendedTaxNote = "",
+  allowDismiss = true,
 }: {
   initial: LineItem & { tax?: string };
   isNew: boolean;
@@ -1229,9 +1230,11 @@ function LineItemForm({
   onClose: () => void;
   recommendedTaxLabel?: string;
   recommendedTaxNote?: string;
+  /** When false, hide Cancel/close so the default blank row stays open. */
+  allowDismiss?: boolean;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
-  useDismissOnOutsideClick(formRef, onClose);
+  useDismissOnOutsideClick(formRef, onClose, allowDismiss);
 
   const [name, setName] = useState(initial.name);
   const [unitPrice, setUnitPrice] = useState(
@@ -1329,7 +1332,7 @@ function LineItemForm({
 
   return (
     <div ref={formRef} className={`relative p-[30px] ${hoverCardClass}`}>
-      <EditCloseButton onClick={onClose} />
+      {allowDismiss ? <EditCloseButton onClick={onClose} /> : null}
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-5 sm:flex-row">
           <Field label="Item Name" className="sm:flex-[1.4]">
@@ -1398,14 +1401,20 @@ function LineItemForm({
         </label>
 
         <div className="mt-6 border-t border-dashed border-black/15 pt-6">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-sm font-semibold text-delete-red transition hover:opacity-80"
-            >
-              {isNew ? "Cancel" : "Delete"}
-            </button>
+          <div
+            className={`flex items-center ${
+              allowDismiss ? "justify-between" : "justify-end"
+            }`}
+          >
+            {allowDismiss ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="text-sm font-semibold text-delete-red transition hover:opacity-80"
+              >
+                {isNew ? "Cancel" : "Delete"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={handleSave}
@@ -1609,6 +1618,7 @@ export function LineItemsSection({
           onClose={closeEditor}
           recommendedTaxLabel={defaultTaxLabel}
           recommendedTaxNote={recommendedTaxNote}
+          allowDismiss={items.length > 0}
         />
       ) : null}
 

@@ -7,15 +7,14 @@ import {
   SendMethodAccordion,
   useSendMethodSelection,
 } from "./SendMethodAccordion";
+import { InvoiceNotificationPreview } from "./NotificationMessagePreview";
 import { Modal } from "./ui";
 
-const SENDER_NAME = "Meganne";
 const COMPANY_NAME = draftInvoice.business.name;
 
 const DEMO_DESTINATIONS = {
   email: draftInvoice.customer.email,
   phone: draftInvoice.customer.phone,
-  link: "https://pay.atb.com/invoice/3001",
 };
 
 export function SendReminderModal({
@@ -99,10 +98,13 @@ export function SendReminderModal({
                 available: emailAvailable,
                 children: (
                   <MessagePreview>
-                    Hello {customerName}, this is a friendly reminder that
-                    invoice {invoiceNumber} from {SENDER_NAME} at {COMPANY_NAME}{" "}
-                    for {formatMoney(balance)} was due {dueDate}. Click this
-                    link to view and pay your invoice: {DEMO_DESTINATIONS.link}
+                    <InvoiceNotificationPreview
+                      customerName={customerName}
+                      companyName={COMPANY_NAME}
+                      invoiceNumber={invoiceNumber}
+                      amount={balance}
+                      dueDate={dueDate}
+                    />
                   </MessagePreview>
                 ),
               },
@@ -115,9 +117,13 @@ export function SendReminderModal({
                 available: textAvailable,
                 children: (
                   <MessagePreview>
-                    Reminder from {SENDER_NAME} at {COMPANY_NAME}: invoice{" "}
-                    {invoiceNumber} ({formatMoney(balance)}) was due {dueDate}.
-                    Pay here: {DEMO_DESTINATIONS.link}
+                    <InvoiceNotificationPreview
+                      customerName={customerName}
+                      companyName={COMPANY_NAME}
+                      invoiceNumber={invoiceNumber}
+                      amount={balance}
+                      dueDate={dueDate}
+                    />
                   </MessagePreview>
                 ),
               },

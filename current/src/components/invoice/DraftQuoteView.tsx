@@ -42,15 +42,16 @@ import {
   DocumentAutomationsSection,
   type DocumentAutomationsState,
 } from "./DocumentAutomationsSection";
+import {
+  defaultAutomationsFromCascade,
+  loadOrInitDocumentAutomations,
+  persistDocumentAutomations,
+} from "@/lib/document-automations";
 
-function automationsFromCascade(): DocumentAutomationsState {
-  const cascade = getCustomerCascadeDefaults();
-  return {
-    autoSend: cascade.autoSend,
-    reminders: cascade.reminders,
-    reminderDays: cascade.reminderDays,
-    reminderChannel: cascade.reminders ? "email" : null,
-  };
+function automationsFromCascade(
+  customerId?: string | null,
+): DocumentAutomationsState {
+  return defaultAutomationsFromCascade(customerId);
 }
 
 function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
@@ -107,7 +108,7 @@ export function DraftQuoteView() {
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
   const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
-    automationsFromCascade(),
+    loadOrInitDocumentAutomations("quote"),
   );
 
   useEffect(() => {
@@ -130,7 +131,12 @@ export function DraftQuoteView() {
       setDetails(next);
       persistQuoteDetails(next);
       rememberDocumentNumber("quote", next.invoiceNumber);
-      setAutomations(automationsFromCascade());
+      setAutomations(
+        loadOrInitDocumentAutomations(
+          "quote",
+          defaultDraftCustomer?.id ?? null,
+        ),
+      );
       const taxRec = getCustomerTaxRecommendation(
         defaultDraftCustomer?.id ?? null,
       );
@@ -149,7 +155,9 @@ export function DraftQuoteView() {
     const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
     setDefaultTaxLabel(taxRec?.label ?? "");
     setRecommendedTaxNote(taxRec?.note ?? "");
-    setAutomations(automationsFromCascade());
+    const nextAutomations = automationsFromCascade(customer?.id ?? null);
+    setAutomations(nextAutomations);
+    persistDocumentAutomations("quote", nextAutomations);
     if (!customer) return;
     const cascade = getCustomerCascadeDefaults();
     const expiryDays = Number(cascade.quoteExpiryDays) || 45;
@@ -161,6 +169,11 @@ export function DraftQuoteView() {
       dueDate: normalizeDueDateOption(cascade.paymentTerms),
       validUntil: addDaysToIso(quoteDate, expiryDays),
     });
+  }
+
+  function updateAutomations(next: DocumentAutomationsState) {
+    setAutomations(next);
+    persistDocumentAutomations("quote", next);
   }
 
   const { handleAction, feedbackBanner, confirmModal, downloadModal } =
@@ -222,20 +235,6 @@ export function DraftQuoteView() {
               />
             </SectionCard>
 
-            <PaymentOptionsSection
-              payments={payments}
-              onToggle={togglePayment}
-              onChange={updatePayments}
-            />
-
-            <SectionCard title="Automations" className="gap-2.5">
-              <DocumentAutomationsSection
-                value={automations}
-                onChange={setAutomations}
-                documentKind="quote"
-              />
-            </SectionCard>
-
             <SectionCard title="Note to Customer" className="gap-2.5">
               <CustomerNotesSection documentKind="quote" />
             </SectionCard>
@@ -249,6 +248,19 @@ export function DraftQuoteView() {
                 onChange={updateDetails}
               />
             </SectionCard>
+
+            <PaymentOptionsSection
+              payments={payments}
+              onToggle={togglePayment}
+              onChange={updatePayments}
+              compact
+            />
+
+            <DocumentAutomationsSection
+              value={automations}
+              onChange={updateAutomations}
+              documentKind="quote"
+            />
 
             <SectionCard title="Note to Self" className="gap-2.5">
               <NoteToSelfSection />

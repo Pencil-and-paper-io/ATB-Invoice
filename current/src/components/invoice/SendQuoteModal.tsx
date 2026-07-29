@@ -9,9 +9,9 @@ import {
   SendMethodAccordion,
   useSendMethodSelection,
 } from "./SendMethodAccordion";
+import { QuoteNotificationPreview } from "./NotificationMessagePreview";
 import { Modal } from "./ui";
 
-const SENDER_NAME = "Meganne";
 const COMPANY_NAME = draftInvoice.business.name;
 
 const DEMO_DESTINATIONS = {
@@ -137,9 +137,11 @@ export function SendQuoteModal({
                 available: emailAvailable,
                 children: (
                   <MessagePreview>
-                    Hello {contactName}, you are receiving a quote from{" "}
-                    {SENDER_NAME} at {COMPANY_NAME}, valid until {validUntil}.
-                    Click this link to view your quote.
+                    <QuoteNotificationPreview
+                      customerName={contactName}
+                      companyName={COMPANY_NAME}
+                      validUntil={validUntil}
+                    />
                   </MessagePreview>
                 ),
               },
@@ -152,8 +154,11 @@ export function SendQuoteModal({
                 available: textAvailable,
                 children: (
                   <MessagePreview>
-                    {SENDER_NAME} from {COMPANY_NAME} has sent you a quote,
-                    valid until {validUntil}. View it at this link.
+                    <QuoteNotificationPreview
+                      customerName={contactName}
+                      companyName={COMPANY_NAME}
+                      validUntil={validUntil}
+                    />
                   </MessagePreview>
                 ),
               },

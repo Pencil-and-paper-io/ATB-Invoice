@@ -22,6 +22,7 @@ import {
   paymentRequestSubtitle,
 } from "./DepositAccountConnect";
 import { GstHstNumberField } from "./GstHstNumberField";
+import { ReminderDeliveryControls } from "./ReminderDeliveryControls";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 import { EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
@@ -1772,8 +1773,10 @@ export function OrganizationSettingsView() {
                   onSave={saveSection}
                 >
                   <p className="type-body-muted">
-                    You can customize these on individual customers, quotes,
-                    and invoices later.
+                    Auto-reminders are off by default. Turn them on to send a
+                    reminder a set number of days before a quote expires or an
+                    invoice is due. You can still override this per customer or
+                    on each quote/invoice.
                   </p>
                   <div className="flex flex-col gap-3">
                     <CheckboxRow
@@ -1786,29 +1789,28 @@ export function OrganizationSettingsView() {
                     <CheckboxRow
                       checked={draft.reminders}
                       onChange={(checked) =>
-                        patchDraft({ reminders: checked })
+                        patchDraft({
+                          reminders: checked,
+                          reminderChannel: checked
+                            ? draft.reminderChannel ?? "email"
+                            : null,
+                        })
                       }
-                      label={`${FIELD.reminders}: Send quote and invoice reminders before expiry or due date.`}
+                      label={`${FIELD.reminders}: Automatically email or text a reminder a set number of days before due/expiry.`}
                     >
-                      <div className="relative max-w-[220px]">
-                        <input
-                          inputMode="numeric"
-                          className={`${inputClass} pr-24`}
-                          value={draft.reminderDays}
-                          onChange={(event) =>
-                            patchDraft({
-                              reminderDays: event.target.value.replace(
-                                /[^\d]/g,
-                                "",
-                              ),
-                            })
-                          }
-                          aria-label="Reminder days"
-                        />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
-                          days before
-                        </span>
-                      </div>
+                      <ReminderDeliveryControls
+                        reminderDays={draft.reminderDays}
+                        reminderChannel={draft.reminderChannel}
+                        onDaysChange={(reminderDays) =>
+                          patchDraft({ reminderDays })
+                        }
+                        onChannelChange={(reminderChannel) =>
+                          patchDraft({ reminderChannel })
+                        }
+                        previewKind="either"
+                        daysSuffix="days before due/expiry"
+                        daysAriaLabel="Number of days before due date"
+                      />
                     </CheckboxRow>
                   </div>
                 </SectionEditor>
@@ -1827,7 +1829,11 @@ export function OrganizationSettingsView() {
                       value={
                         saved.reminders ? (
                           saved.reminderDays.trim() ? (
-                            `On · ${saved.reminderDays} days before`
+                            `On · ${saved.reminderDays} days before · ${
+                              saved.reminderChannel === "text"
+                                ? "Text"
+                                : "Email"
+                            }`
                           ) : (
                             <>
                               On · <EmptyValue />

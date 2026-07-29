@@ -10,6 +10,10 @@ const STORAGE_KEY = "atb-customer-profile-settings";
 export type CustomerProfileSettings = {
   taxStatus: "Taxable" | "Tax-exempt";
   taxSuggestions: TaxSuggestions;
+  /** When set, overrides org automation defaults for this customer. */
+  autoSend?: boolean;
+  reminders?: boolean;
+  reminderDays?: string;
 };
 
 function canUseStorage() {
@@ -56,6 +60,15 @@ export function loadCustomerProfileSettings(
     return {
       taxStatus: entry.taxStatus === "Tax-exempt" ? "Tax-exempt" : "Taxable",
       taxSuggestions: normalizeSuggestions(entry.taxSuggestions),
+      ...(typeof entry.autoSend === "boolean"
+        ? { autoSend: entry.autoSend }
+        : {}),
+      ...(typeof entry.reminders === "boolean"
+        ? { reminders: entry.reminders }
+        : {}),
+      ...(typeof entry.reminderDays === "string"
+        ? { reminderDays: entry.reminderDays }
+        : {}),
     };
   } catch {
     return null;
@@ -75,6 +88,15 @@ export function saveCustomerProfileSettings(
     parsed[customerId] = {
       taxStatus: settings.taxStatus,
       taxSuggestions: normalizeSuggestions(settings.taxSuggestions),
+      ...(typeof settings.autoSend === "boolean"
+        ? { autoSend: settings.autoSend }
+        : {}),
+      ...(typeof settings.reminders === "boolean"
+        ? { reminders: settings.reminders }
+        : {}),
+      ...(typeof settings.reminderDays === "string"
+        ? { reminderDays: settings.reminderDays }
+        : {}),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
   } catch {

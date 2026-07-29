@@ -21,6 +21,7 @@ import { ModeBackButton } from "./ModeBackButton";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
 import { RecordPaymentModal } from "./RecordPaymentModal";
+import { ScheduledReminderPanel } from "./ScheduledReminderPanel";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 
@@ -33,6 +34,17 @@ const VARIANT_STATUS: Record<SentViewVariant, InvoiceStatus> = {
   overdue_90: "overdue_over_90",
   void: "void",
   uncollectible: "uncollectible",
+};
+
+const SHOW_SCHEDULED_REMINDER: Record<SentViewVariant, boolean> = {
+  sent: true,
+  viewed: true,
+  paid: false,
+  partially_paid: true,
+  overdue: true,
+  overdue_90: true,
+  void: false,
+  uncollectible: false,
 };
 
 function ActivityTimeline({
@@ -88,6 +100,7 @@ export function SentInvoiceView({
     variant === "partially_paid"
       ? Math.max(0, Number((previewMeta.amount - 1500).toFixed(2)))
       : previewMeta.amount;
+  const dueAnchor = previewMeta.dueDate.replace(/^Due\s+/i, "");
 
   useEffect(() => {
     setActivity(mergeInvoiceActivity(meta.activity));
@@ -157,6 +170,17 @@ export function SentInvoiceView({
                 </span>
               </div>
             </section>
+
+            {SHOW_SCHEDULED_REMINDER[variant] ? (
+              <ScheduledReminderPanel
+                documentKind="invoice"
+                anchorLabel={dueAnchor}
+                customerId="acme"
+                onActivityChange={() =>
+                  setActivity(mergeInvoiceActivity(meta.activity))
+                }
+              />
+            ) : null}
 
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>

@@ -8,9 +8,9 @@ import {
   SendMethodAccordion,
   useSendMethodSelection,
 } from "./SendMethodAccordion";
+import { InvoiceNotificationPreview } from "./NotificationMessagePreview";
 import { Modal } from "./ui";
 
-const SENDER_NAME = "Meganne";
 const COMPANY_NAME = draftInvoice.business.name;
 
 const DEMO_DESTINATIONS = {
@@ -135,9 +135,11 @@ export function SendInvoiceModal({
                 available: emailAvailable,
                 children: (
                   <MessagePreview>
-                    Hello {contactName}, you are receiving an invoice from{" "}
-                    {SENDER_NAME} at {COMPANY_NAME}, due {dueDate}. Click this
-                    link to view your invoice.
+                    <InvoiceNotificationPreview
+                      customerName={contactName}
+                      companyName={COMPANY_NAME}
+                      dueDate={dueDate}
+                    />
                   </MessagePreview>
                 ),
               },
@@ -150,8 +152,11 @@ export function SendInvoiceModal({
                 available: textAvailable,
                 children: (
                   <MessagePreview>
-                    {SENDER_NAME} from {COMPANY_NAME} has sent you an invoice,
-                    due {dueDate}. View it at this link.
+                    <InvoiceNotificationPreview
+                      customerName={contactName}
+                      companyName={COMPANY_NAME}
+                      dueDate={dueDate}
+                    />
                   </MessagePreview>
                 ),
               },

@@ -668,6 +668,7 @@ function formFromCustomerId(id: string | null): CustomerFormState {
   const postalCode = postalRest.join(" ");
   const profile = loadCustomerProfileSettings(id);
   const taxCascade = suggestCustomerTaxCascade(province);
+  const cascade = getCustomerCascadeDefaults();
 
   return {
     ...base,
@@ -683,6 +684,9 @@ function formFromCustomerId(id: string | null): CustomerFormState {
     taxSuggestions: profile?.taxSuggestions
       ? { ...profile.taxSuggestions }
       : { ...taxCascade.suggestions },
+    autoSend: profile?.autoSend ?? cascade.autoSend,
+    reminders: profile?.reminders ?? cascade.reminders,
+    reminderDays: profile?.reminderDays?.trim() || cascade.reminderDays,
     tags: [...customer.tags],
     // Demo: show compact identity strip with alternate contact when present.
     ...(id === "acme"
@@ -782,10 +786,18 @@ function CustomerFormInner() {
     const section = editing;
     setSaved(draft);
     setEditing(null);
-    if (customerId && (section === "settings" || section === "tax")) {
+    if (
+      customerId &&
+      (section === "settings" ||
+        section === "tax" ||
+        section === "automations")
+    ) {
       saveCustomerProfileSettings(customerId, {
         taxStatus: draft.taxStatus,
         taxSuggestions: draft.taxSuggestions,
+        autoSend: draft.autoSend,
+        reminders: draft.reminders,
+        reminderDays: draft.reminderDays,
       });
     }
   }
@@ -1467,8 +1479,9 @@ function CustomerFormInner() {
                 onSave={saveSection}
               >
                 <p className="type-body-muted">
-                  Optional helpers that save time. You can turn them off on any
-                  single quote or invoice later.
+                  Overrides organization defaults for this customer&apos;s new
+                  quotes and invoices. You can still change reminders on each
+                  document.
                 </p>
                 <div className="flex flex-col gap-3">
                   <CheckboxRow

@@ -173,9 +173,9 @@ export function MessagePreview({ children }: { children: React.ReactNode }) {
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-black/45">
         Preview
       </p>
-      <p className="rounded-lg bg-black/[0.03] px-3.5 py-3 text-sm leading-6 text-black/80">
+      <div className="rounded-lg bg-black/[0.03] px-3.5 py-3 text-sm leading-6 text-black/80">
         {children}
-      </p>
+      </div>
     </div>
   );
 }

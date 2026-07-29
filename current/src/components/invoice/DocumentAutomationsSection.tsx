@@ -1,12 +1,12 @@
 "use client";
 
-import { draftInvoice, formatMoney, previewMeta } from "@/lib/invoice-demo-data";
-import { UI_CLASS } from "@/lib/design-tokens";
+import { useState } from "react";
+import { channelLabel } from "@/lib/document-automations";
 import {
-  MessagePreview,
-  SendMethodAccordion,
-  type SendAccordionMethod,
-} from "./SendMethodAccordion";
+  ReminderDeliveryControls,
+  type ReminderPreviewKind,
+} from "./ReminderDeliveryControls";
+import { Modal, PencilIcon, SectionCard } from "./ui";
 
 export type ReminderChannel = "email" | "text";
 
@@ -17,15 +17,19 @@ export type DocumentAutomationsState = {
   reminderChannel: ReminderChannel | null;
 };
 
-const inputClass = UI_CLASS.input;
-
-const SENDER_NAME = "Meganne";
-const COMPANY_NAME = draftInvoice.business.name;
-const DEMO_DESTINATIONS = {
-  email: draftInvoice.customer.email,
-  phone: draftInvoice.customer.phone,
-  link: "https://pay.atb.com/invoice/3001",
-};
+function DefaultCheckIcon() {
+  return (
+    <svg width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden>
+      <path
+        d="M1 5.2 4.8 8.8 13 1.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function CheckboxRow({
   checked,
@@ -49,47 +53,30 @@ function CheckboxRow({
         />
         <span>{label}</span>
       </label>
-      {checked && children ? (
-        <div className="pl-6">{children}</div>
-      ) : null}
+      {checked && children ? <div className="pl-6">{children}</div> : null}
     </div>
   );
 }
 
-/** Per-document automation overrides (cascaded from org / customer defaults). */
-export function DocumentAutomationsSection({
+function AutomationsEditor({
   value,
   onChange,
-  documentKind = "invoice",
+  documentKind,
 }: {
   value: DocumentAutomationsState;
   onChange: (next: DocumentAutomationsState) => void;
-  documentKind?: "invoice" | "quote";
+  documentKind: "invoice" | "quote";
 }) {
   const isInvoice = documentKind === "invoice";
-  const emailAvailable = Boolean(DEMO_DESTINATIONS.email);
-  const textAvailable = Boolean(DEMO_DESTINATIONS.phone);
-  const customerName = draftInvoice.customer.name;
-  const documentLabel = isInvoice ? "invoice" : "quote";
-  const documentNumber = isInvoice
-    ? previewMeta.invoiceNumber
-    : "QTE - 1001";
-  const duePhrase = isInvoice
-    ? `due ${previewMeta.dueDate.replace(/^Due /, "")}`
-    : `expires ${previewMeta.dueDate.replace(/^Due /, "")}`;
-  const amount = formatMoney(previewMeta.amount);
-
-  function selectReminderChannel(method: SendAccordionMethod) {
-    if (method !== "email" && method !== "text") return;
-    onChange({ ...value, reminderChannel: method });
-  }
+  const previewKind: ReminderPreviewKind = isInvoice ? "invoice" : "quote";
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="type-body-muted">
-        Starts from this customer&apos;s defaults. Change them only for this{" "}
-        {documentKind}.
+    <div className="flex flex-col">
+      <p className="mb-8 text-center type-headline-6 text-black">
+        Starts from organization and customer defaults (reminders are off unless
+        you turned them on). Change them only for this {documentKind}.
       </p>
+      <div className="flex flex-col gap-3">
       {isInvoice ? (
         <CheckboxRow
           checked={value.autoSend}
@@ -114,74 +101,109 @@ export function DocumentAutomationsSection({
             : "Reminders: Send a reminder before this quote expires."
         }
       >
-        <div className="flex flex-col gap-4">
-          <div className="relative max-w-[220px]">
-            <input
-              inputMode="numeric"
-              className={`${inputClass} pr-24`}
-              value={value.reminderDays}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  reminderDays: event.target.value.replace(/[^\d]/g, ""),
-                })
-              }
-              aria-label="Reminder days before"
-            />
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-black/45">
-              days before
-            </span>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-black">
-              How should the reminder be sent?
-            </p>
-            <p className="mt-1 text-xs text-black/50">
-              Choose one option and preview the message.
-            </p>
-            <div className="mt-3">
-              <SendMethodAccordion
-                selected={value.reminderChannel}
-                onSelect={selectReminderChannel}
-                sections={[
-                  {
-                    method: "email",
-                    title: "Email",
-                    summary: emailAvailable
-                      ? `Send to ${DEMO_DESTINATIONS.email}`
-                      : "No email on file — add one on the customer page",
-                    available: emailAvailable,
-                    children: (
-                      <MessagePreview>
-                        Hello {customerName}, this is a friendly reminder that{" "}
-                        {documentLabel} {documentNumber} from {SENDER_NAME} at{" "}
-                        {COMPANY_NAME} for {amount} is {duePhrase}. View it
-                        here: {DEMO_DESTINATIONS.link}
-                      </MessagePreview>
-                    ),
-                  },
-                  {
-                    method: "text",
-                    title: "Text message",
-                    summary: textAvailable
-                      ? `Send to ${DEMO_DESTINATIONS.phone}`
-                      : "No phone on file — add one on the customer page",
-                    available: textAvailable,
-                    children: (
-                      <MessagePreview>
-                        Reminder from {SENDER_NAME} at {COMPANY_NAME}:{" "}
-                        {documentLabel} {documentNumber} ({amount}) is{" "}
-                        {duePhrase}. Open: {DEMO_DESTINATIONS.link}
-                      </MessagePreview>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
+        <ReminderDeliveryControls
+          reminderDays={value.reminderDays}
+          reminderChannel={value.reminderChannel}
+          onDaysChange={(reminderDays) => onChange({ ...value, reminderDays })}
+          onChannelChange={(reminderChannel) =>
+            onChange({ ...value, reminderChannel })
+          }
+          previewKind={previewKind}
+        />
       </CheckboxRow>
+      </div>
     </div>
+  );
+}
+
+/** Per-document automation overrides — summary + edit modal (same pattern as payments). */
+export function DocumentAutomationsSection({
+  value,
+  onChange,
+  documentKind = "invoice",
+}: {
+  value: DocumentAutomationsState;
+  onChange: (next: DocumentAutomationsState) => void;
+  documentKind?: "invoice" | "quote";
+}) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const isInvoice = documentKind === "invoice";
+
+  const summaryItems: { id: string; label: string }[] = [];
+  if (isInvoice && value.autoSend) {
+    summaryItems.push({
+      id: "auto-send",
+      label: "Auto-send on issuance date",
+    });
+  }
+  if (value.reminders) {
+    const days = value.reminderDays.trim() || "3";
+    const channel = channelLabel(value.reminderChannel);
+    summaryItems.push({
+      id: "reminders",
+      label: `Reminders · ${days} days before · ${channel}`,
+    });
+  }
+
+  function openEdit() {
+    setDraft(value);
+    setEditOpen(true);
+  }
+
+  function saveEdit() {
+    onChange(draft);
+    setEditOpen(false);
+  }
+
+  return (
+    <SectionCard title="Automations" className="gap-2.5">
+      <div className="flex flex-col">
+        {summaryItems.length === 0 ? (
+          <p className="type-body-muted py-1">No automations enabled.</p>
+        ) : (
+          summaryItems.map((item) => (
+            <div key={item.id} className="flex items-start gap-2 py-2.5">
+              <span
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-prime-blue"
+                aria-hidden
+              >
+                <DefaultCheckIcon />
+              </span>
+              <p className="min-w-0 flex-1 type-subtitle-1 text-black">
+                {item.label}
+              </p>
+            </div>
+          ))
+        )}
+
+        <button
+          type="button"
+          onClick={openEdit}
+          className="mt-1 inline-flex items-center gap-2.5 self-start type-button text-midnight-ink transition hover:text-prime-blue"
+        >
+          <PencilIcon className="h-4 w-4" />
+          Edit automations
+        </button>
+      </div>
+
+      {editOpen ? (
+        <Modal
+          title="Edit Automations"
+          titleId="edit-document-automations-title"
+          onClose={() => setEditOpen(false)}
+          confirmLabel="Save"
+          onConfirm={saveEdit}
+          maxWidthClass="max-w-3xl"
+          zClass="z-[220]"
+        >
+          <AutomationsEditor
+            value={draft}
+            onChange={setDraft}
+            documentKind={documentKind}
+          />
+        </Modal>
+      ) : null}
+    </SectionCard>
   );
 }

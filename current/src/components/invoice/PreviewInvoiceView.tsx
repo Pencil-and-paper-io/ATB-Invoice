@@ -6,6 +6,7 @@ import { getActionsForStatus } from "@/lib/invoice-actions";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
+import { PreviewInvoiceActivity } from "./PreviewInvoiceActivity";
 import { SendInvoiceModal } from "./SendInvoiceModal";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
@@ -87,15 +88,7 @@ export function PreviewInvoiceView() {
 
             <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
               <h2 className="text-base font-semibold text-black">Activity</h2>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-5">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-midnight-ink" />
-                  <span className="text-sm text-black">July 3, 7:01pm</span>
-                </div>
-                <p className="pl-[26px] text-sm text-[#666666]">
-                  Invoice was created for $353.00
-                </p>
-              </div>
+              <PreviewInvoiceActivity />
             </section>
 
             <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">

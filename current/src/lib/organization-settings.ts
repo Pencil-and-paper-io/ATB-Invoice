@@ -137,6 +137,8 @@ export type OrganizationSettings = {
   autoSend: boolean;
   reminders: boolean;
   reminderDays: string;
+  /** Preferred channel when reminders are on. */
+  reminderChannel: "email" | "text" | null;
   receipts: boolean;
   quoteStartNumber: string;
   invoiceStartNumber: string;
@@ -177,6 +179,7 @@ export const DEFAULT_ORGANIZATION_SETTINGS: OrganizationSettings = {
   autoSend: false,
   reminders: false,
   reminderDays: "3",
+  reminderChannel: null,
   receipts: false,
   quoteStartNumber: "QT-1001",
   invoiceStartNumber: "INV-1001",
@@ -350,6 +353,10 @@ export function loadOrganizationSettings(): OrganizationSettings {
       gstRegistrationStatus,
       taxStatus:
         gstRegistrationStatus === "small_supplier" ? "Tax-exempt" : parsed.taxStatus ?? DEFAULT_ORGANIZATION_SETTINGS.taxStatus,
+      reminderChannel: normalizeReminderChannel(
+        parsed.reminderChannel,
+        Boolean(parsed.reminders),
+      ),
     };
   } catch {
     return {
@@ -360,6 +367,15 @@ export function loadOrganizationSettings(): OrganizationSettings {
       ],
     };
   }
+}
+
+function normalizeReminderChannel(
+  value: unknown,
+  remindersEnabled: boolean,
+): "email" | "text" | null {
+  if (!remindersEnabled) return null;
+  if (value === "text" || value === "email") return value;
+  return "email";
 }
 
 function normalizeGstRegistrationStatus(
@@ -422,6 +438,7 @@ export function getCustomerCascadeDefaults(
     autoSend: settings.autoSend,
     reminders: settings.reminders,
     reminderDays: settings.reminderDays,
+    reminderChannel: settings.reminderChannel,
     receipts: settings.receipts,
   };
 }
