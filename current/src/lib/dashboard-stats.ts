@@ -38,16 +38,7 @@ function daysBetween(start: Date, end: Date) {
 /** Demo GST estimate when per-invoice tax isn’t stored on directory rows. */
 const DEMO_GST_RATE = 0.05;
 
-export type DashboardStatCard = {
-  id: string;
-  label: string;
-  amount: string;
-  countLabel: string;
-  tone: "neutral" | "warning" | "success";
-  href: string;
-};
-
-export type NeedsAttentionItem = {
+export type OverduePreviewItem = {
   id: string;
   number: string;
   customer: string;
@@ -55,6 +46,24 @@ export type NeedsAttentionItem = {
   status: string;
   lateness: string;
   href: string;
+};
+
+export type DashboardOverdueSummary = {
+  amount: string;
+  outstandingAmount: string;
+  count: number;
+  viewAllHref: string;
+  items: OverduePreviewItem[];
+};
+
+export type DashboardMetricCard = {
+  id: string;
+  label: string;
+  value: string;
+  hint: string;
+  tooltip?: string;
+  tone: "neutral" | "warning" | "success";
+  href?: string;
 };
 
 export type RecentInvoiceItem = {
@@ -70,18 +79,9 @@ export type RecentInvoiceItem = {
   href: string;
 };
 
-export type HowYoureDoingStat = {
-  id: string;
-  label: string;
-  value: string;
-  hint: string;
-  tooltip: string;
-};
-
 export type DashboardModel = {
-  stats: DashboardStatCard[];
-  needsAttention: NeedsAttentionItem[];
-  howYoureDoing: HowYoureDoingStat[];
+  overdue: DashboardOverdueSummary;
+  metrics: DashboardMetricCard[];
   recentInvoices: RecentInvoiceItem[];
 };
 
@@ -149,16 +149,8 @@ export function buildDashboardModel(
           }, 0) / paidForTiming.length,
         );
 
-  const needsAttention: NeedsAttentionItem[] = [...outstandingRows]
-    .filter(
-      (row) =>
-        isOverdueStatus(row.status) ||
-        row.status === "Partially Paid" ||
-        row.status === "Viewed" ||
-        row.status === "Sent",
-    )
+  const overdueItems: OverduePreviewItem[] = [...overdueRows]
     .sort((a, b) => daysPastDue(b, now) - daysPastDue(a, now))
-    .slice(0, 5)
     .map((row) => {
       const late = daysPastDue(row, now);
       return {
@@ -170,9 +162,7 @@ export function buildDashboardModel(
         lateness:
           late > 0
             ? `${late} day${late === 1 ? "" : "s"} late`
-            : row.status === "Partially Paid"
-              ? "Balance remaining"
-              : "Awaiting payment",
+            : "Past due",
         href: hrefForCustomerInvoice(row.status),
       };
     });
@@ -198,34 +188,22 @@ export function buildDashboardModel(
     }));
 
   return {
-    stats: [
-      {
-        id: "outstanding",
-        label: "Outstanding",
-        amount: formatMoney(outstandingAmount),
-        countLabel: `${outstandingRows.length} invoice${outstandingRows.length === 1 ? "" : "s"}`,
-        tone: "neutral",
-        href: "/invoices?status=Outstanding",
-      },
-      {
-        id: "overdue",
-        label: "Overdue",
-        amount: formatMoney(overdueAmount),
-        countLabel: `${overdueRows.length} invoice${overdueRows.length === 1 ? "" : "s"}`,
-        tone: "warning",
-        href: "/invoices?status=Overdue",
-      },
+    overdue: {
+      amount: formatMoney(overdueAmount),
+      outstandingAmount: formatMoney(outstandingAmount),
+      count: overdueRows.length,
+      viewAllHref: "/invoices?status=Outstanding",
+      items: overdueItems,
+    },
+    metrics: [
       {
         id: "paid-month",
         label: "Paid This Month",
-        amount: formatMoney(collectedThisMonth),
-        countLabel: `${collectedCount} payment${collectedCount === 1 ? "" : "s"}`,
+        value: formatMoney(collectedThisMonth),
+        hint: `${collectedCount} payment${collectedCount === 1 ? "" : "s"}`,
         tone: "success",
         href: "/invoices?status=Paid",
       },
-    ],
-    needsAttention,
-    howYoureDoing: [
       {
         id: "collection-rate",
         label: "Collection Rate",
@@ -233,6 +211,7 @@ export function buildDashboardModel(
         hint: "Collected vs invoiced",
         tooltip:
           "Amount collected (paid portions of invoices) divided by total invoiced, excluding drafts. Higher means more of what you billed has been collected.",
+        tone: "neutral",
       },
       {
         id: "gst-hst",
@@ -241,6 +220,7 @@ export function buildDashboardModel(
         hint: "On amounts collected",
         tooltip:
           "Estimated GST/HST included in payments you’ve collected. In this prototype it’s 5% of collected amounts; production would sum tax lines from paid and partially paid invoices.",
+        tone: "neutral",
       },
       {
         id: "overdue-rate",
@@ -249,14 +229,19 @@ export function buildDashboardModel(
         hint: "Of outstanding balance",
         tooltip:
           "Overdue outstanding balance divided by total outstanding balance. Counts only open invoices with a remaining balance (excludes paid, void, uncollectible, and drafts).",
+        tone: "warning",
       },
       {
         id: "avg-days",
         label: "Average Days To Payment",
         value: avgDaysToPayment == null ? "—" : `${avgDaysToPayment}`,
-        hint: avgDaysToPayment == null ? "No paid invoices yet" : "Days from issue to pay",
+        hint:
+          avgDaysToPayment == null
+            ? "No paid invoices yet"
+            : "Days from issue to pay",
         tooltip:
           "Average number of days from invoice issue date to payment date for fully paid invoices. Demo uses each paid invoice’s due date as the payment date when a separate payment date isn’t stored.",
+        tone: "neutral",
       },
       {
         id: "open-balance",
@@ -265,6 +250,8 @@ export function buildDashboardModel(
         hint: `${outstandingRows.length} open invoice${outstandingRows.length === 1 ? "" : "s"}`,
         tooltip:
           "Sum of remaining balances on open invoices (sent, viewed, partially paid, and overdue). Drafts, paid, void, and uncollectible invoices are excluded.",
+        tone: "neutral",
+        href: "/invoices?status=Outstanding",
       },
     ],
     recentInvoices,
