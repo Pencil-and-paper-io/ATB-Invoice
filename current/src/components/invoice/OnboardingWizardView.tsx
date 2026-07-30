@@ -218,8 +218,8 @@ function InfoFieldCard({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[5.5rem] flex-col justify-center rounded-[12px] bg-midnight-ink px-6 py-6">
-      <div className="mb-3 flex items-center gap-1.5">
+    <div className="flex min-h-[4.5rem] flex-col justify-center rounded-[12px] bg-midnight-ink px-4 py-4 sm:min-h-[5.5rem] sm:px-6 sm:py-6">
+      <div className="mb-2 flex items-center gap-1.5 sm:mb-3">
         <label htmlFor={htmlFor} className="type-headline-6 text-white">
           {label}
         </label>
@@ -259,14 +259,14 @@ function ChoiceCard({
           onChange();
         }
       }}
-      className={`flex h-full min-w-0 flex-1 cursor-pointer flex-col rounded-[12px] px-6 transition ${
-        checked && hasExpand ? "py-[30px]" : "py-8"
+      className={`flex h-full min-w-0 flex-1 cursor-pointer flex-col rounded-[12px] px-4 transition sm:px-6 ${
+        checked && hasExpand ? "py-5 sm:py-[30px]" : "py-4 sm:py-8"
       } ${
         checked ? "bg-midnight-ink" : "bg-page-grey hover:bg-black/[0.06]"
       }`}
     >
       <div className="flex min-h-0 flex-1 items-center">
-        <div className="flex w-full items-center gap-4 text-left">
+        <div className="flex w-full items-center gap-3 text-left sm:gap-4">
           <input
             type="radio"
             name={name}
@@ -593,6 +593,7 @@ export function OnboardingWizardView() {
   const [state, setState] = useState<WizardState>(() =>
     settingsToWizard(loadOrganizationSettings()),
   );
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -610,6 +611,39 @@ export function OnboardingWizardView() {
       setHydrated(true);
     }, 0);
   }, [startWizard]);
+
+  useEffect(() => {
+    if (phase !== "wizard" || finishing) return;
+    const overlay = overlayRef.current;
+    const vv = window.visualViewport;
+    if (!overlay || !vv) return;
+
+    const desktopMq = window.matchMedia("(min-width: 640px)");
+
+    function syncToVisualViewport() {
+      if (!overlay || !vv) return;
+      if (desktopMq.matches) {
+        overlay.style.top = "";
+        overlay.style.height = "";
+        return;
+      }
+      // Keep the sheet in the visible viewport so the footer stays above the keyboard.
+      overlay.style.top = `${vv.offsetTop}px`;
+      overlay.style.height = `${vv.height}px`;
+    }
+
+    syncToVisualViewport();
+    vv.addEventListener("resize", syncToVisualViewport);
+    vv.addEventListener("scroll", syncToVisualViewport);
+    desktopMq.addEventListener("change", syncToVisualViewport);
+    return () => {
+      vv.removeEventListener("resize", syncToVisualViewport);
+      vv.removeEventListener("scroll", syncToVisualViewport);
+      desktopMq.removeEventListener("change", syncToVisualViewport);
+      overlay.style.top = "";
+      overlay.style.height = "";
+    };
+  }, [phase, finishing]);
 
   useEffect(() => {
     if (phase !== "wizard" || finishing) return;
@@ -804,7 +838,8 @@ export function OnboardingWizardView() {
     <>
       {dashboardShell}
       <div
-        className="fixed inset-0 z-[180] flex flex-col items-center justify-center gap-5 bg-black/35 px-4 py-6"
+        ref={overlayRef}
+        className="fixed inset-x-0 top-0 z-[180] flex h-[100dvh] flex-col bg-white sm:inset-0 sm:h-auto sm:items-center sm:justify-center sm:gap-5 sm:bg-black/35 sm:px-4 sm:py-6"
         role="presentation"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
@@ -816,15 +851,15 @@ export function OnboardingWizardView() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="onboarding-title"
-          className="relative flex h-[min(760px,88vh)] w-full max-w-[960px] flex-col overflow-hidden rounded-xl border border-black/15 bg-white shadow-2xl"
+          className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-white sm:h-[min(760px,88vh)] sm:max-w-[960px] sm:flex-none sm:rounded-xl sm:border sm:border-black/15 sm:shadow-2xl"
         >
           <EditCloseButton
             onClick={() => closeFlow({ saveWizard: true })}
-            className="absolute right-5 top-5 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70"
+            className="absolute right-4 top-4 z-10 rounded p-1 text-black/40 transition hover:bg-black/5 hover:text-black/70 sm:right-5 sm:top-5"
           />
           <div
-            className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-10 pb-8 pt-10 sm:px-16 sm:pt-12 ${
-              step < 4 ? "justify-center" : ""
+            className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5 pt-[max(2.5rem,10%)] sm:px-16 sm:pb-8 sm:pt-12 ${
+              step < 4 ? "sm:justify-center" : ""
             }`}
           >
             <div className="flex w-full shrink-0 flex-col items-center text-center">
@@ -832,23 +867,28 @@ export function OnboardingWizardView() {
               <img
                 src={STEP_ICONS[step]}
                 alt=""
-                className="mb-8 h-14 w-14 object-contain sm:mb-10 sm:h-16 sm:w-16"
+                className="mb-4 h-10 w-10 object-contain sm:mb-10 sm:h-16 sm:w-16"
               />
-              <h3
-                id="onboarding-title"
-                className="type-headline-3 text-black"
-              >
-                {heading.title}
+              <h3 id="onboarding-title" className="text-black">
+                <span className="type-headline-4 sm:hidden">{heading.title}</span>
+                <span className="type-headline-3 hidden sm:inline">
+                  {heading.title}
+                </span>
               </h3>
               {heading.subtitle ? (
-                <p className="type-headline-4 mt-4 max-w-xl text-black">
-                  {heading.subtitle}
+                <p className="mt-2 max-w-xl text-black sm:mt-4">
+                  <span className="type-headline-5 sm:hidden">
+                    {heading.subtitle}
+                  </span>
+                  <span className="type-headline-4 hidden sm:inline">
+                    {heading.subtitle}
+                  </span>
                 </p>
               ) : null}
             </div>
 
             <div
-              className={`mx-auto mt-10 flex w-full flex-col gap-6 ${
+              className={`mx-auto mt-6 flex w-full flex-col gap-6 sm:mt-10 ${
                 step === 0
                   ? "max-w-[504px]"
                   : step < 4
@@ -892,12 +932,12 @@ export function OnboardingWizardView() {
             ) : null}
 
             {step === 1 ? (
-              <div className="flex flex-col gap-10">
-                <p className="mx-auto w-fit rounded-[10px] bg-page-grey px-6 py-5 text-center type-headline-6 text-black">
+              <div className="flex flex-col gap-6 sm:gap-10">
+                <p className="mx-auto w-fit rounded-[10px] bg-page-grey px-4 py-3 text-center type-headline-6 text-black sm:px-6 sm:py-5">
                   {state.craFoundName || "—"}
                 </p>
                 <div
-                  className="flex items-stretch gap-4"
+                  className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4"
                   role="radiogroup"
                   aria-label="CRA-registered legal name"
                 >
@@ -938,7 +978,7 @@ export function OnboardingWizardView() {
 
             {step === 2 ? (
               <div
-                className="flex items-stretch gap-4"
+                className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4"
                 role="radiogroup"
                 aria-label="Display name"
               >
@@ -980,7 +1020,7 @@ export function OnboardingWizardView() {
             {step === 3 ? (
               <div className="flex flex-col gap-4">
                 <div
-                  className="flex items-stretch gap-4"
+                  className="flex flex-col items-stretch gap-3 sm:flex-row sm:gap-4"
                   role="radiogroup"
                   aria-label="GST/HST registration"
                 >
@@ -1232,7 +1272,15 @@ export function OnboardingWizardView() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/10 px-10 py-5 sm:px-16">
+          <div className="shrink-0 px-5 pb-2 pt-1 sm:hidden">
+            <DashedProgress
+              current={step}
+              total={SETUP_STEPS.length}
+              onDark={false}
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/10 px-5 py-3 sm:px-16 sm:py-5">
             <button
               type="button"
               onClick={() => closeFlow({ saveWizard: true })}
@@ -1262,7 +1310,7 @@ export function OnboardingWizardView() {
           </div>
         </div>
 
-        <div className="w-full max-w-[960px] px-2">
+        <div className="hidden w-full max-w-[960px] px-2 sm:block">
           <DashedProgress current={step} total={SETUP_STEPS.length} onDark />
         </div>
       </div>

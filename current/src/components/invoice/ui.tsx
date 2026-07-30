@@ -135,6 +135,7 @@ export function Modal({
   onConfirm,
   confirmDisabled = false,
   confirmDanger = false,
+  confirmDangerOutline = false,
   confirmChildren,
   footer,
   maxWidthClass = "max-w-md",
@@ -164,6 +165,8 @@ export function Modal({
   onConfirm?: () => void;
   confirmDisabled?: boolean;
   confirmDanger?: boolean;
+  /** Red outline + red text instead of filled danger confirm. */
+  confirmDangerOutline?: boolean;
   confirmChildren?: ReactNode;
   footer?: ReactNode;
   maxWidthClass?: string;
@@ -288,10 +291,12 @@ export function Modal({
                 type="button"
                 onClick={onConfirm}
                 disabled={confirmDisabled}
-                className={`inline-flex h-11 items-center justify-center gap-2 rounded px-5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  confirmDanger
-                    ? "bg-delete-red hover:opacity-90"
-                    : "bg-prime-blue hover:bg-prime-blue-hover"
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  confirmDangerOutline
+                    ? "border border-delete-red bg-white text-delete-red hover:bg-delete-red/5"
+                    : confirmDanger
+                      ? "bg-delete-red text-white hover:opacity-90"
+                      : "bg-prime-blue text-white hover:bg-prime-blue-hover"
                 }`}
               >
                 {confirmChildren ?? confirmLabel}

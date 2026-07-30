@@ -235,6 +235,56 @@ export function StatusToggleTabs({
 
 export type DirectoryViewMode = "list" | "card";
 
+/** Extra room required beyond the table’s min width before list view is allowed. */
+export const DIRECTORY_LIST_FIT_BUFFER_PX = 40;
+const DIRECTORY_ROW_CHECKBOX_PX = 40;
+const DIRECTORY_ROW_ACTIONS_PX = 44;
+const DIRECTORY_COLUMN_GAP_PX = 16;
+
+/** Preferred/min pixel width of a directory list table (checkbox + columns + kebab + gaps). */
+export function directoryTableMinWidthPx(columnWidthsPx: number[]) {
+  const trackCount = columnWidthsPx.length + 2;
+  const gapTotal = Math.max(0, trackCount - 1) * DIRECTORY_COLUMN_GAP_PX;
+  const columnsTotal = columnWidthsPx.reduce((sum, width) => sum + width, 0);
+  return (
+    DIRECTORY_ROW_CHECKBOX_PX +
+    DIRECTORY_ROW_ACTIONS_PX +
+    columnsTotal +
+    gapTotal
+  );
+}
+
+/**
+ * Force card view when the directory content area is less than
+ * tableMinWidth + 40px wide.
+ */
+export function useForceDirectoryCardView(
+  containerRef: RefObject<HTMLElement | null>,
+  tableMinWidthPx: number,
+) {
+  const [forceCard, setForceCard] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    function update(width: number) {
+      setForceCard(width < tableMinWidthPx + DIRECTORY_LIST_FIT_BUFFER_PX);
+    }
+
+    update(el.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      update(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [containerRef, tableMinWidthPx]);
+
+  return forceCard;
+}
+
 export function DirectoryViewToggle({
   value,
   onChange,
@@ -564,6 +614,14 @@ export function SortHeaderButton({
 
 export const DIRECTORY_HEADER_ROW =
   "border-b border-black/10 bg-[#FAFAFA] px-5 py-4 text-xs font-semibold text-black/55";
+
+/** Shared shell for directory / dashboard document cards. */
+export const DIRECTORY_CARD_CLASS =
+  "flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue";
+
+export const DIRECTORY_CARD_SELECTED_CLASS =
+  "flex h-full flex-col gap-3 rounded-[10px] border border-prime-blue bg-white p-5 ring-1 ring-prime-blue transition";
+
 
 /** Sticky under TopNav (60px). Use on invoice/quote directory tables. */
 export const DIRECTORY_HEADER_ROW_STICKY =

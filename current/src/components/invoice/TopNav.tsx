@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
 
@@ -45,9 +45,12 @@ const USER_DISPLAY_NAME = "meganne";
 export function TopNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const mobileNavId = useId();
   const menuId = useId();
   const notificationsId = useId();
 
@@ -57,115 +60,224 @@ export function TopNav() {
     () => setNotificationsOpen(false),
     notificationsOpen,
   );
+  useDismissOnOutsideClick(
+    headerRef,
+    () => setMobileNavOpen(false),
+    mobileNavOpen,
+  );
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen]);
+
+  function closeOverlays() {
+    setMenuOpen(false);
+    setNotificationsOpen(false);
+    setMobileNavOpen(false);
+  }
 
   return (
-    <header className="sticky top-0 z-40 flex h-[60px] items-center gap-8 bg-prime-blue pl-[30px] pr-6 text-white shadow-sm sm:gap-12 sm:pr-8">
-      <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
-        <Image
-          src="/brand/atb-logo.png"
-          alt="ATB"
-          width={52}
-          height={36}
-          className="h-9 w-auto"
-          priority
-        />
-        <span className="type-headline-5 text-white-snow">Invoicing</span>
-      </Link>
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 bg-prime-blue text-white shadow-sm"
+    >
+      <div className="flex h-[60px] items-center gap-3 pl-4 pr-4 sm:gap-4 sm:pl-[30px] sm:pr-6 md:gap-8 md:pr-8">
+        <Link
+          href="/dashboard"
+          className="flex shrink-0 items-center gap-2"
+          onClick={closeOverlays}
+        >
+          <Image
+            src="/brand/atb-logo.png"
+            alt="ATB"
+            width={52}
+            height={36}
+            className="h-9 w-auto"
+            priority
+          />
+          <span className="type-headline-5 text-white-snow">Invoicing</span>
+        </Link>
 
-      <nav
-        className="hidden h-full min-w-0 flex-1 items-stretch gap-8 overflow-x-auto md:flex"
-        aria-label="Primary"
-      >
-        {NAV_LINKS.map((link) => {
-          const active = link.match(pathname);
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`relative flex items-center type-subtitle-1 text-white transition hover:text-white/90 ${
-                active
-                  ? "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-white"
-                  : ""
-              }`}
-              aria-current={active ? "page" : undefined}
+        <nav
+          className="hidden h-full min-w-0 flex-1 items-stretch gap-8 overflow-x-auto md:flex"
+          aria-label="Primary"
+        >
+          {NAV_LINKS.map((link) => {
+            const active = link.match(pathname);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative flex items-center type-subtitle-1 text-white transition hover:text-white/90 ${
+                  active
+                    ? "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-white"
+                    : ""
+                }`}
+                aria-current={active ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <div ref={notificationsRef} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setNotificationsOpen((prev) => !prev);
+                setMenuOpen(false);
+                setMobileNavOpen(false);
+              }}
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10"
+              aria-label="Notifications"
+              aria-haspopup="dialog"
+              aria-expanded={notificationsOpen}
+              aria-controls={notificationsId}
             >
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
+              <BellIcon />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-sunshine-yellow ring-2 ring-prime-blue" />
+            </button>
+            {notificationsOpen ? (
+              <NotificationsPanel
+                panelId={notificationsId}
+                onClose={() => setNotificationsOpen(false)}
+              />
+            ) : null}
+          </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
-        <div ref={notificationsRef} className="relative">
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen((prev) => !prev);
+                setNotificationsOpen(false);
+                setMobileNavOpen(false);
+              }}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-white/15 px-2.5 text-white transition hover:bg-white/20 sm:px-3.5"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+            >
+              <UserIcon />
+              <span className="hidden type-subtitle-1 sm:inline">
+                {USER_DISPLAY_NAME}
+              </span>
+              <ChevronIcon open={menuOpen} />
+            </button>
+
+            {menuOpen ? (
+              <div
+                id={menuId}
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 min-w-[220px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
+              >
+                <Link
+                  href="/organization"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left type-subtitle-1 text-midnight-ink transition hover:bg-black/[0.04]"
+                >
+                  <GearIcon />
+                  Manage Organization
+                </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left type-subtitle-1 text-midnight-ink transition hover:bg-black/[0.04]"
+                >
+                  <SignOutIcon />
+                  Sign Out
+                </button>
+              </div>
+            ) : null}
+          </div>
+
           <button
             type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10 md:hidden"
+            aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileNavOpen}
+            aria-controls={mobileNavId}
             onClick={() => {
-              setNotificationsOpen((prev) => !prev);
+              setMobileNavOpen((prev) => !prev);
               setMenuOpen(false);
-            }}
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/10"
-            aria-label="Notifications"
-            aria-haspopup="dialog"
-            aria-expanded={notificationsOpen}
-            aria-controls={notificationsId}
-          >
-            <BellIcon />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-sunshine-yellow ring-2 ring-prime-blue" />
-          </button>
-          {notificationsOpen ? (
-            <NotificationsPanel
-              panelId={notificationsId}
-              onClose={() => setNotificationsOpen(false)}
-            />
-          ) : null}
-        </div>
-
-        <div ref={menuRef} className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen((prev) => !prev);
               setNotificationsOpen(false);
             }}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-white/15 px-3.5 text-white transition hover:bg-white/20"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-controls={menuId}
           >
-            <UserIcon />
-            <span className="text-sm font-semibold">{USER_DISPLAY_NAME}</span>
-            <ChevronIcon open={menuOpen} />
+            {mobileNavOpen ? <CloseIcon /> : <MenuIcon />}
           </button>
-
-          {menuOpen ? (
-            <div
-              id={menuId}
-              role="menu"
-              className="absolute right-0 top-full z-50 mt-2 min-w-[220px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
-            >
-              <Link
-                href="/organization"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-midnight-ink transition hover:bg-black/[0.04]"
-              >
-                <GearIcon />
-                Manage Organization
-              </Link>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-midnight-ink transition hover:bg-black/[0.04]"
-              >
-                <SignOutIcon />
-                Sign Out
-              </button>
-            </div>
-          ) : null}
         </div>
       </div>
+
+      {mobileNavOpen ? (
+        <nav
+          id={mobileNavId}
+          aria-label="Primary"
+          className="border-t border-white/15 px-4 pb-3 pt-1 md:hidden"
+        >
+          <ul className="flex flex-col">
+            {NAV_LINKS.map((link) => {
+              const active = link.match(pathname);
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setMobileNavOpen(false)}
+                    className={`flex items-center justify-between rounded-md px-3 py-3 type-subtitle-1 transition hover:bg-white/10 ${
+                      active ? "bg-white/15 text-white" : "text-white/90"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {link.label}
+                    {active ? (
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      ) : null}
     </header>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M4 12h16M4 17h16"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 6l12 12M18 6 6 18"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 

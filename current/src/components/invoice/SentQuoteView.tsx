@@ -323,6 +323,7 @@ export function SentQuoteView({
                 anchorLabel={expiryAnchor}
                 customerId="acme"
                 showScheduledReminder={showScheduledReminder}
+                showRevokeAllAccess={showScheduledReminder}
                 allowSendNow
               />
             </section>

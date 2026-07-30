@@ -45,11 +45,15 @@ import {
   DirectorySelectAllRow,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
+  DIRECTORY_CARD_CLASS,
+  DIRECTORY_CARD_SELECTED_CLASS,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
   RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
+  directoryTableMinWidthPx,
+  useForceDirectoryCardView,
   type DirectoryViewMode,
 } from "@/components/invoice/directory-table";
 import { DirectoryColumnsPanel } from "@/components/invoice/DirectoryColumnsPanel";
@@ -421,6 +425,21 @@ export default function CustomersDirectoryClient() {
   const gridTemplateColumns = `40px ${visibleColumns
     .map((column) => `${columnWidths[column.id] ?? column.defaultWidth}px`)
     .join(" ")} 44px`;
+
+  const contentRef = useRef<HTMLElement>(null);
+  const tableMinWidth = useMemo(
+    () =>
+      directoryTableMinWidthPx(
+        visibleColumns.map(
+          (column) => columnWidths[column.id] ?? column.defaultWidth,
+        ),
+      ),
+    [visibleColumns, columnWidths],
+  );
+  const forceCardView = useForceDirectoryCardView(contentRef, tableMinWidth);
+  const effectiveViewMode: DirectoryViewMode = forceCardView
+    ? "card"
+    : viewMode;
 
   const filteredSortedCustomers = useMemo(() => {
     if (forceEmpty) return [];
@@ -815,6 +834,7 @@ export default function CustomersDirectoryClient() {
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
       <main
+        ref={contentRef}
         className={`mx-auto max-w-6xl px-6 py-12 sm:px-8 ${
           selectedIds.size > 0 ? "pb-28" : ""
         }`}
@@ -886,13 +906,17 @@ export default function CustomersDirectoryClient() {
                 activeCount={activeFilterCount}
                 onClick={() => setFilterOpen(true)}
               />
-              <DirectoryColumnsSettingsButton
-                onClick={() => setColumnsOpen(true)}
-              />
-              <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+              {forceCardView ? null : (
+                <>
+                  <DirectoryColumnsSettingsButton
+                    onClick={() => setColumnsOpen(true)}
+                  />
+                  <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+                </>
+              )}
             </div>
 
-            {viewMode === "card" &&
+            {effectiveViewMode === "card" &&
             (filteredSortedCustomers.length > 0 || activeTags.length > 0) ? (
               <DirectorySelectAllRow
                 checked={allVisibleSelected}
@@ -930,7 +954,7 @@ export default function CustomersDirectoryClient() {
 
         {forceEmpty || filteredSortedCustomers.length === 0 ? (
           customersEmptyState
-        ) : viewMode === "card" ? (
+        ) : effectiveViewMode === "card" ? (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredSortedCustomers.map((customer) => {
                 const summary = getCustomerAccountSummary(customer.id);
@@ -938,11 +962,11 @@ export default function CustomersDirectoryClient() {
                 return (
                   <li key={customer.id}>
                     <div
-                      className={`flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
+                      className={
                         selected
-                          ? "border-prime-blue ring-1 ring-prime-blue"
-                          : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
-                      }`}
+                          ? DIRECTORY_CARD_SELECTED_CLASS
+                          : DIRECTORY_CARD_CLASS
+                      }
                     >
                       <div className="flex items-start gap-3">
                         <RowSelectCheckbox
@@ -955,23 +979,23 @@ export default function CustomersDirectoryClient() {
                           className="min-w-0 flex-1"
                         >
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-midnight-ink">
+                            <p className="truncate type-subtitle-1 text-midnight-ink">
                               <HighlightText
                                 text={customer.name}
                                 query={searchQuery}
                               />
                             </p>
-                            <p className="mt-1 truncate text-sm text-black/55">
+                            <p className="mt-1 truncate type-subtitle-2 text-black/55">
                               <HighlightText
                                 text={customer.email || "No email"}
                                 query={searchQuery}
                               />
                             </p>
                           </div>
-                          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
                             <div>
-                              <dt className="text-xs text-black/45">Total</dt>
-                              <dd className="mt-0.5 font-medium">
+                              <dt className="type-caption">Total</dt>
+                              <dd className="mt-0.5">
                                 <MoneyCell
                                   amount={summary.totalInvoiced}
                                   variant="total"
@@ -980,10 +1004,8 @@ export default function CustomersDirectoryClient() {
                               </dd>
                             </div>
                             <div>
-                              <dt className="text-xs text-black/45">
-                                Outstanding
-                              </dt>
-                              <dd className="mt-0.5 font-medium">
+                              <dt className="type-caption">Outstanding</dt>
+                              <dd className="mt-0.5">
                                 <MoneyCell
                                   amount={summary.outstanding}
                                   variant="outstanding"
@@ -997,7 +1019,7 @@ export default function CustomersDirectoryClient() {
                               {customer.tags.slice(0, 3).map((tag) => (
                                 <span
                                   key={tag}
-                                  className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
+                                  className="rounded-md bg-prime-blue/10 px-2 py-0.5 type-subtitle-2 text-prime-blue"
                                 >
                                   {tag}
                                 </span>

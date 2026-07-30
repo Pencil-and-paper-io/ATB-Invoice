@@ -26,6 +26,7 @@ import {
 } from "@/lib/invoice-demo-data";
 import { CreateCustomerModal } from "./CreateCustomerModal";
 import { CustomerDocumentsPanel } from "./CustomerDocumentsPanel";
+import { ResendAfterRevokeModal } from "./ResendAfterRevokeModal";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   CORE_PAYMENT_METHODS,
@@ -755,6 +756,9 @@ function CustomerFormInner() {
     count: number;
     channelsLabel: string;
   } | null>(null);
+  const [resendAfterRevokeCount, setResendAfterRevokeCount] = useState<
+    number | null
+  >(null);
   const [archived, setArchived] = useState(false);
   const [tagOptions, setTagOptions] = useState<string[]>([]);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -1690,7 +1694,13 @@ function CustomerFormInner() {
         )}
           </div>
 
-          <aside className="min-w-0 max-lg:order-first lg:sticky lg:top-6 lg:order-2">
+          <aside
+            className={`min-w-0 lg:sticky lg:top-6 lg:order-2 ${
+              tab === "Account Summary"
+                ? "hidden lg:block"
+                : "max-lg:order-first"
+            }`}
+          >
             {/* Customer Details — filled/editing cards above remaining Add links */}
             <section className={sectionShellClass}>
               <SectionHeader title="Customer Details" />
@@ -2138,9 +2148,23 @@ function CustomerFormInner() {
           cancelLabel="No, keep access"
           cancelClassName="text-sm font-semibold text-black/45 transition hover:text-black/65 hover:underline"
           confirmLabel="Yes, revoke access"
-          confirmDanger
-          onConfirm={() => setRevokeAccessPrompt(null)}
+          confirmDangerOutline
+          onConfirm={() => {
+            const count = revokeAccessPrompt.count;
+            setRevokeAccessPrompt(null);
+            setResendAfterRevokeCount(count);
+          }}
           body={`There are ${revokeAccessPrompt.count} active quotes/invoices that were shared by ${revokeAccessPrompt.channelsLabel} to the previous contact details.`}
+        />
+      ) : null}
+
+      {resendAfterRevokeCount != null ? (
+        <ResendAfterRevokeModal
+          documentCount={resendAfterRevokeCount}
+          customerName={customerDisplayName}
+          email={saved.email}
+          phone={saved.phone}
+          onClose={() => setResendAfterRevokeCount(null)}
         />
       ) : null}
     </div>

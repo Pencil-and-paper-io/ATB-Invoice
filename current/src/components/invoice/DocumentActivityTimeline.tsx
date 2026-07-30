@@ -16,10 +16,6 @@ import {
   type ActivityItem,
 } from "@/lib/document-activity";
 import { draftInvoice } from "@/lib/invoice-demo-data";
-import {
-  formatLinkCountdown,
-  SHAREABLE_LINK_TTL_SECONDS,
-} from "@/lib/shareable-link";
 import type { DocumentAutomationsState } from "./DocumentAutomationsSection";
 import { EditScheduledReminderModal } from "./ScheduledReminderPanel";
 import { PencilIcon } from "./ui";
@@ -114,71 +110,6 @@ function sendByLabel(channel: DocumentAutomationsState["reminderChannel"]) {
 const reminderPillClass =
   "mt-1.5 flex w-full max-w-[220px] items-center justify-between gap-2 rounded-md border border-black/12 bg-black/[0.04] px-2.5 py-1.5 text-left text-sm text-black/50 transition hover:border-black/20 hover:bg-black/[0.07] hover:text-black/70";
 
-function SentLinkActivityExtras({
-  item,
-  onRevoke,
-}: {
-  item: DocumentActivityItem;
-  onRevoke: () => void;
-}) {
-  const [expiresAt] = useState(() => {
-    if (item.linkExpiresAt) return item.linkExpiresAt;
-    const remaining =
-      item.linkRemainingSeconds ?? SHAREABLE_LINK_TTL_SECONDS;
-    return Date.now() + remaining * 1000;
-  });
-  const [remainingSeconds, setRemainingSeconds] = useState(() =>
-    Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
-  );
-  const revoked = Boolean(item.linkRevoked);
-  const expired = !revoked && remainingSeconds <= 0;
-
-  useEffect(() => {
-    if (revoked) return;
-    const id = window.setInterval(() => {
-      setRemainingSeconds(
-        Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
-      );
-    }, 250);
-    return () => window.clearInterval(id);
-  }, [expiresAt, revoked]);
-
-  if (revoked) {
-    return (
-      <span className="mt-1.5 inline-flex items-center rounded bg-black/[0.04] px-2 py-0.5 text-xs font-semibold text-black/55">
-        Link revoked
-      </span>
-    );
-  }
-
-  if (expired) {
-    return (
-      <span className="mt-1.5 inline-flex items-center rounded bg-black/[0.04] px-2 py-0.5 text-xs font-semibold text-black/55">
-        Link expired
-      </span>
-    );
-  }
-
-  return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-      <span
-        className="inline-flex items-center rounded border border-sunshine-yellow/70 bg-sunshine-yellow/40 px-2 py-0.5 text-xs font-semibold tabular-nums text-midnight-ink"
-        role="status"
-        aria-live="polite"
-      >
-        {formatLinkCountdown(remainingSeconds)} left
-      </span>
-      <button
-        type="button"
-        onClick={onRevoke}
-        className="text-xs font-semibold text-prime-blue underline-offset-2 hover:underline"
-      >
-        Revoke access
-      </button>
-    </div>
-  );
-}
-
 /**
  * Shared activity timeline for preview/sent invoices and quotes.
  * Optionally prepends a scheduled reminder row (or an Add reminder slot).
@@ -191,6 +122,7 @@ export function DocumentActivityTimeline({
   customerId,
   showScheduledReminder = true,
   allowSendNow = false,
+  showRevokeAllAccess = false,
 }: {
   documentKind: DocumentKind;
   pastItems: DocumentActivityItem[];
@@ -202,11 +134,14 @@ export function DocumentActivityTimeline({
   showScheduledReminder?: boolean;
   /** Sent documents can pick an absolute date / Now; preview uses days-before. */
   allowSendNow?: boolean;
+  /** Sent pages: revoke-all control between reminder and history. */
+  showRevokeAllAccess?: boolean;
 }) {
   const [schedule, setSchedule] = useState<DocumentAutomationsState | null>(
     null,
   );
   const [editing, setEditing] = useState(false);
+  const [allAccessRevoked, setAllAccessRevoked] = useState(false);
 
   useEffect(() => {
     setSchedule(loadOrInitDocumentAutomations(documentKind, customerId));
@@ -275,16 +210,20 @@ export function DocumentActivityTimeline({
     setEditing(false);
   }
 
-  function revokeLink(itemId: string) {
+  function revokeAllPreviousAccess() {
+    setAllAccessRevoked(true);
     onPastItemsChange?.(
       pastItems.map((item) =>
-        item.id === itemId ? { ...item, linkRevoked: true } : item,
+        item.kind === "sent_link" ? { ...item, linkRevoked: true } : item,
       ),
     );
+    logActivity("Previous shareable access was revoked");
   }
 
   const showReminderSlot = Boolean(showScheduledReminder && schedule);
   const hasScheduled = Boolean(schedule?.reminders);
+  const showRevokeSlot =
+    showRevokeAllAccess && (showReminderSlot || pastItems.length > 0);
 
   return (
     <>
@@ -293,7 +232,7 @@ export function DocumentActivityTimeline({
           <div className="relative flex gap-5">
             <div className="relative flex w-2 shrink-0 flex-col items-center">
               <ActivityDot upcoming />
-              {pastItems.length > 0 ? (
+              {showRevokeSlot || pastItems.length > 0 ? (
                 <span
                   className="mt-1 w-0 flex-1 border-l border-dashed border-midnight-ink"
                   aria-hidden
@@ -339,6 +278,42 @@ export function DocumentActivityTimeline({
           </div>
         ) : null}
 
+        {showRevokeSlot ? (
+          <div className="relative flex gap-5">
+            <div className="relative flex w-2 shrink-0 flex-col items-center">
+              <ActivityDot />
+              {pastItems.length > 0 ? (
+                <span
+                  className="mt-1 w-0 flex-1 border-l border-solid border-midnight-ink"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+
+            <div
+              className={`min-w-0 flex-1 ${pastItems.length > 0 ? "pb-4" : "pb-0"}`}
+            >
+              {allAccessRevoked ? (
+                <p className="text-sm font-semibold text-black/55">
+                  Previous access revoked
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={revokeAllPreviousAccess}
+                  className="text-sm font-semibold text-prime-blue underline-offset-2 hover:underline"
+                >
+                  Revoke all previous access
+                </button>
+              )}
+              <p className="mt-1 text-sm leading-5 text-[#666666]">
+                Sent this to the wrong person? Revoking locks everyone up to
+                this point out.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         {pastItems.map((item, index) => {
           const isLast = index === pastItems.length - 1;
 
@@ -357,12 +332,6 @@ export function DocumentActivityTimeline({
               <div className={`min-w-0 flex-1 ${isLast ? "pb-0" : "pb-4"}`}>
                 <p className="type-subtitle-1 text-black">{item.time}</p>
                 <ActivityHistoryText item={item} />
-                {item.kind === "sent_link" ? (
-                  <SentLinkActivityExtras
-                    item={item}
-                    onRevoke={() => revokeLink(item.id)}
-                  />
-                ) : null}
               </div>
             </div>
           );

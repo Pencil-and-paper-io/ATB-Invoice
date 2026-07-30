@@ -63,6 +63,8 @@ import {
   DirectorySelectAllRow,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
+  DIRECTORY_CARD_CLASS,
+  DIRECTORY_CARD_SELECTED_CLASS,
   DIRECTORY_HEADER_ROW_STICKY,
   DIRECTORY_PAGE_SIZE,
   MoneyCell,
@@ -70,7 +72,9 @@ import {
   RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
+  directoryTableMinWidthPx,
   useDirectoryColumns,
+  useForceDirectoryCardView,
   type DirectoryColumnDef,
   type DirectoryViewMode,
 } from "./directory-table";
@@ -264,7 +268,7 @@ function StatusBadge({
   const className = STATUS_BADGE[status] ?? "bg-[#F3F3F3] text-[#666666]";
   return (
     <span
-      className={`inline-flex w-fit items-center rounded px-2 py-0.5 text-xs font-semibold ${className}`}
+      className={`inline-flex w-fit items-center rounded px-2 py-0.5 type-subtitle-2 ${className}`}
     >
       <HighlightText text={status} query={query} />
     </span>
@@ -394,6 +398,25 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     quoteColumnDefs,
     { fluid: true },
   );
+  const contentRef = useRef<HTMLElement>(null);
+  const activeColumnState = isInvoices ? invoiceColumnState : quoteColumnState;
+  const tableMinWidth = useMemo(
+    () =>
+      directoryTableMinWidthPx(
+        activeColumnState.visibleColumns.map(
+          (column) =>
+            activeColumnState.columnWidths[column.id] ?? column.defaultWidth,
+        ),
+      ),
+    [
+      activeColumnState.visibleColumns,
+      activeColumnState.columnWidths,
+    ],
+  );
+  const forceCardView = useForceDirectoryCardView(contentRef, tableMinWidth);
+  const effectiveViewMode: DirectoryViewMode = forceCardView
+    ? "card"
+    : viewMode;
   const title = isInvoices ? "Invoices" : "Quotes";
   const subtitle = isInvoices
     ? "Bills you send to collect payment from customers."
@@ -632,6 +655,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
       <main
+        ref={contentRef}
         className={`mx-auto max-w-[1180px] px-4 pt-10 sm:px-8 lg:pt-16 ${
           selectedIds.size > 0 ? "pb-28" : "pb-16"
         }`}
@@ -685,13 +709,17 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
                 activeCount={activeFilterCount}
                 onClick={() => setFilterOpen(true)}
               />
-              <DirectoryColumnsSettingsButton
-                onClick={() => setColumnsOpen(true)}
-              />
-              <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+              {forceCardView ? null : (
+                <>
+                  <DirectoryColumnsSettingsButton
+                    onClick={() => setColumnsOpen(true)}
+                  />
+                  <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+                </>
+              )}
             </div>
 
-            {viewMode === "card" &&
+            {effectiveViewMode === "card" &&
             (totalItems > 0 || activeTags.length > 0) ? (
               <DirectorySelectAllRow
                 checked={allVisibleSelected}
@@ -754,7 +782,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
             {directoryEmptyState}
           </div>
-        ) : viewMode === "card" ? (
+        ) : effectiveViewMode === "card" ? (
           isInvoices ? (
             <InvoiceCardGrid
               rows={pagedInvoices}
@@ -907,11 +935,9 @@ function InvoiceCardGrid({
         return (
           <li key={invoice.id}>
             <div
-              className={`relative flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
-                selected
-                  ? "border-prime-blue ring-1 ring-prime-blue"
-                  : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
-              }`}
+              className={
+                selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
+              }
             >
               <div className="flex items-start gap-3">
                 <RowSelectCheckbox
@@ -925,13 +951,13 @@ function InvoiceCardGrid({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-midnight-ink">
+                      <p className="type-subtitle-2 text-midnight-ink">
                         <HighlightText
                           text={`#${invoice.number}`}
                           query={query}
                         />
                       </p>
-                      <p className="mt-1 truncate text-sm text-black/60">
+                      <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
                         <HighlightText
                           text={customerName(invoice.customerId)}
                           query={query}
@@ -940,22 +966,22 @@ function InvoiceCardGrid({
                     </div>
                     <StatusBadge status={invoice.status} query={query} />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
                     <div>
-                      <dt className="text-xs text-black/45">Issued</dt>
-                      <dd className="mt-0.5 text-black/75">
+                      <dt className="type-caption">Issued</dt>
+                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
                         <DateCell value={invoice.dateIssued} query={query} />
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-black/45">Due</dt>
-                      <dd className="mt-0.5 text-black/75">
+                      <dt className="type-caption">Due</dt>
+                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
                         <DateCell value={invoice.dueDate} query={query} />
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-black/45">Total</dt>
-                      <dd className="mt-0.5 font-medium">
+                      <dt className="type-caption">Total</dt>
+                      <dd className="mt-0.5">
                         <MoneyCell
                           amount={invoice.amount}
                           variant="total"
@@ -964,8 +990,8 @@ function InvoiceCardGrid({
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-black/45">Outstanding</dt>
-                      <dd className="mt-0.5 font-medium">
+                      <dt className="type-caption">Outstanding</dt>
+                      <dd className="mt-0.5">
                         <MoneyCell
                           amount={invoice.balanceOutstanding}
                           variant="outstanding"
@@ -1006,11 +1032,9 @@ function QuoteCardGrid({
         return (
           <li key={quote.id}>
             <div
-              className={`relative flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
-                selected
-                  ? "border-prime-blue ring-1 ring-prime-blue"
-                  : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
-              }`}
+              className={
+                selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
+              }
             >
               <div className="flex items-start gap-3">
                 <RowSelectCheckbox
@@ -1024,10 +1048,13 @@ function QuoteCardGrid({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-midnight-ink">
-                        <HighlightText text={quote.number} query={query} />
+                      <p className="type-subtitle-2 text-midnight-ink">
+                        <HighlightText
+                          text={`#${quote.number}`}
+                          query={query}
+                        />
                       </p>
-                      <p className="mt-1 truncate text-sm text-black/60">
+                      <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
                         <HighlightText
                           text={customerName(quote.customerId)}
                           query={query}
@@ -1036,22 +1063,22 @@ function QuoteCardGrid({
                     </div>
                     <StatusBadge status={quote.status} query={query} />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
                     <div>
-                      <dt className="text-xs text-black/45">Created</dt>
-                      <dd className="mt-0.5 text-black/75">
+                      <dt className="type-caption">Created</dt>
+                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
                         <DateCell value={quote.dateCreated} query={query} />
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-black/45">Expiry</dt>
-                      <dd className="mt-0.5 text-black/75">
+                      <dt className="type-caption">Expiry</dt>
+                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
                         <DateCell value={quote.expiryDate} query={query} />
                       </dd>
                     </div>
                     <div className="col-span-2">
-                      <dt className="text-xs text-black/45">Total</dt>
-                      <dd className="mt-0.5 font-medium">
+                      <dt className="type-caption">Total</dt>
+                      <dd className="mt-0.5">
                         <MoneyCell
                           amount={quote.amount}
                           variant="total"

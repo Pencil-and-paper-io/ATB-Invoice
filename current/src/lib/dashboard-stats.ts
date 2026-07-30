@@ -205,6 +205,25 @@ export function buildDashboardModel(
         href: "/invoices?status=Paid",
       },
       {
+        id: "open-balance",
+        label: "Open Balance",
+        value: formatMoney(outstandingAmount),
+        hint: `${outstandingRows.length} open invoice${outstandingRows.length === 1 ? "" : "s"}`,
+        tooltip:
+          "Sum of remaining balances on open invoices (sent, viewed, partially paid, and overdue). Drafts, paid, void, and uncollectible invoices are excluded.",
+        tone: "neutral",
+        href: "/invoices?status=Outstanding",
+      },
+      {
+        id: "overdue-rate",
+        label: "Overdue Rate",
+        value: `${overdueRate}%`,
+        hint: "Of outstanding balance",
+        tooltip:
+          "Overdue outstanding balance divided by total outstanding balance. Counts only open invoices with a remaining balance (excludes paid, void, uncollectible, and drafts).",
+        tone: "warning",
+      },
+      {
         id: "collection-rate",
         label: "Collection Rate",
         value: `${collectionRate}%`,
@@ -223,15 +242,6 @@ export function buildDashboardModel(
         tone: "neutral",
       },
       {
-        id: "overdue-rate",
-        label: "Overdue Rate",
-        value: `${overdueRate}%`,
-        hint: "Of outstanding balance",
-        tooltip:
-          "Overdue outstanding balance divided by total outstanding balance. Counts only open invoices with a remaining balance (excludes paid, void, uncollectible, and drafts).",
-        tone: "warning",
-      },
-      {
         id: "avg-days",
         label: "Average Days To Payment",
         value: avgDaysToPayment == null ? "—" : `${avgDaysToPayment}`,
@@ -242,16 +252,6 @@ export function buildDashboardModel(
         tooltip:
           "Average number of days from invoice issue date to payment date for fully paid invoices. Demo uses each paid invoice’s due date as the payment date when a separate payment date isn’t stored.",
         tone: "neutral",
-      },
-      {
-        id: "open-balance",
-        label: "Open Balance",
-        value: formatMoney(outstandingAmount),
-        hint: `${outstandingRows.length} open invoice${outstandingRows.length === 1 ? "" : "s"}`,
-        tooltip:
-          "Sum of remaining balances on open invoices (sent, viewed, partially paid, and overdue). Drafts, paid, void, and uncollectible invoices are excluded.",
-        tone: "neutral",
-        href: "/invoices?status=Outstanding",
       },
     ],
     recentInvoices,

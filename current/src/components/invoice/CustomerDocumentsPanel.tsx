@@ -27,6 +27,7 @@ import {
 import {
   DateCell,
   DIRECTORY_BODY_ROW,
+  DIRECTORY_CARD_CLASS,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
   SearchField,
@@ -148,7 +149,7 @@ function StatusBadge({ status, query = "" }: { status: string; query?: string })
   const className = STATUS_BADGE[status] ?? "bg-[#F3F3F3] text-[#666666]";
   return (
     <span
-      className={`inline-flex w-fit items-center rounded px-2 py-0.5 text-xs font-semibold ${className}`}
+      className={`inline-flex w-fit items-center rounded px-2 py-0.5 type-subtitle-2 ${className}`}
     >
       <HighlightText text={status} query={query} />
     </span>
@@ -361,7 +362,7 @@ export function CustomerDocumentsPanel({
       {!setupIncomplete ? (
         <>
           <div className="mb-3 flex items-center gap-2.5">
-            <div className="w-full max-w-[280px]">
+            <div className="min-w-0 flex-1 md:max-w-[280px]">
               <SearchField
                 id="customer-docs-search"
                 value={query}
@@ -418,6 +419,84 @@ export function CustomerDocumentsPanel({
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
+            {/* Mobile: cards */}
+            <ul className="grid gap-3 p-4 md:hidden">
+              {sortedRows.map((row) => {
+                const href =
+                  row.kind === "invoice"
+                    ? hrefForCustomerInvoice(row.data.status)
+                    : hrefForCustomerQuote(row.data.status);
+                const outstanding = rowOutstanding(row);
+                return (
+                  <li key={row.id}>
+                    <Link
+                      href={href}
+                      className={DIRECTORY_CARD_CLASS}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="type-subtitle-2 text-midnight-ink">
+                            <HighlightText
+                              text={`#${row.data.number}`}
+                              query={query}
+                            />
+                          </p>
+                          <p className="mt-1 type-subtitle-1 text-midnight-ink">
+                            {row.kind === "invoice" ? "Invoice" : "Quote"}
+                          </p>
+                        </div>
+                        <StatusBadge status={row.data.status} query={query} />
+                      </div>
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <dt className="type-caption">Date</dt>
+                          <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                            <DateCell value={rowDate(row)} query={query} />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="type-caption">Due / Expiry</dt>
+                          <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                            <DateCell value={rowDue(row)} query={query} />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="type-caption">Total</dt>
+                          <dd className="mt-0.5">
+                            <MoneyCell
+                              amount={row.data.amount}
+                              variant="total"
+                              query={query}
+                              align="left"
+                            />
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="type-caption">Outstanding</dt>
+                          <dd className="mt-0.5">
+                            {outstanding == null ? (
+                              <span className="type-paragraph-2 text-black/35">
+                                —
+                              </span>
+                            ) : (
+                              <MoneyCell
+                                amount={outstanding}
+                                variant="outstanding"
+                                query={query}
+                                align="left"
+                              />
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block">
             <div
               className={DIRECTORY_HEADER_ROW}
               style={{
@@ -514,6 +593,7 @@ export function CustomerDocumentsPanel({
                 );
               })}
             </ul>
+            </div>
           </div>
         )}
       </div>

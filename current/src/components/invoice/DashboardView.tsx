@@ -6,12 +6,14 @@ import {
   buildDashboardModel,
   type DashboardMetricCard,
   type OverduePreviewItem,
+  type RecentInvoiceItem,
 } from "@/lib/dashboard-stats";
 import { draftInvoice } from "@/lib/invoice-demo-data";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
   DateCell,
   DIRECTORY_BODY_ROW,
+  DIRECTORY_CARD_CLASS,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
 } from "./directory-table";
@@ -33,7 +35,7 @@ function StatusBadge({ status }: { status: string }) {
   const className = STATUS_BADGE[status] ?? "bg-[#F3F3F3] text-[#666666]";
   return (
     <span
-      className={`inline-flex w-fit items-center rounded px-2 py-0.5 text-xs font-semibold ${className}`}
+      className={`inline-flex w-fit items-center rounded px-2 py-0.5 type-subtitle-2 ${className}`}
     >
       {status}
     </span>
@@ -53,7 +55,7 @@ function AllInvoicesLink() {
   return (
     <Link
       href="/invoices"
-      className="inline-flex items-center gap-1.5 text-sm font-semibold text-prime-blue transition hover:underline"
+      className="inline-flex items-center gap-1.5 type-subtitle-1 text-prime-blue transition hover:underline"
     >
       All Invoices
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
@@ -102,7 +104,9 @@ function OverdueInvoiceCarousel({
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-black/50">No overdue invoices right now.</p>
+      <p className="type-paragraph-2 text-black/50">
+        No overdue invoices right now.
+      </p>
     );
   }
 
@@ -117,42 +121,42 @@ function OverdueInvoiceCarousel({
         return (
           <article
             key={item.id}
-            className="w-[calc((100%-0.75rem)/1.5)] shrink-0 snap-start rounded-[10px] border border-black/10 bg-page-grey/70 p-4"
+            className={`${DIRECTORY_CARD_CLASS} w-[calc((100%-0.75rem)/1.5)] shrink-0 snap-start`}
           >
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={item.href}
-                className="font-semibold text-midnight-ink hover:underline"
+                className="type-subtitle-2 text-midnight-ink hover:underline"
               >
                 #{item.number}
               </Link>
               <StatusBadge status={item.status} />
             </div>
-            <p className="mt-1 truncate text-sm text-black/60">
+            <p className="truncate type-subtitle-1 text-midnight-ink">
               {item.customer}
             </p>
-            <p className="mt-2 text-sm font-semibold text-midnight-ink">
+            <p className="font-mono tabular-nums type-subtitle-1 text-midnight-ink">
               {item.amount}
-              <span className="ml-2 font-normal text-black/50">
+              <span className="ml-2 font-sans type-paragraph-2 text-black/50">
                 {item.lateness}
               </span>
             </p>
             {sent ? (
-              <p className="mt-4 text-sm font-semibold text-[#1B7A3A]">
+              <p className="mt-4 type-subtitle-1 text-[#1B7A3A]">
                 Reminder sent
               </p>
             ) : (
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="ui-btn-secondary h-9 px-3 text-sm"
+                  className="ui-btn-secondary h-9 px-3 type-subtitle-1"
                   onClick={() => handleRemind(item, "email")}
                 >
                   Email Reminder
                 </button>
                 <button
                   type="button"
-                  className="ui-btn-secondary h-9 px-3 text-sm"
+                  className="ui-btn-secondary h-9 px-3 type-subtitle-1"
                   onClick={() => handleRemind(item, "text")}
                 >
                   Text Reminder
@@ -166,35 +170,132 @@ function OverdueInvoiceCarousel({
   );
 }
 
-function MetricCard({ card }: { card: DashboardMetricCard }) {
-  const content = (
+function ExternalLinkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden
+      className={className}
+    >
+      <path
+        d="M5.5 3.5H3.5A1.5 1.5 0 0 0 2 5v5.5A1.5 1.5 0 0 0 3.5 12H9a1.5 1.5 0 0 0 1.5-1.5V8.5M8 2h4v4M6.5 7.5 12 2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MetricCell({ card }: { card: DashboardMetricCard }) {
+  const body = (
     <>
       <div className="flex items-center gap-1.5">
-        <p className="text-sm font-medium text-black/55">{card.label}</p>
+        <p className="type-subtitle-1 text-black/55">{card.label}</p>
         {card.tooltip ? <InfoTooltip text={card.tooltip} /> : null}
+        {card.href ? (
+          <ExternalLinkIcon className="shrink-0 text-prime-blue" />
+        ) : null}
       </div>
-      <p className={`mt-2 type-headline-4 ${METRIC_VALUE_COLOR[card.tone]}`}>
+      <p className={`mt-2 type-amount ${METRIC_VALUE_COLOR[card.tone]}`}>
         {card.value}
       </p>
-      <p className="mt-1 text-sm text-black/50">{card.hint}</p>
+      <p className="mt-1 type-paragraph-2 text-black/50">{card.hint}</p>
     </>
   );
-
-  const className =
-    "rounded-[10px] border border-black/10 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]";
 
   if (card.href) {
     return (
       <Link
         href={card.href}
-        className={`${className} transition hover:border-prime-blue hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:ring-1 hover:ring-prime-blue`}
+        className="block rounded-md p-4 transition hover:bg-black/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-prime-blue"
       >
-        {content}
+        {body}
       </Link>
     );
   }
 
-  return <div className={className}>{content}</div>;
+  return <div className="p-4">{body}</div>;
+}
+
+function MetricsPanel({ cards }: { cards: DashboardMetricCard[] }) {
+  return (
+    <section className="mt-5 rounded-[10px] border border-black/10 bg-white p-2 shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:p-3">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-black/10 lg:grid-cols-3">
+        {cards.map((card) => (
+          <div key={card.id} className="bg-white">
+            <MetricCell card={card} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecentInvoiceCards({ rows }: { rows: RecentInvoiceItem[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="px-6 pb-6 type-paragraph-2 text-black/50">
+        No recent invoices.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="grid gap-3 px-4 pb-5 sm:grid-cols-2 md:hidden">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <Link href={row.href} className={DIRECTORY_CARD_CLASS}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="type-subtitle-2 text-midnight-ink">
+                  #{row.number}
+                </p>
+                <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
+                  {row.customer}
+                </p>
+              </div>
+              <StatusBadge status={row.status} />
+            </div>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div>
+                <dt className="type-caption">Issued</dt>
+                <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                  <DateCell value={row.dateIssued} />
+                </dd>
+              </div>
+              <div>
+                <dt className="type-caption">Due</dt>
+                <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                  <DateCell value={row.dueDate} />
+                </dd>
+              </div>
+              <div>
+                <dt className="type-caption">Total</dt>
+                <dd className="mt-0.5">
+                  <MoneyCell amount={row.amount} variant="total" align="left" />
+                </dd>
+              </div>
+              <div>
+                <dt className="type-caption">Outstanding</dt>
+                <dd className="mt-0.5">
+                  <MoneyCell
+                    amount={row.balanceOutstanding}
+                    variant="outstanding"
+                    align="left"
+                  />
+                </dd>
+              </div>
+            </dl>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function DashboardView() {
@@ -224,8 +325,8 @@ export function DashboardView() {
       <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="type-headline-2 text-midnight-ink">Dashboard</h1>
-            <p className="mt-2 type-subtitle-1 text-black/55">
+            <h1 className="type-page-title text-midnight-ink">Dashboard</h1>
+            <p className="mt-2 type-paragraph-1 text-black/55">
               A snapshot of what you are owed and what needs follow-up.
             </p>
           </div>
@@ -241,14 +342,14 @@ export function DashboardView() {
         <section className="rounded-[10px] border border-black/10 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_1px_minmax(0,1.4fr)] lg:items-stretch">
             <div className="flex flex-col justify-center pr-1">
-              <p className="text-sm font-medium text-black/55">Overdue</p>
-              <p className="mt-2 type-headline-3 text-[#C62828]">
+              <p className="type-subtitle-1 text-black/55">Overdue</p>
+              <p className="mt-2 type-amount text-[#C62828]">
                 {model.overdue.amount}
               </p>
-              <p className="mt-2 text-sm text-black/50">
+              <p className="mt-2 type-paragraph-2 text-black/50">
                 out of {model.overdue.outstandingAmount} outstanding
               </p>
-              <p className="mt-1 text-xs text-black/40">
+              <p className="mt-1 type-caption">
                 {model.overdue.count} invoice
                 {model.overdue.count === 1 ? "" : "s"}
               </p>
@@ -260,7 +361,7 @@ export function DashboardView() {
               <div className="mb-3 flex justify-end">
                 <Link
                   href={model.overdue.viewAllHref}
-                  className="text-sm font-semibold text-prime-blue hover:underline"
+                  className="type-subtitle-1 text-prime-blue hover:underline"
                 >
                   View All
                 </Link>
@@ -273,11 +374,7 @@ export function DashboardView() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {model.metrics.map((card) => (
-            <MetricCard key={card.id} card={card} />
-          ))}
-        </section>
+        <MetricsPanel cards={model.metrics} />
 
         <section className="mt-5 rounded-[10px] border border-black/10 bg-white">
           <div className="flex items-baseline justify-between gap-3 px-6 pt-6">
@@ -286,7 +383,10 @@ export function DashboardView() {
             </h2>
             <AllInvoicesLink />
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 md:hidden">
+            <RecentInvoiceCards rows={model.recentInvoices} />
+          </div>
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <div className="min-w-[920px]">
               <div
                 className={DIRECTORY_HEADER_ROW}
@@ -309,10 +409,7 @@ export function DashboardView() {
                     "Outstanding",
                   ] as const
                 ).map((label) => (
-                  <div
-                    key={label}
-                    className="min-w-0 text-xs font-semibold text-black/55"
-                  >
+                  <div key={label} className="min-w-0 type-subtitle-2 text-black/55">
                     {label}
                   </div>
                 ))}
@@ -334,19 +431,19 @@ export function DashboardView() {
                         alignItems: "center",
                       }}
                     >
-                      <span className="min-w-0 overflow-hidden font-medium">
+                      <span className="min-w-0 overflow-hidden type-subtitle-1">
                         {row.number}
                       </span>
                       <span className="min-w-0 overflow-hidden">
                         <StatusBadge status={row.status} />
                       </span>
-                      <span className="min-w-0 truncate text-black/75">
+                      <span className="min-w-0 truncate type-paragraph-2 text-black/75">
                         {row.customer}
                       </span>
-                      <span className="min-w-0 overflow-hidden text-black/75">
+                      <span className="min-w-0 overflow-hidden type-paragraph-2 text-black/75">
                         <DateCell value={row.dateIssued} />
                       </span>
-                      <span className="min-w-0 overflow-hidden text-black/75">
+                      <span className="min-w-0 overflow-hidden type-paragraph-2 text-black/75">
                         <DateCell value={row.dueDate} />
                       </span>
                       <span className="min-w-0 overflow-hidden">
@@ -372,7 +469,7 @@ export function DashboardView() {
 
       {toast ? (
         <div
-          className="fixed bottom-8 left-1/2 z-[70] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 text-sm font-medium text-white shadow-lg"
+          className="fixed bottom-8 left-1/2 z-[70] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 type-subtitle-1 text-white shadow-lg"
           role="status"
         >
           {toast}
