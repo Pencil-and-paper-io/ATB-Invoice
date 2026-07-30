@@ -906,3 +906,35 @@ export function getCustomerAccountSummary(customerId: string | null) {
     overdue,
   };
 }
+
+const CLOSED_INVOICE_STATUSES = new Set([
+  "draft",
+  "paid",
+  "void",
+  "uncollectible",
+]);
+
+const ACTIVE_QUOTE_STATUSES = new Set(["sent", "viewed"]);
+
+/** Open invoices + awaiting quotes that may still have shareable access. */
+export function countActiveSharedDocuments(customerId: string | null) {
+  if (!customerId) return 0;
+  const invoices = getCustomerInvoices(customerId).filter(
+    (invoice) =>
+      !CLOSED_INVOICE_STATUSES.has(invoice.status.trim().toLowerCase()),
+  );
+  const quotes = getCustomerQuotes(customerId).filter((quote) =>
+    ACTIVE_QUOTE_STATUSES.has(quote.status.trim().toLowerCase()),
+  );
+  return invoices.length + quotes.length;
+}
+
+export function formatShareChannelList(channels: Array<"email" | "phone" | "url">) {
+  const labels = channels.map((channel) =>
+    channel === "url" ? "URL" : channel,
+  );
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}

@@ -130,6 +130,7 @@ export function Modal({
   cancelLabel = "Cancel",
   onCancel,
   hideCancel = false,
+  cancelClassName = "type-danger transition hover:underline",
   confirmLabel,
   onConfirm,
   confirmDisabled = false,
@@ -157,6 +158,8 @@ export function Modal({
   cancelLabel?: string;
   onCancel?: () => void;
   hideCancel?: boolean;
+  /** Override Cancel button classes (default is danger/red text). */
+  cancelClassName?: string;
   confirmLabel?: string;
   onConfirm?: () => void;
   confirmDisabled?: boolean;
@@ -273,7 +276,7 @@ export function Modal({
               <button
                 type="button"
                 onClick={handleCancel}
-                className="type-danger transition hover:underline"
+                className={cancelClassName}
               >
                 {cancelLabel}
               </button>

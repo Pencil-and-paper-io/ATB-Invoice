@@ -13,8 +13,10 @@ import {
 import { createPortal } from "react-dom";
 import {
   archiveCustomer,
+  countActiveSharedDocuments,
   findCustomer,
   formatMoney,
+  formatShareChannelList,
   getCustomerAccountSummary,
   getCustomerDocumentLifecycle,
   getCustomerInvoices,
@@ -749,6 +751,10 @@ function CustomerFormInner() {
   const [lifecycleConfirm, setLifecycleConfirm] = useState<
     "delete" | "archive" | null
   >(null);
+  const [revokeAccessPrompt, setRevokeAccessPrompt] = useState<{
+    count: number;
+    channelsLabel: string;
+  } | null>(null);
   const [archived, setArchived] = useState(false);
   const [tagOptions, setTagOptions] = useState<string[]>([]);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -802,6 +808,13 @@ function CustomerFormInner() {
 
   function saveSection() {
     const section = editing;
+    const emailChanged =
+      section === "business" &&
+      draft.email.trim() !== saved.email.trim();
+    const phoneChanged =
+      section === "business" &&
+      draft.phone.trim() !== saved.phone.trim();
+
     setSaved(draft);
     setEditing(null);
     if (
@@ -817,6 +830,21 @@ function CustomerFormInner() {
         reminders: draft.reminders,
         reminderDays: draft.reminderDays,
       });
+    }
+
+    if (customerId && (emailChanged || phoneChanged)) {
+      const summary = getCustomerAccountSummary(customerId);
+      const activeCount = countActiveSharedDocuments(customerId);
+      if (summary.outstanding > 0 && activeCount > 0) {
+        const channels: Array<"email" | "phone" | "url"> = [];
+        if (emailChanged) channels.push("email");
+        if (phoneChanged) channels.push("phone");
+        channels.push("url");
+        setRevokeAccessPrompt({
+          count: activeCount,
+          channelsLabel: formatShareChannelList(channels),
+        });
+      }
     }
   }
 
@@ -2096,6 +2124,23 @@ function CustomerFormInner() {
             setLifecycleConfirm(null);
           }}
           body={`Are you sure you want to archive ${customerDisplayName}? They will be hidden from active lists but their financial records will be preserved.`}
+        />
+      ) : null}
+
+      {revokeAccessPrompt ? (
+        <Modal
+          title="Contact Info Updated!"
+          titleId="contact-info-updated-title"
+          subtitle="Do you want to revoke previous access?"
+          onClose={() => setRevokeAccessPrompt(null)}
+          zClass="z-[220]"
+          role="alertdialog"
+          cancelLabel="No, keep access"
+          cancelClassName="text-sm font-semibold text-black/45 transition hover:text-black/65 hover:underline"
+          confirmLabel="Yes, revoke access"
+          confirmDanger
+          onConfirm={() => setRevokeAccessPrompt(null)}
+          body={`There are ${revokeAccessPrompt.count} active quotes/invoices that were shared by ${revokeAccessPrompt.channelsLabel} to the previous contact details.`}
         />
       ) : null}
     </div>
