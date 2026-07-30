@@ -62,7 +62,7 @@ function CheckboxRow({
   );
 }
 
-function AutomationsEditor({
+export function DocumentAutomationsEditor({
   value,
   onChange,
   documentKind,
@@ -127,10 +127,12 @@ export function DocumentAutomationsSection({
   value,
   onChange,
   documentKind = "invoice",
+  embedded = false,
 }: {
   value: DocumentAutomationsState;
   onChange: (next: DocumentAutomationsState) => void;
   documentKind?: "invoice" | "quote";
+  embedded?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -168,8 +170,8 @@ export function DocumentAutomationsSection({
     setEditOpen(false);
   }
 
-  return (
-    <SectionCard title="Automations" className="gap-2.5">
+  const body = (
+    <>
       <div className="flex flex-col">
         {summaryItems.length === 0 ? (
           <p className="type-body-muted py-1">No automations enabled.</p>
@@ -209,13 +211,21 @@ export function DocumentAutomationsSection({
           maxWidthClass="max-w-3xl"
           zClass="z-[220]"
         >
-          <AutomationsEditor
+          <DocumentAutomationsEditor
             value={draft}
             onChange={setDraft}
             documentKind={documentKind}
           />
         </Modal>
       ) : null}
+    </>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <SectionCard title="Automations" className="gap-2.5">
+      {body}
     </SectionCard>
   );
 }

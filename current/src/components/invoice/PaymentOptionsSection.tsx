@@ -22,17 +22,19 @@ function DefaultCheckIcon() {
 export function PaymentOptionsSection({
   payments,
   onChange,
+  embedded = false,
 }: {
   payments: InvoicePaymentOption[];
   onToggle?: (id: InvoicePaymentOption["id"]) => void;
   onChange?: (next: InvoicePaymentOption[]) => void;
   compact?: boolean;
+  embedded?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const accepted = payments.filter((option) => option.checked);
 
-  return (
-    <SectionCard title="Payment Options" className="gap-2.5">
+  const body = (
+    <>
       <div className="flex flex-col">
         {accepted.length === 0 ? (
           <p className="type-body-muted py-1">No payment options selected.</p>
@@ -72,6 +74,14 @@ export function PaymentOptionsSection({
           }}
         />
       ) : null}
+    </>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <SectionCard title="Payment Options" className="gap-2.5">
+      {body}
     </SectionCard>
   );
 }

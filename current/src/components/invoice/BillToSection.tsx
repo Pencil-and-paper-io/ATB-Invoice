@@ -157,10 +157,13 @@ export function BillToSection({
   defaultCustomer,
   onCustomerChange,
   children,
+  embedded = false,
 }: {
   defaultCustomer?: Customer | null;
   onCustomerChange?: (customer: Customer | null) => void;
   children?: ReactNode;
+  /** When true, omit the outer SectionCard (used inside DraftComposerSteps). */
+  embedded?: boolean;
 }) {
   const [customer, setCustomer] = useState<Customer | null>(
     defaultCustomer ?? null,
@@ -172,10 +175,10 @@ export function BillToSection({
     onCustomerChange?.(next);
   }
 
-  return (
-    <SectionCard title="Bill to" className="gap-2.5">
+  const body = (
+    <>
       {customer ? (
-        <div className="relative rounded-[10px] border border-black/10 p-[30px] transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue">
+        <div className="relative rounded-[10px] border border-black/10 p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue sm:p-[30px]">
           <ContactBlock
             name={customer.name}
             address={customer.address}
@@ -226,6 +229,16 @@ export function BillToSection({
           }}
         />
       ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return body;
+  }
+
+  return (
+    <SectionCard title="Bill to" className="gap-2.5">
+      {body}
     </SectionCard>
   );
 }

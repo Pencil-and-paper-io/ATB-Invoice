@@ -44,6 +44,109 @@ import { EditCloseButton, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 type EditingId = string | "new" | null;
 
+export type LineItemsSummaryInfo = {
+  count: number;
+  itemNames: string[];
+  subtotal: number;
+  gst: number;
+  pst: number;
+  total: number;
+  federalTaxLabel: string;
+  allowPartialPayment: boolean;
+  minimumPayment: string;
+};
+
+export function emptyLineItemsSummary(): LineItemsSummaryInfo {
+  return {
+    count: 0,
+    itemNames: [],
+    subtotal: 0,
+    gst: 0,
+    pst: 0,
+    total: 0,
+    federalTaxLabel: "GST",
+    allowPartialPayment: false,
+    minimumPayment: "",
+  };
+}
+
+export function summarizeLineItems(
+  items: LineItem[],
+  taxMode: TaxMode,
+  extras?: {
+    allowPartialPayment?: boolean;
+    minimumPayment?: string;
+  },
+): LineItemsSummaryInfo {
+  const totals = computeInvoiceTotals(
+    items.map((item) => ({
+      unitPrice: item.unitPrice,
+      qty: item.qty,
+      discount: item.discount,
+      discountType: item.discountType ?? "fixed",
+      total: item.total,
+      taxBadges: item.badges,
+    })),
+    taxMode,
+  );
+  return {
+    count: items.length,
+    itemNames: items.map((item) => item.name).filter(Boolean),
+    subtotal: totals.subtotal,
+    gst: totals.gst,
+    pst: totals.pst,
+    total: totals.total,
+    federalTaxLabel: totals.federalTaxLabel,
+    allowPartialPayment: Boolean(extras?.allowPartialPayment),
+    minimumPayment: extras?.minimumPayment?.trim() ?? "",
+  };
+}
+
+/** Compact summary block for draft composer list view. */
+export function LineItemsCollapsedSummary({
+  summary,
+}: {
+  summary: LineItemsSummaryInfo;
+}) {
+  if (summary.count <= 0) {
+    return (
+      <p className="mt-1 type-paragraph-2 text-black/55">
+        Add products or services
+      </p>
+    );
+  }
+
+  const names = summary.itemNames.slice(0, 2).join(", ");
+  const namesSuffix =
+    summary.itemNames.length > 2
+      ? "…"
+      : summary.itemNames.length === 0
+        ? ""
+        : "";
+
+  return (
+    <div className="mt-1 flex min-w-0 flex-col gap-1">
+      <p className="truncate type-paragraph-2 text-black/55">
+        {summary.count} item{summary.count === 1 ? "" : "s"}
+        {names ? ` · ${names}${namesSuffix}` : ""}
+      </p>
+      <p className="truncate type-paragraph-2 text-black/55">
+        {summary.federalTaxLabel} {formatMoney(summary.gst)}
+        {summary.pst > 0 ? ` · PST ${formatMoney(summary.pst)}` : ""}
+        {` · Total ${formatMoney(summary.total)}`}
+      </p>
+      {summary.allowPartialPayment ? (
+        <p className="truncate type-paragraph-2 text-black/55">
+          Partial payments accepted
+          {summary.minimumPayment
+            ? ` · Min ${formatMoney(Number(summary.minimumPayment) || 0)}`
+            : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const hoverCardClass =
   "rounded-[10px] border border-black/10 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue";
 
@@ -513,9 +616,19 @@ function InvoiceAddonRow({
 function LineItemsTotals({
   items,
   taxMode,
+  onTotalsChange,
 }: {
   items: LineItem[];
   taxMode: TaxMode;
+  onTotalsChange?: (info: {
+    subtotal: number;
+    gst: number;
+    pst: number;
+    total: number;
+    federalTaxLabel: string;
+    allowPartialPayment: boolean;
+    minimumPayment: string;
+  }) => void;
 }) {
   const [invoiceDiscount, setInvoiceDiscount] = useState<InvoiceAddon | null>(
     null,
@@ -555,6 +668,27 @@ function LineItemsTotals({
       ),
     [items, taxMode, invoiceDiscount, shipping],
   );
+
+  useEffect(() => {
+    onTotalsChange?.({
+      subtotal: totals.subtotal,
+      gst: totals.gst,
+      pst: totals.pst,
+      total: totals.total,
+      federalTaxLabel: totals.federalTaxLabel,
+      allowPartialPayment,
+      minimumPayment,
+    });
+  }, [
+    totals.subtotal,
+    totals.gst,
+    totals.pst,
+    totals.total,
+    totals.federalTaxLabel,
+    allowPartialPayment,
+    minimumPayment,
+    onTotalsChange,
+  ]);
 
   return (
     <>
@@ -1331,7 +1465,7 @@ function LineItemForm({
   }
 
   return (
-    <div ref={formRef} className={`relative p-[30px] ${hoverCardClass}`}>
+    <div ref={formRef} className="relative rounded-[10px] border border-black/10 p-[30px]">
       {allowDismiss ? <EditCloseButton onClick={onClose} /> : null}
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-5 sm:flex-row">
@@ -1435,6 +1569,8 @@ export function LineItemsSection({
   currency = getInvoiceCurrency(),
   defaultTaxLabel = "",
   recommendedTaxNote = "",
+  onItemCountChange,
+  onSummaryChange,
 }: {
   initialItems?: LineItem[];
   taxMode?: TaxMode;
@@ -1443,6 +1579,8 @@ export function LineItemsSection({
   defaultTaxLabel?: string;
   /** Explains why defaultTaxLabel is recommended in the tax dropdown. */
   recommendedTaxNote?: string;
+  onItemCountChange?: (count: number) => void;
+  onSummaryChange?: (summary: LineItemsSummaryInfo) => void;
 }) {
   const [items, setItems] = useState<LineItem[]>(initialItems);
   const [editingId, setEditingId] = useState<EditingId>(null);
@@ -1450,7 +1588,28 @@ export function LineItemsSection({
     null,
   );
   const [savedItems, setSavedItems] = useState<SavedLineItem[]>([]);
+  const [totalsInfo, setTotalsInfo] = useState({
+    subtotal: 0,
+    gst: 0,
+    pst: 0,
+    total: 0,
+    federalTaxLabel: "GST",
+    allowPartialPayment: false,
+    minimumPayment: "",
+  });
   const previousDefaultTax = useRef(defaultTaxLabel);
+
+  useEffect(() => {
+    onItemCountChange?.(items.length);
+  }, [items.length, onItemCountChange]);
+
+  useEffect(() => {
+    onSummaryChange?.({
+      count: items.length,
+      itemNames: items.map((item) => item.name).filter(Boolean),
+      ...totalsInfo,
+    });
+  }, [items, totalsInfo, onSummaryChange]);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -1622,19 +1781,27 @@ export function LineItemsSection({
         />
       ) : null}
 
-      <div>
-        <TertiaryButton
-          onClick={() => {
-            if (editingId === "new") return;
-            closeEditor();
-            startAdd();
-          }}
-        >
-          Add Line Item
-        </TertiaryButton>
-      </div>
+      {items.length > 0 ? (
+        <>
+          <div>
+            <TertiaryButton
+              onClick={() => {
+                if (editingId === "new") return;
+                closeEditor();
+                startAdd();
+              }}
+            >
+              Add Line Item
+            </TertiaryButton>
+          </div>
 
-      <LineItemsTotals items={items} taxMode={taxMode} />
+          <LineItemsTotals
+            items={items}
+            taxMode={taxMode}
+            onTotalsChange={setTotalsInfo}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

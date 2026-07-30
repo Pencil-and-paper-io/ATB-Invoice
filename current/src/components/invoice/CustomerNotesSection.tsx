@@ -55,15 +55,27 @@ function TitleField({
   matches,
   onSelectMatch,
   onForgetMatch,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   matches: SavedCustomerNote[];
   onSelectMatch: (note: SavedCustomerNote) => void;
   onForgetMatch: (id: string) => void;
+  autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [autoFocus]);
 
   useEffect(() => {
     function onClickOutside(event: MouseEvent) {
@@ -80,6 +92,7 @@ function TitleField({
   return (
     <div ref={ref} className="relative">
       <input
+        ref={inputRef}
         className={inputClass}
         value={value}
         onChange={(event) => {
@@ -148,6 +161,8 @@ function NoteForm({
   onSave,
   onDelete,
   onClose,
+  allowDismiss = true,
+  autoFocusTitle = false,
 }: {
   initial: CustomerNote;
   isNew: boolean;
@@ -156,9 +171,11 @@ function NoteForm({
   onSave: (note: CustomerNote) => void;
   onDelete: () => void;
   onClose: () => void;
+  allowDismiss?: boolean;
+  autoFocusTitle?: boolean;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
-  useDismissOnOutsideClick(formRef, onClose);
+  useDismissOnOutsideClick(formRef, allowDismiss ? onClose : () => undefined);
 
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
@@ -204,8 +221,11 @@ function NoteForm({
   }
 
   return (
-    <div ref={formRef} className={`relative p-[30px] ${hoverCardClass}`}>
-      <EditCloseButton onClick={onClose} />
+    <div
+      ref={formRef}
+      className="relative rounded-[10px] border border-black/10 p-[30px]"
+    >
+      {allowDismiss ? <EditCloseButton onClick={onClose} /> : null}
       <div className="flex flex-col gap-5">
         <label className="flex flex-col gap-2.5">
           <span className="text-sm text-black">Title</span>
@@ -215,6 +235,7 @@ function NoteForm({
             matches={matches}
             onSelectMatch={applySaved}
             onForgetMatch={forgetSaved}
+            autoFocus={autoFocusTitle}
           />
         </label>
 
@@ -240,19 +261,23 @@ function NoteForm({
 
         <div className="mt-6 border-t border-dashed border-black/15 pt-6">
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-sm font-semibold text-delete-red transition hover:opacity-80"
-            >
-              {isNew ? "Cancel" : "Delete"}
-            </button>
+            {allowDismiss ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="text-sm font-semibold text-delete-red transition hover:opacity-80"
+              >
+                {isNew ? "Cancel" : "Delete"}
+              </button>
+            ) : (
+              <span />
+            )}
             <button
               type="button"
               onClick={handleSave}
               className="ui-btn-primary"
             >
-              {isNew ? "Save" : "Update"}
+              {isNew ? "Add" : "Update"}
             </button>
           </div>
         </div>
@@ -263,13 +288,21 @@ function NoteForm({
 
 export function CustomerNotesSection({
   documentKind = "invoice",
+  initialNotes = [],
+  onNotesChange,
 }: {
   documentKind?: "invoice" | "quote";
+  initialNotes?: CustomerNote[];
+  onNotesChange?: (notes: CustomerNote[]) => void;
 }) {
-  const [notes, setNotes] = useState<CustomerNote[]>([]);
+  const [notes, setNotes] = useState<CustomerNote[]>(initialNotes);
   const [editingId, setEditingId] = useState<EditingId>(null);
   const [newNote, setNewNote] = useState<CustomerNote | null>(null);
   const [savedNotes, setSavedNotes] = useState<SavedCustomerNote[]>([]);
+
+  useEffect(() => {
+    onNotesChange?.(notes);
+  }, [notes, onNotesChange]);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -278,6 +311,19 @@ export function CustomerNotesSection({
     );
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    if (notes.length > 0 || editingId === "new" || newNote) return;
+    window.setTimeout(() => {
+      setNewNote({
+        id: `note-${Date.now()}`,
+        title: "",
+        body: "",
+        saveForFuture: false,
+      });
+      setEditingId("new");
+    }, 0);
+  }, [notes, editingId, newNote]);
 
   function closeEditor() {
     setEditingId(null);
@@ -349,6 +395,7 @@ export function CustomerNotesSection({
 
       {editingId === "new" && newNote ? (
         <NoteForm
+          key={newNote.id}
           initial={newNote}
           isNew
           savedNotes={savedNotes}
@@ -356,20 +403,24 @@ export function CustomerNotesSection({
           onSave={saveNew}
           onDelete={closeEditor}
           onClose={closeEditor}
+          allowDismiss={notes.length > 0}
+          autoFocusTitle
         />
       ) : null}
 
-      <div>
-        <TertiaryButton
-          onClick={() => {
-            if (editingId === "new") return;
-            closeEditor();
-            startAdd();
-          }}
-        >
-          Add note
-        </TertiaryButton>
-      </div>
+      {notes.length > 0 ? (
+        <div>
+          <TertiaryButton
+            onClick={() => {
+              if (editingId === "new") return;
+              closeEditor();
+              startAdd();
+            }}
+          >
+            Add
+          </TertiaryButton>
+        </div>
+      ) : null}
     </div>
   );
 }

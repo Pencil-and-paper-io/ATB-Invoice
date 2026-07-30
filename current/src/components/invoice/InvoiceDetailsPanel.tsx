@@ -540,6 +540,85 @@ function serviceSummary(details: InvoiceDetailsState): {
   };
 }
 
+/** Compact labeled field grid for draft accordion collapsed state. */
+export function InvoiceDetailsCollapsedSummary({
+  details,
+  documentKind = "invoice",
+}: {
+  details: InvoiceDetailsState;
+  documentKind?: "invoice" | "quote";
+}) {
+  const isQuote = documentKind === "quote";
+  const service = serviceSummary(details);
+
+  const cells: { label: string; value: ReactNode }[] = isQuote
+    ? [
+        {
+          label: "Estimate #",
+          value: details.invoiceNumber.trim() || "—",
+        },
+        {
+          label: "Estimate date",
+          value: displayDetailDate(details.issueDate),
+        },
+        {
+          label: "Valid until",
+          value: displayDetailDate(details.validUntil),
+        },
+        {
+          label: "Due date",
+          value: details.dueDate.trim() || "—",
+        },
+        {
+          label: service.label,
+          value: service.value,
+        },
+        {
+          label: "Tax",
+          value: taxSettingLabel(details.taxMode),
+        },
+      ]
+    : [
+        {
+          label: "Invoice #",
+          value: details.invoiceNumber.trim() || "—",
+        },
+        {
+          label: "Issue date",
+          value: displayDetailDate(details.issueDate),
+        },
+        {
+          label: "Due date",
+          value: details.dueDate.trim() || "—",
+        },
+        {
+          label: "Reference #",
+          value: details.referenceNumber?.trim() || "—",
+        },
+        {
+          label: service.label,
+          value: service.value,
+        },
+        {
+          label: "Tax",
+          value: taxSettingLabel(details.taxMode),
+        },
+      ];
+
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+      {cells.map((cell) => (
+        <div key={cell.label} className="min-w-0">
+          <p className="type-caption">{cell.label}</p>
+          <p className="mt-0.5 truncate type-paragraph-2 text-midnight-ink">
+            {cell.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const detailsHoverCardClass =
   "rounded-[10px] border border-black/10 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue";
 
@@ -693,20 +772,33 @@ function DetailsEditor({
   );
 }
 
-/** Per-document details — summary + edit modal (same pattern as payments/automations). */
+/** Per-document details — summary + edit modal, or inline editor in draft composer. */
 export function InvoiceDetailsPanel({
   details,
   onChange,
   documentKind = "invoice",
+  inlineEdit = false,
 }: {
   details: InvoiceDetailsState;
   onChange: (next: InvoiceDetailsState) => void;
   documentKind?: "invoice" | "quote";
+  /** When true, show the editor in place (accordion open / edit mode). */
+  inlineEdit?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState(details);
   const isQuote = documentKind === "quote";
   const service = serviceSummary(details);
+
+  if (inlineEdit) {
+    return (
+      <DetailsEditor
+        details={details}
+        onChange={onChange}
+        documentKind={documentKind}
+      />
+    );
+  }
 
   const summaryCells: { id: string; label: string; value: ReactNode }[] = isQuote
     ? [

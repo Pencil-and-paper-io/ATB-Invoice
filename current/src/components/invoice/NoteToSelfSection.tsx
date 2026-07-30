@@ -41,16 +41,27 @@ function SelfNoteForm({
   onSave,
   onDelete,
   onClose,
+  allowDismiss = true,
 }: {
   initial: SelfNote;
   isNew: boolean;
   onSave: (note: SelfNote) => void;
   onDelete: () => void;
   onClose: () => void;
+  allowDismiss?: boolean;
 }) {
   const formRef = useRef<HTMLDivElement>(null);
-  useDismissOnOutsideClick(formRef, onClose);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useDismissOnOutsideClick(formRef, allowDismiss ? onClose : () => undefined);
   const [body, setBody] = useState(initial.body);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.select();
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function handleSave() {
     const trimmed = body.trim();
@@ -62,32 +73,39 @@ function SelfNoteForm({
   }
 
   return (
-    <div ref={formRef} className={`relative p-5 ${hoverCardClass}`}>
-      <EditCloseButton onClick={onClose} />
+    <div
+      ref={formRef}
+      className="relative rounded-[10px] border border-black/10 p-5"
+    >
+      {allowDismiss ? <EditCloseButton onClick={onClose} /> : null}
       <div className="flex flex-col gap-4">
         <textarea
+          ref={textareaRef}
           className={`${inputClass} min-h-[160px] resize-y`}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Write a private reminder…"
-          autoFocus
         />
 
         <div className="mt-6 border-t border-dashed border-black/15 pt-6">
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-sm font-semibold text-delete-red transition hover:opacity-80"
-            >
-              {isNew ? "Cancel" : "Delete"}
-            </button>
+            {allowDismiss ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="text-sm font-semibold text-delete-red transition hover:opacity-80"
+              >
+                {isNew ? "Cancel" : "Delete"}
+              </button>
+            ) : (
+              <span />
+            )}
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex h-9 items-center justify-center rounded bg-prime-blue px-5 text-sm font-semibold text-white transition hover:bg-prime-blue-hover"
+              className="ui-btn-primary"
             >
-              {isNew ? "Save" : "Update"}
+              {isNew ? "Add" : "Update"}
             </button>
           </div>
         </div>
@@ -96,35 +114,52 @@ function SelfNoteForm({
   );
 }
 
-export function NoteToSelfSection() {
+export function NoteToSelfSection({
+  onNoteChange,
+}: {
+  onNoteChange?: (note: SelfNote | null) => void;
+} = {}) {
   const [note, setNote] = useState<SelfNote | null>(null);
   const [editing, setEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const loaded = loadSelfNotes();
     window.setTimeout(() => {
-      setNote(loaded[0] ?? null);
+      const loaded = loadSelfNotes()[0] ?? null;
+      setNote(loaded);
+      onNoteChange?.(loaded);
+      if (loaded) {
+        setIsCreating(false);
+        setEditing(true);
+      } else {
+        const blank = { id: `self-note-${Date.now()}`, body: "" };
+        setNote(blank);
+        setIsCreating(true);
+        setEditing(true);
+      }
       setHydrated(true);
     }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function commit(next: SelfNote | null) {
     setNote(next);
     persistSelfNotes(next ? [next] : []);
+    onNoteChange?.(next);
   }
 
   function closeEditor() {
     if (isCreating) {
-      setNote(null);
+      commit(null);
     }
     setEditing(false);
     setIsCreating(false);
   }
 
   function startAdd() {
-    setNote({ id: `self-note-${Date.now()}`, body: "" });
+    const blank = { id: `self-note-${Date.now()}`, body: "" };
+    setNote(blank);
     setIsCreating(true);
     setEditing(true);
   }
@@ -141,6 +176,12 @@ export function NoteToSelfSection() {
     setIsCreating(false);
   }
 
+  if (!hydrated) {
+    return (
+      <p className="type-paragraph-2 text-black/45">Loading…</p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2.5">
       <p className="text-sm text-black">
@@ -148,17 +189,19 @@ export function NoteToSelfSection() {
         customer.
       </p>
 
-      {hydrated && note && editing ? (
+      {note && editing ? (
         <SelfNoteForm
+          key={note.id}
           initial={note}
           isNew={isCreating}
           onSave={saveNote}
           onDelete={isCreating ? closeEditor : deleteNote}
           onClose={closeEditor}
+          allowDismiss={!isCreating}
         />
       ) : null}
 
-      {hydrated && note && !editing ? (
+      {note && !editing ? (
         <SelfNoteCard
           note={note}
           onClick={() => {
@@ -168,9 +211,9 @@ export function NoteToSelfSection() {
         />
       ) : null}
 
-      {hydrated && !note && !editing ? (
+      {!note && !editing ? (
         <div>
-          <TertiaryButton onClick={startAdd}>Add note</TertiaryButton>
+          <TertiaryButton onClick={startAdd}>Add</TertiaryButton>
         </div>
       ) : null}
     </div>

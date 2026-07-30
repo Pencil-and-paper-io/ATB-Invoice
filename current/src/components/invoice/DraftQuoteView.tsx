@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { draftInvoice, type Customer } from "@/lib/invoice-demo-data";
 import {
   addDaysToIso,
@@ -25,21 +25,31 @@ import { getQuoteActionsForStatus } from "@/lib/quote-actions";
 import { loadQuoteDetails, persistQuoteDetails } from "@/lib/quote-details";
 import { BillToSection, defaultDraftCustomer } from "./BillToSection";
 import { CustomerNotesSection } from "./CustomerNotesSection";
+import { DraftComposerSteps, type DraftComposerStep } from "./DraftComposerSteps";
 import {
+  InvoiceDetailsCollapsedSummary,
   InvoiceDetailsPanel,
   type InvoiceDetailsState,
 } from "./InvoiceDetailsPanel";
-import { LineItemsSection } from "./LineItemsSection";
+import {
+  emptyLineItemsSummary,
+  LineItemsCollapsedSummary,
+  LineItemsSection,
+  type LineItemsSummaryInfo,
+} from "./LineItemsSection";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
-import { PaymentOptionsSection } from "./PaymentOptionsSection";
+import {
+  PaymentOptionsEditor,
+  type PaymentOptionsEditorHandle,
+} from "./AddPaymentOptionsModal";
 import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
-import { ContactBlock, SectionCard, TextLink } from "./ui";
+import { ContactBlock, TextLink } from "./ui";
 import { getCustomerTaxRecommendation } from "@/lib/customer-profile-settings";
 import {
-  DocumentAutomationsSection,
+  DocumentAutomationsEditor,
   type DocumentAutomationsState,
 } from "./DocumentAutomationsSection";
 import {
@@ -110,6 +120,14 @@ export function DraftQuoteView() {
   const [automations, setAutomations] = useState<DocumentAutomationsState>(() =>
     loadOrInitDocumentAutomations("quote"),
   );
+  const [billToCustomer, setBillToCustomer] = useState<Customer | null>(
+    defaultDraftCustomer,
+  );
+  const [billToSkipped, setBillToSkipped] = useState(false);
+  const [lineItemsSummaryInfo, setLineItemsSummaryInfo] =
+    useState<LineItemsSummaryInfo>(() => emptyLineItemsSummary());
+  const lineItemCount = lineItemsSummaryInfo.count;
+  const paymentOptionsRef = useRef<PaymentOptionsEditorHandle>(null);
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -131,6 +149,8 @@ export function DraftQuoteView() {
       setDetails(next);
       persistQuoteDetails(next);
       rememberDocumentNumber("quote", next.invoiceNumber);
+      setBillToCustomer(defaultDraftCustomer);
+      setBillToSkipped(false);
       setAutomations(
         loadOrInitDocumentAutomations(
           "quote",
@@ -152,6 +172,8 @@ export function DraftQuoteView() {
   }
 
   function handleCustomerChange(customer: Customer | null) {
+    setBillToCustomer(customer);
+    setBillToSkipped(false);
     const taxRec = getCustomerTaxRecommendation(customer?.id ?? null);
     setDefaultTaxLabel(taxRec?.label ?? "");
     setRecommendedTaxNote(taxRec?.note ?? "");
@@ -195,11 +217,188 @@ export function DraftQuoteView() {
     persistDocumentPayments("quote", next);
   }
 
+  const billToSummary = billToCustomer
+    ? billToCustomer.name
+    : billToSkipped
+      ? "Skipped — add a customer later"
+      : "Choose a customer or skip";
+
+  const paymentSummary =
+    payments
+      .filter((option) => option.checked)
+      .map((option) => option.label)
+      .join(", ") || "No payment options selected";
+
+  const automationsSummary = [
+    automations.autoSendInvoice ? "Auto-send invoice when accepted" : null,
+    automations.reminders
+      ? `Reminders · ${automations.reminderDays.trim() || "3"} days`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ") || "No automations enabled";
+
+  const composerSteps: DraftComposerStep[] = useMemo(
+    () => [
+      {
+        id: "customerDetails",
+        title: "Customer & details",
+        summary: (
+          <div className="min-w-0">
+            <p className="mt-1 truncate type-paragraph-2 text-black/55">
+              {billToSummary}
+            </p>
+            <InvoiceDetailsCollapsedSummary
+              details={details}
+              documentKind="quote"
+            />
+          </div>
+        ),
+        summaryLayout: "block",
+        content: (
+          <div className="flex flex-col gap-6">
+            <div>
+              <p className="mb-3 type-subtitle-1 text-midnight-ink">Bill to</p>
+              <BillToSection
+                key={billToSkipped ? "skipped-bill-to" : "demo-bill-to"}
+                embedded
+                defaultCustomer={billToSkipped ? null : defaultDraftCustomer}
+                onCustomerChange={handleCustomerChange}
+              />
+            </div>
+            <div>
+              <p className="mb-3 type-subtitle-1 text-midnight-ink">Details</p>
+              <InvoiceDetailsPanel
+                documentKind="quote"
+                details={details}
+                onChange={updateDetails}
+                inlineEdit
+              />
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "lineItems",
+        title: "Line items",
+        summary: (
+          <LineItemsCollapsedSummary summary={lineItemsSummaryInfo} />
+        ),
+        summaryLayout: "block",
+        canSave: lineItemCount > 0,
+        content: (
+          <LineItemsSection
+            taxMode={details.taxMode}
+            currency={details.currency}
+            defaultTaxLabel={defaultTaxLabel}
+            recommendedTaxNote={recommendedTaxNote}
+            onSummaryChange={setLineItemsSummaryInfo}
+          />
+        ),
+      },
+      {
+        id: "customerNote",
+        title: "Add Note",
+        summary: "Optional message on the quote",
+        content: <CustomerNotesSection documentKind="quote" />,
+      },
+      {
+        id: "payments",
+        title: "Payment options",
+        summary: paymentSummary,
+        content: (
+          <PaymentOptionsEditor
+            ref={paymentOptionsRef}
+            currentPayments={payments}
+            onChange={updatePayments}
+          />
+        ),
+        onBeforeSave: () => {
+          paymentOptionsRef.current?.commit();
+        },
+      },
+      {
+        id: "automations",
+        title: "Automations",
+        summary: automationsSummary,
+        content: (
+          <DocumentAutomationsEditor
+            value={automations}
+            onChange={updateAutomations}
+            documentKind="quote"
+          />
+        ),
+      },
+      {
+        id: "noteToSelf",
+        title: "Note to self",
+        summary: "Private notes (not shared with the customer)",
+        content: <NoteToSelfSection />,
+      },
+      {
+        id: "style",
+        title: "Style",
+        summary: draftInvoice.business.name,
+        content: (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-[10px] border border-black/10 p-5 sm:p-[30px]">
+              <ContactBlock {...draftInvoice.business} />
+              <div className="mt-2.5">
+                <TextLink>Edit Business Info</TextLink>
+              </div>
+            </div>
+            <div className="rounded-[10px] border border-black/10 p-5 sm:p-[30px]">
+              <div className="flex flex-col gap-[11px]">
+                <div>
+                  <p className="text-sm text-black">Company Color</p>
+                  <div className="mt-2.5 flex items-center gap-2.5 text-sm text-black">
+                    <span
+                      className="h-3.5 w-3.5 rounded-full"
+                      style={{ backgroundColor: draftInvoice.business.color }}
+                    />
+                    <span>{draftInvoice.business.color}</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-black">Company Style</p>
+                  <Image
+                    src="/brand/company-style.png"
+                    alt="Company style preview"
+                    width={80}
+                    height={50}
+                    className="mt-2.5 h-[50px] w-20 rounded object-cover"
+                  />
+                </div>
+              </div>
+              <div className="mt-2.5">
+                <TextLink>Edit Company Style</TextLink>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      billToSummary,
+      billToSkipped,
+      details,
+      lineItemCount,
+      lineItemsSummaryInfo,
+      defaultTaxLabel,
+      recommendedTaxNote,
+      paymentSummary,
+      payments,
+      automations,
+      automationsSummary,
+    ],
+  );
+
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
 
-      <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
+      <main className="mx-auto max-w-[1440px] px-4 pb-28 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <GstMissingWarning
           chargingTax={Boolean(
             defaultTaxLabel &&
@@ -208,101 +407,22 @@ export function DraftQuoteView() {
               defaultTaxLabel !== "Zero-rated - 0%",
           )}
         />
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-8">
           <h1 className="type-page-title">Draft Quote</h1>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <TemplatePicker />
-            <MoreActionsMenu actions={moreActions} onAction={handleAction} />
-            <Link href="/quote/preview" className="ui-btn-primary">
-              Save and Preview
-            </Link>
-          </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_331px]">
-          <div className="flex flex-col gap-2.5">
-            <BillToSection
-              defaultCustomer={defaultDraftCustomer}
-              onCustomerChange={handleCustomerChange}
-            >
-              <InvoiceDetailsPanel
-                documentKind="quote"
-                details={details}
-                onChange={updateDetails}
-              />
-            </BillToSection>
-
-            <SectionCard title="Line Items" className="gap-2.5">
-              <LineItemsSection
-                taxMode={details.taxMode}
-                currency={details.currency}
-                defaultTaxLabel={defaultTaxLabel}
-                recommendedTaxNote={recommendedTaxNote}
-              />
-            </SectionCard>
-
-            <SectionCard title="Note to Customer" className="gap-2.5">
-              <CustomerNotesSection documentKind="quote" />
-            </SectionCard>
-          </div>
-
-          <aside className="flex flex-col gap-[15px]">
-            <PaymentOptionsSection
-              payments={payments}
-              onToggle={togglePayment}
-              onChange={updatePayments}
-              compact
-            />
-
-            <DocumentAutomationsSection
-              value={automations}
-              onChange={updateAutomations}
-              documentKind="quote"
-            />
-
-            <SectionCard title="Note to Self" className="gap-2.5">
-              <NoteToSelfSection />
-            </SectionCard>
-
-            <SectionCard title="Style" className="gap-2.5">
-              <div className="rounded-[10px] border border-black/10 p-[30px]">
-                <ContactBlock {...draftInvoice.business} />
-                <div className="mt-2.5">
-                  <TextLink>Edit Business Info</TextLink>
-                </div>
-              </div>
-
-              <div className="rounded-[10px] border border-black/10 p-[30px]">
-                <div className="flex flex-col gap-[11px]">
-                  <div>
-                    <p className="text-sm text-black">Company Color</p>
-                    <div className="mt-2.5 flex items-center gap-2.5 text-sm text-black">
-                      <span
-                        className="h-3.5 w-3.5 rounded-full"
-                        style={{ backgroundColor: draftInvoice.business.color }}
-                      />
-                      <span>{draftInvoice.business.color}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-black">Company Style</p>
-                    <Image
-                      src="/brand/company-style.png"
-                      alt="Company style preview"
-                      width={80}
-                      height={50}
-                      className="mt-2.5 h-[50px] w-20 rounded object-cover"
-                    />
-                  </div>
-                </div>
-                <div className="mt-2.5">
-                  <TextLink>Edit Company Style</TextLink>
-                </div>
-              </div>
-            </SectionCard>
-          </aside>
-        </div>
+        <DraftComposerSteps steps={composerSteps} />
       </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:px-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5 lg:px-[158px]">
+          <TemplatePicker />
+          <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+          <Link href="/quote/preview" className="ui-btn-primary">
+            Save and Preview
+          </Link>
+        </div>
+      </div>
 
       {feedbackBanner}
       {confirmModal}

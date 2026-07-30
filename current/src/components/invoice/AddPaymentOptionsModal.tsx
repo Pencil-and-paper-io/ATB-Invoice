@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   CORE_PAYMENT_METHODS,
   getInvoicePaymentOptions,
@@ -130,15 +137,41 @@ function mergeDraftPayments(
   }));
 }
 
-export function AddPaymentOptionsModal({
-  currentPayments,
-  onClose,
-  onSaved,
-}: {
-  currentPayments: InvoicePaymentOption[];
-  onClose: () => void;
-  onSaved: (next: InvoicePaymentOption[]) => void;
-}) {
+function buildSettingsFromDraft(
+  paymentMethods: PaymentMethodConfig[],
+  paymentPreferences: string[],
+  accountDrafts: Record<"interac" | "eft", string>,
+  accountConfirmed: Record<"interac" | "eft", boolean>,
+): OrganizationSettings {
+  return {
+    ...loadOrganizationSettings(),
+    paymentMethods: paymentMethods.map((method) => {
+      if (method.id === "interac" || method.id === "eft") {
+        return {
+          ...method,
+          accountLabel: accountConfirmed[method.id]
+            ? accountDrafts[method.id].trim()
+            : method.accountLabel,
+        };
+      }
+      return method;
+    }),
+    paymentPreferences,
+  };
+}
+
+export type PaymentOptionsEditorHandle = {
+  commit: () => InvoicePaymentOption[];
+};
+
+/** Edit Payment Options body — shared by the modal and draft composer step. */
+export const PaymentOptionsEditor = forwardRef<
+  PaymentOptionsEditorHandle,
+  {
+    currentPayments: InvoicePaymentOption[];
+    onChange?: (next: InvoicePaymentOption[]) => void;
+  }
+>(function PaymentOptionsEditor({ currentPayments, onChange }, ref) {
   const initial = useMemo(() => loadOrganizationSettings(), []);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>(
     () => initial.paymentMethods.map((method) => ({ ...method })),
@@ -175,6 +208,41 @@ export function AddPaymentOptionsModal({
     ? initial.businessName
     : initial.tradingAsName.trim() || initial.businessName;
 
+  function commit(): InvoicePaymentOption[] {
+    const settings = buildSettingsFromDraft(
+      paymentMethods,
+      paymentPreferences,
+      accountDrafts,
+      accountConfirmed,
+    );
+    saveOrganizationSettings(settings);
+    const next = mergeDraftPayments(
+      currentPayments,
+      getInvoicePaymentOptions(settings),
+    );
+    onChange?.(next);
+    return next;
+  }
+
+  useImperativeHandle(ref, () => ({ commit }));
+
+  function peekPayments(
+    nextMethods: PaymentMethodConfig[],
+    nextPrefs: string[],
+    nextDrafts: Record<"interac" | "eft", string>,
+    nextConfirmed: Record<"interac" | "eft", boolean>,
+  ) {
+    const settings = buildSettingsFromDraft(
+      nextMethods,
+      nextPrefs,
+      nextDrafts,
+      nextConfirmed,
+    );
+    onChange?.(
+      mergeDraftPayments(currentPayments, getInvoicePaymentOptions(settings)),
+    );
+  }
+
   function toggleMethod(id: PaymentMethodId) {
     const currentlyEnabled = Boolean(
       paymentMethods.find((method) => method.id === id)?.enabled,
@@ -182,33 +250,41 @@ export function AddPaymentOptionsModal({
     const enabling = !currentlyEnabled;
     const label = paymentMethodLabel(id);
 
-    setPaymentMethods((prev) =>
-      prev.map((method) =>
-        method.id === id
-          ? {
-              ...method,
-              enabled: enabling,
-              accountLabel: enabling
-                ? method.accountLabel
-                : needsDepositAccount(id)
-                  ? ""
-                  : method.accountLabel,
-            }
-          : method,
-      ),
+    const nextMethods = paymentMethods.map((method) =>
+      method.id === id
+        ? {
+            ...method,
+            enabled: enabling,
+            accountLabel: enabling
+              ? method.accountLabel
+              : needsDepositAccount(id)
+                ? ""
+                : method.accountLabel,
+          }
+        : method,
     );
-    setPaymentPreferences((prev) =>
-      enabling
-        ? prev.includes(label)
-          ? prev
-          : [...prev, label]
-        : prev.filter((item) => item !== label),
-    );
+    const nextPrefs = enabling
+      ? paymentPreferences.includes(label)
+        ? paymentPreferences
+        : [...paymentPreferences, label]
+      : paymentPreferences.filter((item) => item !== label);
 
-    if (!enabling && needsDepositAccount(id) && (id === "interac" || id === "eft")) {
-      setAccountDrafts((prev) => ({ ...prev, [id]: "" }));
-      setAccountConfirmed((prev) => ({ ...prev, [id]: false }));
+    let nextDrafts = accountDrafts;
+    let nextConfirmed = accountConfirmed;
+    if (
+      !enabling &&
+      needsDepositAccount(id) &&
+      (id === "interac" || id === "eft")
+    ) {
+      nextDrafts = { ...accountDrafts, [id]: "" };
+      nextConfirmed = { ...accountConfirmed, [id]: false };
+      setAccountDrafts(nextDrafts);
+      setAccountConfirmed(nextConfirmed);
     }
+
+    setPaymentMethods(nextMethods);
+    setPaymentPreferences(nextPrefs);
+    peekPayments(nextMethods, nextPrefs, nextDrafts, nextConfirmed);
   }
 
   function updateAccountDraft(id: "interac" | "eft", value: string) {
@@ -225,42 +301,95 @@ export function AddPaymentOptionsModal({
     const accountLabel = accountDrafts[id].trim();
     if (!accountLabel) return;
     const label = paymentMethodLabel(id);
-    setAccountConfirmed((prev) => ({ ...prev, [id]: true }));
-    setPaymentMethods((prev) =>
-      prev.map((method) =>
-        method.id === id
-          ? { ...method, enabled: true, accountLabel }
-          : method,
-      ),
+    const nextConfirmed = { ...accountConfirmed, [id]: true };
+    const nextMethods = paymentMethods.map((method) =>
+      method.id === id
+        ? { ...method, enabled: true, accountLabel }
+        : method,
     );
-    setPaymentPreferences((prev) =>
-      prev.includes(label) ? prev : [...prev, label],
-    );
+    const nextPrefs = paymentPreferences.includes(label)
+      ? paymentPreferences
+      : [...paymentPreferences, label];
+
+    setAccountConfirmed(nextConfirmed);
+    setPaymentMethods(nextMethods);
+    setPaymentPreferences(nextPrefs);
+    peekPayments(nextMethods, nextPrefs, accountDrafts, nextConfirmed);
   }
 
-  function save() {
-    const settings: OrganizationSettings = {
-      ...loadOrganizationSettings(),
-      paymentMethods: paymentMethods.map((method) => {
-        if (method.id === "interac" || method.id === "eft") {
-          return {
-            ...method,
-            accountLabel: accountConfirmed[method.id]
-              ? accountDrafts[method.id].trim()
-              : method.accountLabel,
-          };
+  return (
+    <div className="flex flex-col gap-3">
+      {paymentMethods.map((method) => {
+        const meta = CORE_PAYMENT_METHODS.find(
+          (entry) => entry.id === method.id,
+        );
+        if (!meta) return null;
+        const label = paymentMethodLabel(method.id);
+        const needsAccount = needsDepositAccount(method.id);
+
+        return (
+          <MethodRow
+            key={method.id}
+            label={label}
+            details={meta.details}
+            enabled={method.enabled}
+            onToggle={() => toggleMethod(method.id)}
+            subtitle={
+              needsAccount && method.enabled
+                ? paymentRequestSubtitle(orgDisplayName, initial.email)
+                : undefined
+            }
+            accountDraft={
+              method.id === "interac" || method.id === "eft"
+                ? accountDrafts[method.id]
+                : undefined
+            }
+            accountSaved={
+              method.id === "interac" || method.id === "eft"
+                ? accountConfirmed[method.id]
+                : undefined
+            }
+            onAccountDraftChange={
+              method.id === "interac" || method.id === "eft"
+                ? (value) =>
+                    updateAccountDraft(method.id as "interac" | "eft", value)
+                : undefined
+            }
+            onConfirmAccount={
+              method.id === "interac" || method.id === "eft"
+                ? () => confirmAccount(method.id as "interac" | "eft")
+                : undefined
+            }
+          />
+        );
+      })}
+      <MethodRow
+        label={
+          <>
+            Credit Card
+            <span className="rounded-md bg-black/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-black/70">
+              Coming Soon
+            </span>
+          </>
         }
-        return method;
-      }),
-      paymentPreferences,
-    };
-    saveOrganizationSettings(settings);
-    const next = mergeDraftPayments(
-      currentPayments,
-      getInvoicePaymentOptions(settings),
-    );
-    onSaved(next);
-  }
+        details={[]}
+        enabled={false}
+        comingSoon
+      />
+    </div>
+  );
+});
+
+export function AddPaymentOptionsModal({
+  currentPayments,
+  onClose,
+  onSaved,
+}: {
+  currentPayments: InvoicePaymentOption[];
+  onClose: () => void;
+  onSaved: (next: InvoicePaymentOption[]) => void;
+}) {
+  const editorRef = useRef<PaymentOptionsEditorHandle>(null);
 
   return (
     <Modal
@@ -271,67 +400,14 @@ export function AddPaymentOptionsModal({
       zClass="z-[220]"
       maxWidthClass="max-w-3xl"
       confirmLabel="Save"
-      onConfirm={save}
+      onConfirm={() => {
+        const next = editorRef.current?.commit() ?? currentPayments;
+        onSaved(next);
+        onClose();
+      }}
       subtitle="Adjust your payment options for this invoice. Choices here do not update your organization or customer defaults."
     >
-      <div className="flex flex-col gap-3">
-        {paymentMethods.map((method) => {
-          const meta = CORE_PAYMENT_METHODS.find(
-            (entry) => entry.id === method.id,
-          );
-          if (!meta) return null;
-          const label = paymentMethodLabel(method.id);
-          const needsAccount = needsDepositAccount(method.id);
-
-          return (
-            <MethodRow
-              key={method.id}
-              label={label}
-              details={meta.details}
-              enabled={method.enabled}
-              onToggle={() => toggleMethod(method.id)}
-              subtitle={
-                needsAccount && method.enabled
-                  ? paymentRequestSubtitle(orgDisplayName, initial.email)
-                  : undefined
-              }
-              accountDraft={
-                method.id === "interac" || method.id === "eft"
-                  ? accountDrafts[method.id]
-                  : undefined
-              }
-              accountSaved={
-                method.id === "interac" || method.id === "eft"
-                  ? accountConfirmed[method.id]
-                  : undefined
-              }
-              onAccountDraftChange={
-                method.id === "interac" || method.id === "eft"
-                  ? (value) => updateAccountDraft(method.id as "interac" | "eft", value)
-                  : undefined
-              }
-              onConfirmAccount={
-                method.id === "interac" || method.id === "eft"
-                  ? () => confirmAccount(method.id as "interac" | "eft")
-                  : undefined
-              }
-            />
-          );
-        })}
-        <MethodRow
-          label={
-            <>
-              Credit Card
-              <span className="rounded-md bg-black/20 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-black/70">
-                Coming Soon
-              </span>
-            </>
-          }
-          details={[]}
-          enabled={false}
-          comingSoon
-        />
-      </div>
+      <PaymentOptionsEditor ref={editorRef} currentPayments={currentPayments} />
     </Modal>
   );
 }
