@@ -425,6 +425,7 @@ export function CustomerDocumentsPanel({
                 gridTemplateColumns: GRID,
                 gap: "1rem",
                 minWidth: 760,
+                alignItems: "center",
               }}
             >
               {(

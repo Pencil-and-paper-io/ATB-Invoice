@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { buildDashboardModel } from "@/lib/dashboard-stats";
 import { UI_CLASS } from "@/lib/design-tokens";
+import {
+  DateCell,
+  DIRECTORY_BODY_ROW,
+  DIRECTORY_HEADER_ROW,
+  MoneyCell,
+} from "./directory-table";
 import { SendReminderModal } from "./SendReminderModal";
 import { CreatePlusIcon, InfoTooltip } from "./ui";
 import { TopNav } from "./TopNav";
@@ -35,6 +41,29 @@ const STAT_AMOUNT_COLOR: Record<string, string> = {
   warning: "text-[#C62828]",
   success: "text-[#1B7A3A]",
 };
+
+const RECENT_GRID =
+  "minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.1fr)";
+
+function AllInvoicesLink() {
+  return (
+    <Link
+      href="/invoices"
+      className="inline-flex items-center gap-1.5 text-sm font-semibold text-prime-blue transition hover:underline"
+    >
+      All Invoices
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+        <path
+          d="M2.5 7h8M7.5 3.5 11 7l-3.5 3.5"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </Link>
+  );
+}
 
 export function DashboardView() {
   const model = useMemo(() => buildDashboardModel(), []);
@@ -86,12 +115,14 @@ export function DashboardView() {
         <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <section className="rounded-[10px] border border-black/10 bg-white p-6">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="type-headline-5 text-midnight-ink">Needs attention</h2>
+              <h2 className="type-headline-5 text-midnight-ink">
+                Needs Attention
+              </h2>
               <Link
                 href="/invoices"
                 className="text-sm font-semibold text-prime-blue hover:underline"
               >
-                View all
+                View All
               </Link>
             </div>
             <p className="mt-1 text-sm text-black/50">
@@ -145,7 +176,9 @@ export function DashboardView() {
           </section>
 
           <section className="rounded-[10px] border border-black/10 bg-white p-6">
-            <h2 className="type-headline-5 text-midnight-ink">How you’re doing</h2>
+            <h2 className="type-headline-5 text-midnight-ink">
+              How You&apos;re Doing
+            </h2>
             <p className="mt-1 text-sm text-black/50">
               High-level collection health for your account.
             </p>
@@ -169,48 +202,93 @@ export function DashboardView() {
           </section>
         </div>
 
-        <section className="mt-5 rounded-[10px] border border-black/10 bg-white p-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="type-headline-5 text-midnight-ink">Recent invoices</h2>
-            <Link
-              href="/invoices"
-              className="text-sm font-semibold text-prime-blue hover:underline"
-            >
-              Invoices
-            </Link>
+        <section className="mt-5 rounded-[10px] border border-black/10 bg-white">
+          <div className="flex items-baseline justify-between gap-3 px-6 pt-6">
+            <h2 className="type-headline-5 text-midnight-ink">
+              Recent Invoices
+            </h2>
+            <AllInvoicesLink />
           </div>
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-black/50">
-                  <th className="pb-3 font-medium">Invoice #</th>
-                  <th className="pb-3 font-medium">Customer Name</th>
-                  <th className="pb-3 font-medium">Due</th>
-                  <th className="pb-3 font-medium">Amount</th>
-                  <th className="pb-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {model.recentInvoices.map((row) => (
-                  <tr key={row.id} className="border-b border-black/5 last:border-0">
-                    <td className="py-3.5">
-                      <Link
-                        href={row.href}
-                        className="font-semibold text-midnight-ink hover:underline"
-                      >
-                        #{row.number}
-                      </Link>
-                    </td>
-                    <td className="py-3.5 text-black/70">{row.customer}</td>
-                    <td className="py-3.5 text-black/70">{row.dueDate}</td>
-                    <td className="py-3.5 font-medium">{row.amount}</td>
-                    <td className="py-3.5">
-                      <StatusBadge status={row.status} />
-                    </td>
-                  </tr>
+          <div className="mt-4 overflow-x-auto">
+            <div className="min-w-[920px]">
+              <div
+                className={DIRECTORY_HEADER_ROW}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: RECENT_GRID,
+                  gap: "1rem",
+                  alignItems: "center",
+                }}
+              >
+                {(
+                  [
+                    "Invoice #",
+                    "Status",
+                    "Customer Name",
+                    "Issued",
+                    "Due",
+                    "Total",
+                    "Paid",
+                    "Outstanding",
+                  ] as const
+                ).map((label) => (
+                  <div
+                    key={label}
+                    className="min-w-0 text-xs font-semibold text-black/55"
+                  >
+                    {label}
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <ul>
+                {model.recentInvoices.map((row, index) => (
+                  <li key={row.id}>
+                    <Link
+                      href={row.href}
+                      className={`${DIRECTORY_BODY_ROW} block ${
+                        index < model.recentInvoices.length - 1
+                          ? "border-b border-black/10"
+                          : ""
+                      }`}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: RECENT_GRID,
+                        gap: "1rem",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span className="min-w-0 overflow-hidden font-medium">
+                        {row.number}
+                      </span>
+                      <span className="min-w-0 overflow-hidden">
+                        <StatusBadge status={row.status} />
+                      </span>
+                      <span className="min-w-0 truncate text-black/75">
+                        {row.customer}
+                      </span>
+                      <span className="min-w-0 overflow-hidden text-black/75">
+                        <DateCell value={row.dateIssued} />
+                      </span>
+                      <span className="min-w-0 overflow-hidden text-black/75">
+                        <DateCell value={row.dueDate} />
+                      </span>
+                      <span className="min-w-0 overflow-hidden">
+                        <MoneyCell amount={row.amount} variant="total" />
+                      </span>
+                      <span className="min-w-0 overflow-hidden">
+                        <MoneyCell amount={row.paid} variant="paid" />
+                      </span>
+                      <span className="min-w-0 overflow-hidden">
+                        <MoneyCell
+                          amount={row.balanceOutstanding}
+                          variant="outstanding"
+                        />
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
       </main>

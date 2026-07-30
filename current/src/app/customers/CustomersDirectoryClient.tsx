@@ -39,15 +39,21 @@ import {
   FilterIconButton,
 } from "@/components/invoice/DirectoryFilterTags";
 import {
+  DirectoryBulkActionBar,
   DirectoryColumnHeader,
+  DirectoryColumnsSettingsButton,
+  DirectorySelectAllRow,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW,
   MoneyCell,
+  RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
   type DirectoryViewMode,
 } from "@/components/invoice/directory-table";
+import { DirectoryColumnsPanel } from "@/components/invoice/DirectoryColumnsPanel";
+import type { DirectoryColumnDef } from "@/components/invoice/directory-table";
 import { RowKebabMenu } from "@/components/invoice/RowKebabMenu";
 import type { MenuAction } from "@/components/invoice/MoreActionsMenu";
 import { CreatePlusIcon } from "@/components/invoice/ui";
@@ -64,65 +70,53 @@ type SortDir = "asc" | "desc";
 type DirectoryTab = "active" | "archived";
 type ColumnId = SortKey | "tags";
 
-type ColumnDef = {
-  id: ColumnId;
-  label: string;
-  minWidth: number;
-  defaultWidth: number;
-  sortable: SortKey | null;
-  hideable: boolean;
-};
-
-const COLUMN_DEFS: ColumnDef[] = [
+const COLUMN_DEFS: DirectoryColumnDef<ColumnId>[] = [
   {
     id: "name",
     label: "Customer Name",
     minWidth: 140,
     defaultWidth: 220,
-    sortable: "name",
-    hideable: true,
+    hideable: false,
   },
   {
     id: "email",
     label: "Email",
     minWidth: 140,
     defaultWidth: 200,
-    sortable: "email",
-    hideable: true,
   },
   {
     id: "totalInvoiced",
     label: "Total",
     minWidth: 110,
     defaultWidth: 140,
-    sortable: "totalInvoiced",
-    hideable: true,
   },
   {
     id: "paid",
     label: "Paid",
     minWidth: 90,
     defaultWidth: 120,
-    sortable: "paid",
-    hideable: true,
   },
   {
     id: "outstanding",
     label: "Outstanding",
     minWidth: 110,
     defaultWidth: 140,
-    sortable: "outstanding",
-    hideable: true,
   },
   {
     id: "tags",
     label: "Tags",
     minWidth: 120,
     defaultWidth: 180,
-    sortable: null,
-    hideable: true,
   },
 ];
+
+const COLUMN_SORTABLE: Partial<Record<ColumnId, SortKey>> = {
+  name: "name",
+  email: "email",
+  totalInvoiced: "totalInvoiced",
+  paid: "paid",
+  outstanding: "outstanding",
+};
 
 const DEFAULT_ORDER = COLUMN_DEFS.map((column) => column.id);
 const DEFAULT_WIDTHS = Object.fromEntries(
@@ -245,7 +239,9 @@ function loadColumnPrefs(): {
       widths: { ...DEFAULT_WIDTHS, ...(parsed.widths ?? {}) },
       hidden: Array.isArray(parsed.hidden)
         ? parsed.hidden.filter((id) =>
-            COLUMN_DEFS.some((column) => column.id === id && column.hideable),
+            COLUMN_DEFS.some(
+              (column) => column.id === id && column.hideable !== false,
+            ),
           )
         : [],
     };
@@ -264,6 +260,8 @@ export default function CustomersDirectoryClient() {
   const [tab, setTab] = useState<DirectoryTab>("active");
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [customerFilters, setCustomerFilters] = useState<CustomerDirectoryFilters>(
     () => defaultCustomerFilters(),
   );
@@ -405,14 +403,22 @@ export default function CustomersDirectoryClient() {
   const visibleColumns = useMemo(() => {
     return columnOrder
       .map((id) => COLUMN_DEFS.find((column) => column.id === id))
-      .filter((column): column is ColumnDef => Boolean(column))
+      .filter((column): column is DirectoryColumnDef<ColumnId> => Boolean(column))
       .filter((column) => {
-        if (hiddenColumns.includes(column.id) && column.hideable) return false;
+        if (hiddenColumns.includes(column.id) && column.hideable !== false) {
+          return false;
+        }
         return true;
       });
   }, [columnOrder, hiddenColumns]);
 
-  const gridTemplateColumns = `${visibleColumns
+  const orderedColumns = useMemo(() => {
+    return columnOrder
+      .map((id) => COLUMN_DEFS.find((column) => column.id === id))
+      .filter((column): column is DirectoryColumnDef<ColumnId> => Boolean(column));
+  }, [columnOrder]);
+
+  const gridTemplateColumns = `40px ${visibleColumns
     .map((column) => `${columnWidths[column.id] ?? column.defaultWidth}px`)
     .join(" ")} 44px`;
 
@@ -555,7 +561,7 @@ export default function CustomersDirectoryClient() {
 
   function hideColumn(columnId: ColumnId) {
     const def = COLUMN_DEFS.find((column) => column.id === columnId);
-    if (!def?.hideable) return;
+    if (!def || def.hideable === false) return;
     setHiddenColumns((prev) =>
       prev.includes(columnId) ? prev : [...prev, columnId],
     );
@@ -570,6 +576,81 @@ export default function CustomersDirectoryClient() {
   function showAllColumns() {
     setHiddenColumns([]);
     setContextMenu(null);
+  }
+
+  function toggleColumnVisibility(columnId: ColumnId) {
+    const def = COLUMN_DEFS.find((column) => column.id === columnId);
+    if (!def || def.hideable === false) return;
+    setHiddenColumns((prev) =>
+      prev.includes(columnId)
+        ? prev.filter((id) => id !== columnId)
+        : [...prev, columnId],
+    );
+  }
+
+  function moveColumn(fromId: ColumnId, toId: ColumnId) {
+    if (fromId === toId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(fromId);
+      const to = next.indexOf(toId);
+      if (from < 0 || to < 0) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, fromId);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const ids = filteredSortedCustomers.map((c) => c.id);
+      const allSelected =
+        ids.length > 0 && ids.every((id) => next.has(id));
+      if (allSelected) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function toggleRowSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleBulkAction(key: string) {
+    const ids = [...selectedIds];
+    switch (key) {
+      case "create_invoice":
+        router.push("/");
+        break;
+      case "create_quote":
+        router.push("/quote");
+        break;
+      case "archive":
+        ids.forEach((id) => {
+          const next = archiveCustomer(id);
+          setArchivedIds(next);
+        });
+        setSelectedIds(new Set());
+        break;
+      case "unarchive":
+        ids.forEach((id) => {
+          const next = unarchiveCustomer(id);
+          setArchivedIds(next);
+        });
+        setSelectedIds(new Set());
+        break;
+      default:
+        break;
+    }
   }
 
   const onHeaderDragStart = useCallback((columnId: ColumnId) => {
@@ -599,8 +680,28 @@ export default function CustomersDirectoryClient() {
   const activeTags = customerFilterTags(customerFilters);
   const activeFilterCount = customerFilterCount(customerFilters);
   const hiddenHideable = COLUMN_DEFS.filter(
-    (column) => column.hideable && hiddenColumns.includes(column.id),
+    (column) =>
+      column.hideable !== false && hiddenColumns.includes(column.id),
   );
+
+  const allVisibleSelected =
+    filteredSortedCustomers.length > 0 &&
+    filteredSortedCustomers.every((c) => selectedIds.has(c.id));
+  const someVisibleSelected = filteredSortedCustomers.some((c) =>
+    selectedIds.has(c.id),
+  );
+
+  const customerBulkActions = useMemo(() => {
+    if (selectedIds.size === 0) return [] as MenuAction[];
+    if (tab === "archived") {
+      return [{ key: "unarchive", label: "Unarchive customer" }];
+    }
+    return [
+      { key: "create_invoice", label: "Create invoice" },
+      { key: "create_quote", label: "Create quote" },
+      { key: "archive", label: "Archive customer", danger: true },
+    ];
+  }, [selectedIds.size, tab]);
 
   const showTrueEmpty =
     forceEmpty ||
@@ -713,7 +814,11 @@ export default function CustomersDirectoryClient() {
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
-      <main className="mx-auto max-w-6xl px-6 py-12 sm:px-8">
+      <main
+        className={`mx-auto max-w-6xl px-6 py-12 sm:px-8 ${
+          selectedIds.size > 0 ? "pb-28" : ""
+        }`}
+      >
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="type-headline-2 text-midnight-ink">Customers</h1>
@@ -751,7 +856,10 @@ export default function CustomersDirectoryClient() {
                     type="button"
                     role="tab"
                     aria-selected={tab === id}
-                    onClick={() => setTab(id)}
+                    onClick={() => {
+                      setTab(id);
+                      setSelectedIds(new Set());
+                    }}
                     className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
                       tab === id
                         ? "bg-midnight-ink text-white"
@@ -778,16 +886,45 @@ export default function CustomersDirectoryClient() {
                 activeCount={activeFilterCount}
                 onClick={() => setFilterOpen(true)}
               />
+              <DirectoryColumnsSettingsButton
+                onClick={() => setColumnsOpen(true)}
+              />
               <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
             </div>
 
-            <DirectoryFilterTags
-              tags={activeTags}
-              onRemove={(id) =>
-                setCustomerFilters((prev) => clearCustomerFilterTag(prev, id))
-              }
-              onClearAll={() => setCustomerFilters(defaultCustomerFilters())}
-            />
+            {viewMode === "card" &&
+            (filteredSortedCustomers.length > 0 || activeTags.length > 0) ? (
+              <DirectorySelectAllRow
+                checked={allVisibleSelected}
+                indeterminate={someVisibleSelected && !allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                label="Select all visible customers"
+                filters={
+                  activeTags.length > 0 ? (
+                    <DirectoryFilterTags
+                      className=""
+                      tags={activeTags}
+                      onRemove={(id) =>
+                        setCustomerFilters((prev) =>
+                          clearCustomerFilterTag(prev, id),
+                        )
+                      }
+                      onClearAll={() =>
+                        setCustomerFilters(defaultCustomerFilters())
+                      }
+                    />
+                  ) : undefined
+                }
+              />
+            ) : activeTags.length > 0 ? (
+              <DirectoryFilterTags
+                tags={activeTags}
+                onRemove={(id) =>
+                  setCustomerFilters((prev) => clearCustomerFilterTag(prev, id))
+                }
+                onClearAll={() => setCustomerFilters(defaultCustomerFilters())}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -797,71 +934,88 @@ export default function CustomersDirectoryClient() {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredSortedCustomers.map((customer) => {
                 const summary = getCustomerAccountSummary(customer.id);
+                const selected = selectedIds.has(customer.id);
                 return (
                   <li key={customer.id}>
-                    <Link
-                      href={`/customers/new?id=${customer.id}`}
-                      className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+                    <div
+                      className={`flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
+                        selected
+                          ? "border-prime-blue ring-1 ring-prime-blue"
+                          : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+                      }`}
                     >
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-midnight-ink">
-                          <HighlightText
-                            text={customer.name}
-                            query={searchQuery}
-                          />
-                        </p>
-                        <p className="mt-1 truncate text-sm text-black/55">
-                          <HighlightText
-                            text={customer.email || "No email"}
-                            query={searchQuery}
-                          />
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <RowSelectCheckbox
+                          checked={selected}
+                          onChange={() => toggleRowSelected(customer.id)}
+                          label={`Select ${customer.name}`}
+                        />
+                        <Link
+                          href={`/customers/new?id=${customer.id}`}
+                          className="min-w-0 flex-1"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-midnight-ink">
+                              <HighlightText
+                                text={customer.name}
+                                query={searchQuery}
+                              />
+                            </p>
+                            <p className="mt-1 truncate text-sm text-black/55">
+                              <HighlightText
+                                text={customer.email || "No email"}
+                                query={searchQuery}
+                              />
+                            </p>
+                          </div>
+                          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                            <div>
+                              <dt className="text-xs text-black/45">Total</dt>
+                              <dd className="mt-0.5 font-medium">
+                                <MoneyCell
+                                  amount={summary.totalInvoiced}
+                                  variant="total"
+                                  align="left"
+                                />
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-xs text-black/45">
+                                Outstanding
+                              </dt>
+                              <dd className="mt-0.5 font-medium">
+                                <MoneyCell
+                                  amount={summary.outstanding}
+                                  variant="outstanding"
+                                  align="left"
+                                />
+                              </dd>
+                            </div>
+                          </dl>
+                          {customer.tags.length ? (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {customer.tags.slice(0, 3).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </Link>
                       </div>
-                      <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                        <div>
-                          <dt className="text-xs text-black/45">Total</dt>
-                          <dd className="mt-0.5 font-medium">
-                            <MoneyCell
-                              amount={summary.totalInvoiced}
-                              variant="total"
-                            />
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs text-black/45">Outstanding</dt>
-                          <dd className="mt-0.5 font-medium">
-                            <MoneyCell
-                              amount={summary.outstanding}
-                              variant="outstanding"
-                            />
-                          </dd>
-                        </div>
-                      </dl>
-                      {customer.tags.length ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {customer.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-md bg-prime-blue/10 px-2 py-0.5 text-xs font-semibold text-prime-blue"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
                       {tab === "archived" ? (
                         <button
                           type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            handleUnarchive(customer.id);
-                          }}
+                          onClick={() => handleUnarchive(customer.id)}
                           className="text-left text-sm font-semibold text-prime-blue underline-offset-2 hover:underline"
                         >
                           Unarchive Customer
                         </button>
                       ) : null}
-                    </Link>
+                    </div>
                   </li>
                 );
               })}
@@ -875,8 +1029,17 @@ export default function CustomersDirectoryClient() {
                 display: "grid",
                 gridTemplateColumns,
                 gap: "1rem",
+                alignItems: "center",
               }}
             >
+              <div className="flex items-center">
+                <RowSelectCheckbox
+                  checked={allVisibleSelected}
+                  indeterminate={someVisibleSelected && !allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  label="Select all visible customers"
+                />
+              </div>
               {visibleColumns.map((column) => (
                 <DirectoryColumnHeader
                   key={column.id}
@@ -925,12 +1088,12 @@ export default function CustomersDirectoryClient() {
                         </span>
                       </button>
                     </div>
-                  ) : column.sortable ? (
+                  ) : COLUMN_SORTABLE[column.id] ? (
                     <SortHeaderButton
                       label={column.label}
-                      active={sortKey === column.sortable}
+                      active={sortKey === COLUMN_SORTABLE[column.id]}
                       dir={sortDir}
-                      onClick={() => toggleSort(column.sortable!)}
+                      onClick={() => toggleSort(COLUMN_SORTABLE[column.id]!)}
                       align={
                         column.id === "totalInvoiced" ||
                         column.id === "paid" ||
@@ -965,6 +1128,13 @@ export default function CustomersDirectoryClient() {
                         alignItems: "center",
                       }}
                     >
+                      <div className="flex items-center">
+                        <RowSelectCheckbox
+                          checked={selectedIds.has(customer.id)}
+                          onChange={() => toggleRowSelected(customer.id)}
+                          label={`Select ${customer.name}`}
+                        />
+                      </div>
                       {visibleColumns.map((column) => (
                         <Link
                           key={column.id}
@@ -988,6 +1158,24 @@ export default function CustomersDirectoryClient() {
           </div>
         </div>
         )}
+
+        {selectedIds.size > 0 ? (
+          <DirectoryBulkActionBar
+            count={selectedIds.size}
+            actions={customerBulkActions}
+            onClear={() => setSelectedIds(new Set())}
+            onAction={handleBulkAction}
+          />
+        ) : null}
+
+        <DirectoryColumnsPanel
+          open={columnsOpen}
+          onClose={() => setColumnsOpen(false)}
+          columns={orderedColumns}
+          hiddenIds={hiddenColumns}
+          onToggle={toggleColumnVisibility}
+          onMove={moveColumn}
+        />
 
         {tagFilterOpen && tagMenuPos && managingTags ? (
           <div
@@ -1063,7 +1251,7 @@ export default function CustomersDirectoryClient() {
             role="menu"
           >
             {COLUMN_DEFS.find((column) => column.id === contextMenu.columnId)
-              ?.hideable ? (
+              ?.hideable !== false ? (
               <button
                 type="button"
                 role="menuitem"

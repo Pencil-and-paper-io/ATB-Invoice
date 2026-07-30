@@ -61,9 +61,12 @@ export type RecentInvoiceItem = {
   id: string;
   number: string;
   customer: string;
-  amount: string;
   status: string;
+  dateIssued: string;
   dueDate: string;
+  amount: number;
+  paid: number;
+  balanceOutstanding: number;
   href: string;
 };
 
@@ -185,9 +188,12 @@ export function buildDashboardModel(
       id: row.id,
       number: row.number,
       customer: customerName(row.customerId),
-      amount: formatMoney(row.amount),
       status: row.status,
+      dateIssued: row.dateIssued,
       dueDate: row.dueDate,
+      amount: row.amount,
+      paid: Math.max(0, row.amount - row.balanceOutstanding),
+      balanceOutstanding: row.balanceOutstanding,
       href: hrefForCustomerInvoice(row.status),
     }));
 
@@ -211,7 +217,7 @@ export function buildDashboardModel(
       },
       {
         id: "paid-month",
-        label: "Paid this month",
+        label: "Paid This Month",
         amount: formatMoney(collectedThisMonth),
         countLabel: `${collectedCount} payment${collectedCount === 1 ? "" : "s"}`,
         tone: "success",
@@ -222,7 +228,7 @@ export function buildDashboardModel(
     howYoureDoing: [
       {
         id: "collection-rate",
-        label: "Collection rate",
+        label: "Collection Rate",
         value: `${collectionRate}%`,
         hint: "Collected vs invoiced",
         tooltip:
@@ -230,7 +236,7 @@ export function buildDashboardModel(
       },
       {
         id: "gst-hst",
-        label: "GST/HST collected",
+        label: "GST/HST Collected",
         value: formatMoney(gstCollected),
         hint: "On amounts collected",
         tooltip:
@@ -238,7 +244,7 @@ export function buildDashboardModel(
       },
       {
         id: "overdue-rate",
-        label: "Overdue rate",
+        label: "Overdue Rate",
         value: `${overdueRate}%`,
         hint: "Of outstanding balance",
         tooltip:
@@ -246,7 +252,7 @@ export function buildDashboardModel(
       },
       {
         id: "avg-days",
-        label: "Average days to payment",
+        label: "Average Days To Payment",
         value: avgDaysToPayment == null ? "—" : `${avgDaysToPayment}`,
         hint: avgDaysToPayment == null ? "No paid invoices yet" : "Days from issue to pay",
         tooltip:
@@ -254,7 +260,7 @@ export function buildDashboardModel(
       },
       {
         id: "open-balance",
-        label: "Open balance",
+        label: "Open Balance",
         value: formatMoney(outstandingAmount),
         hint: `${outstandingRows.length} open invoice${outstandingRows.length === 1 ? "" : "s"}`,
         tooltip:

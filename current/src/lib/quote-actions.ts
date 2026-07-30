@@ -29,10 +29,23 @@ export type QuoteAction = {
   dividerBefore?: boolean;
 };
 
+/** Utilities available across statuses (shown in a shared menu section). */
+export const QUOTE_GLOBAL_ACTION_KEYS: readonly QuoteActionKey[] = [
+  "download",
+  "duplicate",
+  "template",
+  "view_history",
+] as const;
+
+/** Destructive actions — always last, red. */
+export const QUOTE_DESTRUCTIVE_ACTION_KEYS: readonly QuoteActionKey[] = [
+  "void",
+  "delete",
+] as const;
+
 /**
  * Singular quote actions — sent quotes remain editable.
  * Draft has no public link yet (no copy_link / send_test / resend).
- * Decision marking lives on Record Decision; Void Quote is last and separated.
  */
 export const QUOTE_STATUS_ACTION_MATRIX: Record<QuoteStatus, QuoteActionKey[]> =
   {
@@ -54,7 +67,7 @@ const ACTION_META: Record<
   delete: { label: "Delete", danger: true },
   void: { label: "Void Quote", danger: true },
   template: { label: "Save As Template" },
-  duplicate: { label: "Duplicate And Edit" },
+  duplicate: { label: "Duplicate" },
   resend: { label: "Re-Send" },
   copy_link: { label: "Copy Quote Link" },
   send_test: { label: "Send Test Quote" },
@@ -64,6 +77,41 @@ const ACTION_META: Record<
   view_history: { label: "View History" },
 };
 
+const GLOBAL_SET = new Set<QuoteActionKey>(QUOTE_GLOBAL_ACTION_KEYS);
+const DESTRUCTIVE_SET = new Set<QuoteActionKey>(QUOTE_DESTRUCTIVE_ACTION_KEYS);
+
+function toQuoteAction(
+  key: QuoteActionKey,
+  status: QuoteStatus,
+  dividerBefore = false,
+): QuoteAction {
+  if (key === "download" && status === "drafted") {
+    return {
+      key,
+      label: "Download Draft PDF",
+      danger: ACTION_META[key].danger,
+      dividerBefore,
+    };
+  }
+  return {
+    key,
+    label: ACTION_META[key].label,
+    danger: ACTION_META[key].danger,
+    dividerBefore,
+  };
+}
+
+function partitionQuoteKeys(keys: QuoteActionKey[]) {
+  const statusSpecific = keys.filter(
+    (key) => !GLOBAL_SET.has(key) && !DESTRUCTIVE_SET.has(key),
+  );
+  const global = QUOTE_GLOBAL_ACTION_KEYS.filter((key) => keys.includes(key));
+  const destructive = QUOTE_DESTRUCTIVE_ACTION_KEYS.filter((key) =>
+    keys.includes(key),
+  );
+  return { statusSpecific, global, destructive };
+}
+
 export function getQuoteActionsForStatus(
   status: QuoteStatus,
   exclude: QuoteActionKey[] = [],
@@ -72,22 +120,64 @@ export function getQuoteActionsForStatus(
   const keys = QUOTE_STATUS_ACTION_MATRIX[status].filter(
     (key) => !excluded.has(key),
   );
+  const { statusSpecific, global, destructive } = partitionQuoteKeys(keys);
 
-  return keys.map((key) => {
-    const dividerBefore = key === "void" || key === "delete";
+  const actions: QuoteAction[] = statusSpecific.map((key) =>
+    toQuoteAction(key, status),
+  );
 
-    if (key === "download" && status === "drafted") {
-      return {
-        key,
-        label: "Download Draft PDF",
-        dividerBefore,
-      };
-    }
-    return {
-      key,
-      label: ACTION_META[key].label,
-      danger: ACTION_META[key].danger,
-      dividerBefore,
-    };
+  global.forEach((key, index) => {
+    actions.push(toQuoteAction(key, status, index === 0 && actions.length > 0));
   });
+
+  destructive.forEach((key, index) => {
+    actions.push(toQuoteAction(key, status, index === 0 && actions.length > 0));
+  });
+
+  return actions;
+}
+
+/** Bulk / floating-bar actions shared across quote rows. */
+export function getQuoteUniversalActions(): QuoteAction[] {
+  const keys: QuoteActionKey[] = ["download", "duplicate"];
+  return keys.map((key) => toQuoteAction(key, "sent"));
+}
+
+/**
+ * Bulk bar actions = intersection of actions available on every selected
+ * status (Edit excluded — not bulk-friendly). Falls back to universal
+ * utilities when nothing is selected.
+ */
+export function getQuoteBulkActions(statuses: QuoteStatus[]): QuoteAction[] {
+  if (statuses.length === 0) return getQuoteUniversalActions();
+
+  const unique = [...new Set(statuses)];
+  let sharedKeys = QUOTE_STATUS_ACTION_MATRIX[unique[0]!].filter(
+    (key) => key !== "edit",
+  );
+
+  for (const status of unique.slice(1)) {
+    const allowed = new Set(QUOTE_STATUS_ACTION_MATRIX[status]);
+    sharedKeys = sharedKeys.filter((key) => allowed.has(key));
+  }
+
+  if (sharedKeys.length === 0) return getQuoteUniversalActions();
+
+  const { statusSpecific, global, destructive } =
+    partitionQuoteKeys(sharedKeys);
+  const labelStatus = unique.length === 1 ? unique[0]! : "sent";
+  const actions: QuoteAction[] = statusSpecific.map((key) =>
+    toQuoteAction(key, labelStatus),
+  );
+  global.forEach((key, index) => {
+    actions.push(
+      toQuoteAction(key, labelStatus, index === 0 && actions.length > 0),
+    );
+  });
+  destructive.forEach((key, index) => {
+    actions.push(
+      toQuoteAction(key, labelStatus, index === 0 && actions.length > 0),
+    );
+  });
+  return actions;
 }

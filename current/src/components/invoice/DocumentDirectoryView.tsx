@@ -33,10 +33,12 @@ import {
 } from "@/lib/invoice-demo-data";
 import {
   getActionsForStatus,
+  getInvoiceBulkActions,
   type InvoiceStatus,
 } from "@/lib/invoice-actions";
 import {
   getQuoteActionsForStatus,
+  getQuoteBulkActions,
   type QuoteStatus,
 } from "@/lib/quote-actions";
 import { DirectoryFilterPanel } from "./DirectoryFilterPanel";
@@ -45,6 +47,7 @@ import {
   FilterIconButton,
 } from "./DirectoryFilterTags";
 import { RowKebabMenu } from "./RowKebabMenu";
+import { SendReminderModal } from "./SendReminderModal";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -53,20 +56,25 @@ import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import {
   ColumnContextMenu,
+  DirectoryBulkActionBar,
   DirectoryColumnHeader,
+  DirectoryColumnsSettingsButton,
   DirectoryPagination,
+  DirectorySelectAllRow,
   DirectoryViewToggle,
   DIRECTORY_BODY_ROW,
   DIRECTORY_HEADER_ROW_STICKY,
   DIRECTORY_PAGE_SIZE,
   MoneyCell,
   DateCell,
+  RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
   useDirectoryColumns,
   type DirectoryColumnDef,
   type DirectoryViewMode,
 } from "./directory-table";
+import { DirectoryColumnsPanel } from "./DirectoryColumnsPanel";
 
 type DirectoryKind = "invoices" | "quotes";
 type SortDir = "asc" | "desc";
@@ -113,7 +121,8 @@ type InvoiceColumnId =
   | "total"
   | "paid"
   | "outstanding"
-  | "status";
+  | "status"
+  | "scheduledReminder";
 
 type QuoteColumnId =
   | "number"
@@ -121,10 +130,11 @@ type QuoteColumnId =
   | "created"
   | "expiry"
   | "total"
-  | "status";
+  | "status"
+  | "scheduledReminder";
 
 const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
-  { id: "number", label: "Invoice #", minWidth: 88, defaultWidth: 100 },
+  { id: "number", label: "Invoice #", minWidth: 88, defaultWidth: 100, hideable: false },
   { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
   { id: "customer", label: "Customer Name", minWidth: 120, defaultWidth: 220 },
   { id: "issued", label: "Issued", minWidth: 88, defaultWidth: 110 },
@@ -132,15 +142,29 @@ const INVOICE_COLUMNS: DirectoryColumnDef<InvoiceColumnId>[] = [
   { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
   { id: "paid", label: "Paid", minWidth: 80, defaultWidth: 100 },
   { id: "outstanding", label: "Outstanding", minWidth: 96, defaultWidth: 120 },
+  {
+    id: "scheduledReminder",
+    label: "Scheduled Reminder",
+    minWidth: 120,
+    defaultWidth: 150,
+    defaultHidden: true,
+  },
 ];
 
 const QUOTE_COLUMNS: DirectoryColumnDef<QuoteColumnId>[] = [
-  { id: "number", label: "Quote #", minWidth: 88, defaultWidth: 100 },
+  { id: "number", label: "Quote #", minWidth: 88, defaultWidth: 100, hideable: false },
   { id: "status", label: "Status", minWidth: 96, defaultWidth: 120 },
   { id: "customer", label: "Customer Name", minWidth: 120, defaultWidth: 240 },
   { id: "created", label: "Created", minWidth: 88, defaultWidth: 110 },
   { id: "expiry", label: "Expiry", minWidth: 88, defaultWidth: 110 },
   { id: "total", label: "Total", minWidth: 88, defaultWidth: 110 },
+  {
+    id: "scheduledReminder",
+    label: "Scheduled Reminder",
+    minWidth: 120,
+    defaultWidth: 150,
+    defaultHidden: true,
+  },
 ];
 
 /** Soft fill status chips (no outline). */
@@ -350,9 +374,26 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkReminderPreview, setBulkReminderPreview] =
+    useState<CustomerInvoiceRow | null>(null);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
 
   const isInvoices = kind === "invoices";
+  const invoiceColumnDefs = useMemo(() => INVOICE_COLUMNS, []);
+  const quoteColumnDefs = useMemo(() => QUOTE_COLUMNS, []);
+  const invoiceColumnState = useDirectoryColumns(
+    "atb-invoice-directory-columns-v5",
+    invoiceColumnDefs,
+    { fluid: true },
+  );
+  const quoteColumnState = useDirectoryColumns(
+    "atb-quote-directory-columns-v5",
+    quoteColumnDefs,
+    { fluid: true },
+  );
   const title = isInvoices ? "Invoices" : "Quotes";
   const subtitle = isInvoices
     ? "Bills you send to collect payment from customers."
@@ -487,6 +528,10 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     setPage(1);
   }, [query, kind, viewMode]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [kind, query, page, viewMode, invoiceFilters, quoteFilters, forceEmpty]);
+
   const totalItems = isInvoices ? invoices.length : quotes.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / DIRECTORY_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -512,10 +557,85 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     ? invoiceFilterCount(invoiceFilters, customerName)
     : quoteFilterCount(quoteFilters, customerName);
 
+  const visibleRowIds = useMemo(
+    () =>
+      (isInvoices ? pagedInvoices : pagedQuotes).map((row) => row.id),
+    [isInvoices, pagedInvoices, pagedQuotes],
+  );
+
+  const allVisibleSelected =
+    visibleRowIds.length > 0 &&
+    visibleRowIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleRowIds.some((id) => selectedIds.has(id));
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleRowIds.forEach((id) => next.delete(id));
+      } else {
+        visibleRowIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function toggleRowSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const selectedStatuses = useMemo(() => {
+    if (selectedIds.size === 0) return [] as Array<InvoiceStatus | QuoteStatus>;
+    if (isInvoices) {
+      return invoices
+        .filter((row) => selectedIds.has(row.id))
+        .map((row) => mapDirectoryInvoiceStatus(row.status));
+    }
+    return quotes
+      .filter((row) => selectedIds.has(row.id))
+      .map((row) => mapDirectoryQuoteStatus(row.status));
+  }, [selectedIds, isInvoices, invoices, quotes]);
+
+  const bulkActions = useMemo(() => {
+    if (isInvoices) {
+      return getInvoiceBulkActions(selectedStatuses as InvoiceStatus[]);
+    }
+    return getQuoteBulkActions(selectedStatuses as QuoteStatus[]);
+  }, [isInvoices, selectedStatuses]);
+
+  const selectedInvoiceRows = useMemo(
+    () => invoices.filter((row) => selectedIds.has(row.id)),
+    [invoices, selectedIds],
+  );
+
+  useEffect(() => {
+    if (!bulkToast) return;
+    const timer = window.setTimeout(() => setBulkToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [bulkToast]);
+
+  function handleBulkAction(key: string) {
+    if (key === "send_reminder" && isInvoices) {
+      const preview = selectedInvoiceRows[0] ?? null;
+      if (preview) setBulkReminderPreview(preview);
+      return;
+    }
+    setBulkToast("Action completed (demo).");
+  }
+
   return (
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
-      <main className="mx-auto max-w-[1180px] px-4 pb-16 pt-10 sm:px-8 lg:pt-16">
+      <main
+        className={`mx-auto max-w-[1180px] px-4 pt-10 sm:px-8 lg:pt-16 ${
+          selectedIds.size > 0 ? "pb-28" : "pb-16"
+        }`}
+      >
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="type-headline-2 text-midnight-ink">{title}</h1>
@@ -565,23 +685,68 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
                 activeCount={activeFilterCount}
                 onClick={() => setFilterOpen(true)}
               />
+              <DirectoryColumnsSettingsButton
+                onClick={() => setColumnsOpen(true)}
+              />
               <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
             </div>
 
-            <DirectoryFilterTags
-              tags={activeTags}
-              onRemove={(id) => {
-                if (isInvoices) {
-                  applyInvoiceFilters(clearInvoiceFilterTag(invoiceFilters, id));
-                } else {
-                  applyQuoteFilters(clearQuoteFilterTag(quoteFilters, id));
+            {viewMode === "card" &&
+            (totalItems > 0 || activeTags.length > 0) ? (
+              <DirectorySelectAllRow
+                checked={allVisibleSelected}
+                indeterminate={someVisibleSelected && !allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                label={
+                  isInvoices
+                    ? "Select all visible invoices"
+                    : "Select all visible quotes"
                 }
-              }}
-              onClearAll={() => {
-                if (isInvoices) applyInvoiceFilters(defaultInvoiceFilters());
-                else applyQuoteFilters(defaultQuoteFilters());
-              }}
-            />
+                filters={
+                  activeTags.length > 0 ? (
+                    <DirectoryFilterTags
+                      className=""
+                      tags={activeTags}
+                      onRemove={(id) => {
+                        if (isInvoices) {
+                          applyInvoiceFilters(
+                            clearInvoiceFilterTag(invoiceFilters, id),
+                          );
+                        } else {
+                          applyQuoteFilters(
+                            clearQuoteFilterTag(quoteFilters, id),
+                          );
+                        }
+                      }}
+                      onClearAll={() => {
+                        if (isInvoices) {
+                          applyInvoiceFilters(defaultInvoiceFilters());
+                        } else {
+                          applyQuoteFilters(defaultQuoteFilters());
+                        }
+                      }}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : activeTags.length > 0 ? (
+              <DirectoryFilterTags
+                tags={activeTags}
+                onRemove={(id) => {
+                  if (isInvoices) {
+                    applyInvoiceFilters(
+                      clearInvoiceFilterTag(invoiceFilters, id),
+                    );
+                  } else {
+                    applyQuoteFilters(clearQuoteFilterTag(quoteFilters, id));
+                  }
+                }}
+                onClearAll={() => {
+                  if (isInvoices) applyInvoiceFilters(defaultInvoiceFilters());
+                  else applyQuoteFilters(defaultQuoteFilters());
+                }}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -591,16 +756,44 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           </div>
         ) : viewMode === "card" ? (
           isInvoices ? (
-            <InvoiceCardGrid rows={pagedInvoices} query={query} />
+            <InvoiceCardGrid
+              rows={pagedInvoices}
+              query={query}
+              selectedIds={selectedIds}
+              onToggleRow={toggleRowSelected}
+            />
           ) : (
-            <QuoteCardGrid rows={pagedQuotes} query={query} />
+            <QuoteCardGrid
+              rows={pagedQuotes}
+              query={query}
+              selectedIds={selectedIds}
+              onToggleRow={toggleRowSelected}
+            />
           )
         ) : (
           <div className="rounded-[10px] border border-black/10 bg-white">
             {isInvoices ? (
-              <InvoiceTable rows={pagedInvoices} query={query} />
+              <InvoiceTable
+                rows={pagedInvoices}
+                query={query}
+                selectedIds={selectedIds}
+                allVisibleSelected={allVisibleSelected}
+                someVisibleSelected={someVisibleSelected}
+                onToggleAll={toggleSelectAllVisible}
+                onToggleRow={toggleRowSelected}
+                columnState={invoiceColumnState}
+              />
             ) : (
-              <QuoteTable rows={pagedQuotes} query={query} />
+              <QuoteTable
+                rows={pagedQuotes}
+                query={query}
+                selectedIds={selectedIds}
+                allVisibleSelected={allVisibleSelected}
+                someVisibleSelected={someVisibleSelected}
+                onToggleAll={toggleSelectAllVisible}
+                onToggleRow={toggleRowSelected}
+                columnState={quoteColumnState}
+              />
             )}
           </div>
         )}
@@ -611,6 +804,73 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
           onPageChange={setPage}
         />
       </main>
+
+      {selectedIds.size > 0 ? (
+        <DirectoryBulkActionBar
+          count={selectedIds.size}
+          actions={bulkActions}
+          onClear={() => setSelectedIds(new Set())}
+          onAction={handleBulkAction}
+        />
+      ) : null}
+
+      {bulkReminderPreview ? (
+        <SendReminderModal
+          invoiceNumber={`#${bulkReminderPreview.number}`}
+          customerName={customerName(bulkReminderPreview.customerId)}
+          amountDue={bulkReminderPreview.balanceOutstanding}
+          dueDate={bulkReminderPreview.dueDate}
+          bulkCount={selectedInvoiceRows.length}
+          onClose={() => setBulkReminderPreview(null)}
+          onSent={(method) => {
+            const count = selectedInvoiceRows.length;
+            const noun = count === 1 ? "invoice" : "invoices";
+            setBulkToast(
+              method === "email"
+                ? `Reminders emailed for ${count} ${noun}.`
+                : `Reminders texted for ${count} ${noun}.`,
+            );
+            setBulkReminderPreview(null);
+            setSelectedIds(new Set());
+          }}
+        />
+      ) : null}
+
+      {bulkToast ? (
+        <div
+          className="fixed bottom-8 left-1/2 z-[70] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 text-sm font-medium text-white shadow-lg"
+          role="status"
+        >
+          {bulkToast}
+          <button
+            type="button"
+            className="ml-3 underline"
+            onClick={() => setBulkToast(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
+      {isInvoices ? (
+        <DirectoryColumnsPanel
+          open={columnsOpen}
+          onClose={() => setColumnsOpen(false)}
+          columns={invoiceColumnState.orderedColumns}
+          hiddenIds={invoiceColumnState.hiddenColumns}
+          onToggle={invoiceColumnState.toggleColumnVisibility}
+          onMove={invoiceColumnState.moveColumn}
+        />
+      ) : (
+        <DirectoryColumnsPanel
+          open={columnsOpen}
+          onClose={() => setColumnsOpen(false)}
+          columns={quoteColumnState.orderedColumns}
+          hiddenIds={quoteColumnState.hiddenColumns}
+          onToggle={quoteColumnState.toggleColumnVisibility}
+          onMove={quoteColumnState.moveColumn}
+        />
+      )}
 
       <DirectoryFilterPanel
         kind={kind}
@@ -628,9 +888,13 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
 function InvoiceCardGrid({
   rows,
   query,
+  selectedIds,
+  onToggleRow,
 }: {
   rows: CustomerInvoiceRow[];
   query: string;
+  selectedIds: Set<string>;
+  onToggleRow: (id: string) => void;
 }) {
   if (rows.length === 0) {
     return null;
@@ -638,58 +902,84 @@ function InvoiceCardGrid({
 
   return (
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((invoice) => (
-        <li key={invoice.id}>
-          <Link
-            href={hrefForCustomerInvoice(invoice.status)}
-            className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-midnight-ink">
-                  <HighlightText text={`#${invoice.number}`} query={query} />
-                </p>
-                <p className="mt-1 truncate text-sm text-black/60">
-                  <HighlightText
-                    text={customerName(invoice.customerId)}
-                    query={query}
-                  />
-                </p>
+      {rows.map((invoice) => {
+        const selected = selectedIds.has(invoice.id);
+        return (
+          <li key={invoice.id}>
+            <div
+              className={`relative flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
+                selected
+                  ? "border-prime-blue ring-1 ring-prime-blue"
+                  : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <RowSelectCheckbox
+                  checked={selected}
+                  onChange={() => onToggleRow(invoice.id)}
+                  label={`Select invoice ${invoice.number}`}
+                />
+                <Link
+                  href={hrefForCustomerInvoice(invoice.status)}
+                  className="min-w-0 flex-1"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-midnight-ink">
+                        <HighlightText
+                          text={`#${invoice.number}`}
+                          query={query}
+                        />
+                      </p>
+                      <p className="mt-1 truncate text-sm text-black/60">
+                        <HighlightText
+                          text={customerName(invoice.customerId)}
+                          query={query}
+                        />
+                      </p>
+                    </div>
+                    <StatusBadge status={invoice.status} query={query} />
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-black/45">Issued</dt>
+                      <dd className="mt-0.5 text-black/75">
+                        <DateCell value={invoice.dateIssued} query={query} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-black/45">Due</dt>
+                      <dd className="mt-0.5 text-black/75">
+                        <DateCell value={invoice.dueDate} query={query} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-black/45">Total</dt>
+                      <dd className="mt-0.5 font-medium">
+                        <MoneyCell
+                          amount={invoice.amount}
+                          variant="total"
+                          align="left"
+                        />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-black/45">Outstanding</dt>
+                      <dd className="mt-0.5 font-medium">
+                        <MoneyCell
+                          amount={invoice.balanceOutstanding}
+                          variant="outstanding"
+                          align="left"
+                        />
+                      </dd>
+                    </div>
+                  </dl>
+                </Link>
               </div>
-              <StatusBadge status={invoice.status} query={query} />
             </div>
-            <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-              <div>
-                <dt className="text-xs text-black/45">Issued</dt>
-                <dd className="mt-0.5 text-black/75">
-                  <DateCell value={invoice.dateIssued} query={query} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-black/45">Due</dt>
-                <dd className="mt-0.5 text-black/75">
-                  <DateCell value={invoice.dueDate} query={query} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-black/45">Total</dt>
-                <dd className="mt-0.5 font-medium">
-                  <MoneyCell amount={invoice.amount} variant="total" />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-black/45">Outstanding</dt>
-                <dd className="mt-0.5 font-medium">
-                  <MoneyCell
-                    amount={invoice.balanceOutstanding}
-                    variant="outstanding"
-                  />
-                </dd>
-              </div>
-            </dl>
-          </Link>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -697,9 +987,13 @@ function InvoiceCardGrid({
 function QuoteCardGrid({
   rows,
   query,
+  selectedIds,
+  onToggleRow,
 }: {
   rows: CustomerQuoteRow[];
   query: string;
+  selectedIds: Set<string>;
+  onToggleRow: (id: string) => void;
 }) {
   if (rows.length === 0) {
     return null;
@@ -707,49 +1001,71 @@ function QuoteCardGrid({
 
   return (
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((quote) => (
-        <li key={quote.id}>
-          <Link
-            href={hrefForCustomerQuote(quote.status)}
-            className="flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold text-midnight-ink">
-                  <HighlightText text={quote.number} query={query} />
-                </p>
-                <p className="mt-1 truncate text-sm text-black/60">
-                  <HighlightText
-                    text={customerName(quote.customerId)}
-                    query={query}
-                  />
-                </p>
+      {rows.map((quote) => {
+        const selected = selectedIds.has(quote.id);
+        return (
+          <li key={quote.id}>
+            <div
+              className={`relative flex h-full flex-col gap-3 rounded-[10px] border bg-white p-5 transition ${
+                selected
+                  ? "border-prime-blue ring-1 ring-prime-blue"
+                  : "border-black/10 hover:border-prime-blue hover:ring-1 hover:ring-prime-blue"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <RowSelectCheckbox
+                  checked={selected}
+                  onChange={() => onToggleRow(quote.id)}
+                  label={`Select quote ${quote.number}`}
+                />
+                <Link
+                  href={hrefForCustomerQuote(quote.status)}
+                  className="min-w-0 flex-1"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-midnight-ink">
+                        <HighlightText text={quote.number} query={query} />
+                      </p>
+                      <p className="mt-1 truncate text-sm text-black/60">
+                        <HighlightText
+                          text={customerName(quote.customerId)}
+                          query={query}
+                        />
+                      </p>
+                    </div>
+                    <StatusBadge status={quote.status} query={query} />
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-black/45">Created</dt>
+                      <dd className="mt-0.5 text-black/75">
+                        <DateCell value={quote.dateCreated} query={query} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-black/45">Expiry</dt>
+                      <dd className="mt-0.5 text-black/75">
+                        <DateCell value={quote.expiryDate} query={query} />
+                      </dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs text-black/45">Total</dt>
+                      <dd className="mt-0.5 font-medium">
+                        <MoneyCell
+                          amount={quote.amount}
+                          variant="total"
+                          align="left"
+                        />
+                      </dd>
+                    </div>
+                  </dl>
+                </Link>
               </div>
-              <StatusBadge status={quote.status} query={query} />
             </div>
-            <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-              <div>
-                <dt className="text-xs text-black/45">Created</dt>
-                <dd className="mt-0.5 text-black/75">
-                  <DateCell value={quote.dateCreated} query={query} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-black/45">Expiry</dt>
-                <dd className="mt-0.5 text-black/75">
-                  <DateCell value={quote.expiryDate} query={query} />
-                </dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-xs text-black/45">Total</dt>
-                <dd className="mt-0.5 font-medium">
-                  <MoneyCell amount={quote.amount} variant="total" />
-                </dd>
-              </div>
-            </dl>
-          </Link>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -757,9 +1073,21 @@ function QuoteCardGrid({
 function InvoiceTable({
   rows,
   query,
+  selectedIds,
+  allVisibleSelected,
+  someVisibleSelected,
+  onToggleAll,
+  onToggleRow,
+  columnState,
 }: {
   rows: CustomerInvoiceRow[];
   query: string;
+  selectedIds: Set<string>;
+  allVisibleSelected: boolean;
+  someVisibleSelected: boolean;
+  onToggleAll: () => void;
+  onToggleRow: (id: string) => void;
+  columnState: ReturnType<typeof useDirectoryColumns<InvoiceColumnId>>;
 }) {
   const [sortKey, setSortKey] = useState<InvoiceColumnId>("number");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -775,7 +1103,6 @@ function InvoiceTable({
     sendModal,
   } = useInvoiceActionHandler("sent");
 
-  const columns = useMemo(() => INVOICE_COLUMNS, []);
   const {
     visibleColumns,
     gridTemplateColumns,
@@ -788,11 +1115,9 @@ function InvoiceTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-invoice-directory-columns-v3", columns, {
-    fluid: true,
-  });
+  } = columnState;
 
-  const tableGridTemplate = `${gridTemplateColumns} 44px`;
+  const tableGridTemplate = `40px ${gridTemplateColumns} 44px`;
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -820,6 +1145,8 @@ function InvoiceTable({
             return row.balanceOutstanding;
           case "status":
             return row.status.toLowerCase();
+          case "scheduledReminder":
+            return (row.scheduledReminder ?? "").toLowerCase();
         }
       };
       const cmp = compareValues(sortValue(a), sortValue(b), sortDir);
@@ -871,6 +1198,10 @@ function InvoiceTable({
         );
       case "status":
         return <StatusBadge status={row.status} query={query} />;
+      case "scheduledReminder":
+        return row.scheduledReminder ? (
+          <DateCell value={row.scheduledReminder} query={query} />
+        ) : null;
     }
   }
 
@@ -879,8 +1210,21 @@ function InvoiceTable({
     <div className="w-full">
       <div
         className={DIRECTORY_HEADER_ROW_STICKY}
-        style={{ display: "grid", gridTemplateColumns: tableGridTemplate, gap: "1rem" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: tableGridTemplate,
+          gap: "1rem",
+          alignItems: "center",
+        }}
       >
+          <div className="flex items-center">
+            <RowSelectCheckbox
+              checked={allVisibleSelected}
+              indeterminate={someVisibleSelected && !allVisibleSelected}
+              onChange={onToggleAll}
+              label="Select all visible invoices"
+            />
+          </div>
           {visibleColumns.map((column, index) => (
             <DirectoryColumnHeader
               key={column.id}
@@ -936,6 +1280,13 @@ function InvoiceTable({
                     alignItems: "center",
                   }}
                 >
+                  <div className="flex items-center">
+                    <RowSelectCheckbox
+                      checked={selectedIds.has(invoice.id)}
+                      onChange={() => onToggleRow(invoice.id)}
+                      label={`Select invoice ${invoice.number}`}
+                    />
+                  </div>
                   {visibleColumns.map((column) => (
                     <Link
                       key={column.id}
@@ -990,9 +1341,21 @@ function InvoiceTable({
 function QuoteTable({
   rows,
   query,
+  selectedIds,
+  allVisibleSelected,
+  someVisibleSelected,
+  onToggleAll,
+  onToggleRow,
+  columnState,
 }: {
   rows: CustomerQuoteRow[];
   query: string;
+  selectedIds: Set<string>;
+  allVisibleSelected: boolean;
+  someVisibleSelected: boolean;
+  onToggleAll: () => void;
+  onToggleRow: (id: string) => void;
+  columnState: ReturnType<typeof useDirectoryColumns<QuoteColumnId>>;
 }) {
   const [sortKey, setSortKey] = useState<QuoteColumnId>("number");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -1005,7 +1368,6 @@ function QuoteTable({
     sendModal,
   } = useQuoteActionHandler("sent");
 
-  const columns = useMemo(() => QUOTE_COLUMNS, []);
   const {
     visibleColumns,
     gridTemplateColumns,
@@ -1018,11 +1380,9 @@ function QuoteTable({
     showColumn,
     showAllColumns,
     hiddenHideable,
-  } = useDirectoryColumns("atb-quote-directory-columns-v3", columns, {
-    fluid: true,
-  });
+  } = columnState;
 
-  const tableGridTemplate = `${gridTemplateColumns} 44px`;
+  const tableGridTemplate = `40px ${gridTemplateColumns} 44px`;
 
   useDismissOnOutsideClick(
     contextMenuRef,
@@ -1046,6 +1406,8 @@ function QuoteTable({
             return row.amount;
           case "status":
             return row.status.toLowerCase();
+          case "scheduledReminder":
+            return (row.scheduledReminder ?? "").toLowerCase();
         }
       };
       const cmp = compareValues(sortValue(a), sortValue(b), sortDir);
@@ -1085,6 +1447,10 @@ function QuoteTable({
         return <MoneyCell amount={row.amount} variant="total" query={query} />;
       case "status":
         return <StatusBadge status={row.status} query={query} />;
+      case "scheduledReminder":
+        return row.scheduledReminder ? (
+          <DateCell value={row.scheduledReminder} query={query} />
+        ) : null;
     }
   }
 
@@ -1093,8 +1459,21 @@ function QuoteTable({
     <div className="w-full">
       <div
         className={DIRECTORY_HEADER_ROW_STICKY}
-        style={{ display: "grid", gridTemplateColumns: tableGridTemplate, gap: "1rem" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: tableGridTemplate,
+          gap: "1rem",
+          alignItems: "center",
+        }}
       >
+          <div className="flex items-center">
+            <RowSelectCheckbox
+              checked={allVisibleSelected}
+              indeterminate={someVisibleSelected && !allVisibleSelected}
+              onChange={onToggleAll}
+              label="Select all visible quotes"
+            />
+          </div>
           {visibleColumns.map((column) => (
             <DirectoryColumnHeader
               key={column.id}
@@ -1144,6 +1523,13 @@ function QuoteTable({
                     alignItems: "center",
                   }}
                 >
+                  <div className="flex items-center">
+                    <RowSelectCheckbox
+                      checked={selectedIds.has(quote.id)}
+                      onChange={() => onToggleRow(quote.id)}
+                      label={`Select quote ${quote.number}`}
+                    />
+                  </div>
                   {visibleColumns.map((column) => (
                     <Link
                       key={column.id}

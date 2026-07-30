@@ -24,6 +24,7 @@ export function SendReminderModal({
   invoiceNumber = previewMeta.invoiceNumber,
   dueDate = previewMeta.dueDate.replace(/^Due /, ""),
   customerName = draftInvoice.customer.name,
+  bulkCount,
 }: {
   onClose: () => void;
   onSent?: (method: "email" | "text") => void;
@@ -31,10 +32,13 @@ export function SendReminderModal({
   invoiceNumber?: string;
   dueDate?: string;
   customerName?: string;
+  /** When > 1, copy clarifies this is a preview for one of N selected invoices. */
+  bulkCount?: number;
 }) {
   const { selected, sending, setSending, selectMethod } =
     useSendMethodSelection();
   const balance = amountDue ?? previewMeta.amount;
+  const isBulk = typeof bulkCount === "number" && bulkCount > 1;
 
   const emailAvailable = Boolean(DEMO_DESTINATIONS.email);
   const textAvailable = Boolean(DEMO_DESTINATIONS.phone);
@@ -50,14 +54,20 @@ export function SendReminderModal({
 
   const confirmLabel =
     selected === "email"
-      ? "Send via email"
+      ? isBulk
+        ? `Send ${bulkCount} via email`
+        : "Send via email"
       : selected === "text"
-        ? "Send via text"
-        : "Send reminder";
+        ? isBulk
+          ? `Send ${bulkCount} via text`
+          : "Send via text"
+        : isBulk
+          ? `Send ${bulkCount} reminders`
+          : "Send reminder";
 
   return (
     <Modal
-      title="Send reminder"
+      title={isBulk ? "Send Reminders" : "Send reminder"}
       titleId="send-reminder-title"
       onClose={onClose}
       maxWidthClass="max-w-2xl"
@@ -74,10 +84,18 @@ export function SendReminderModal({
         </>
       }
     >
-      <p className="text-sm leading-5 text-black/65">
-        Remind {customerName} about the outstanding balance on{" "}
-        {invoiceNumber} ({formatMoney(balance)}), due {dueDate}.
-      </p>
+      {isBulk ? (
+        <p className="text-sm leading-5 text-black/65">
+          Preview uses one of the {bulkCount} selected invoices (
+          {invoiceNumber} for {customerName}, {formatMoney(balance)} due{" "}
+          {dueDate}). Sending will remind all {bulkCount} selected customers.
+        </p>
+      ) : (
+        <p className="text-sm leading-5 text-black/65">
+          Remind {customerName} about the outstanding balance on{" "}
+          {invoiceNumber} ({formatMoney(balance)}), due {dueDate}.
+        </p>
+      )}
 
       <div className="mt-6">
         <p className="text-sm font-semibold text-black">

@@ -33,10 +33,25 @@ export type InvoiceAction = {
   dividerBefore?: boolean;
 };
 
+/** Utilities available across statuses (shown in a shared menu section). */
+export const INVOICE_GLOBAL_ACTION_KEYS: readonly InvoiceActionKey[] = [
+  "download",
+  "export_csv",
+  "duplicate",
+  "template",
+  "view_history",
+] as const;
+
+/** Destructive actions — always last, red. */
+export const INVOICE_DESTRUCTIVE_ACTION_KEYS: readonly InvoiceActionKey[] = [
+  "void",
+  "uncollectible",
+  "delete",
+] as const;
+
 /**
  * Single-invoice action matrix.
  * Draft has no public link yet (no copy_link / send_test / resend).
- * Delete is always listed last so the menu can separate it.
  */
 export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
   drafted: ["edit", "download", "export_csv", "duplicate", "delete"],
@@ -134,33 +149,119 @@ const ACTION_META: Record<
   view_history: { label: "View History" },
 };
 
+const GLOBAL_SET = new Set<InvoiceActionKey>(INVOICE_GLOBAL_ACTION_KEYS);
+const DESTRUCTIVE_SET = new Set<InvoiceActionKey>(INVOICE_DESTRUCTIVE_ACTION_KEYS);
+
+function toInvoiceAction(
+  key: InvoiceActionKey,
+  status: InvoiceStatus,
+  dividerBefore = false,
+): InvoiceAction {
+  if (key === "download" && status === "drafted") {
+    return {
+      key,
+      label: "Download Draft PDF",
+      danger: ACTION_META[key].danger,
+      dividerBefore,
+    };
+  }
+  return {
+    key,
+    label: ACTION_META[key].label,
+    danger: ACTION_META[key].danger,
+    dividerBefore,
+  };
+}
+
+function partitionInvoiceKeys(keys: InvoiceActionKey[]) {
+  const statusSpecific = keys.filter(
+    (key) => !GLOBAL_SET.has(key) && !DESTRUCTIVE_SET.has(key),
+  );
+  const global = INVOICE_GLOBAL_ACTION_KEYS.filter((key) => keys.includes(key));
+  const destructive = INVOICE_DESTRUCTIVE_ACTION_KEYS.filter((key) =>
+    keys.includes(key),
+  );
+  return { statusSpecific, global, destructive };
+}
+
 export function getActionsForStatus(
   status: InvoiceStatus,
   exclude: InvoiceActionKey[] = [],
 ): InvoiceAction[] {
   const excluded = new Set(exclude);
   const keys = STATUS_ACTION_MATRIX[status].filter((key) => !excluded.has(key));
-  const trailingKeys = new Set<InvoiceActionKey>([
-    "void",
-    "uncollectible",
-    "delete",
-  ]);
+  const { statusSpecific, global, destructive } = partitionInvoiceKeys(keys);
 
-  let trailingDividerPlaced = false;
-  return keys.map((key) => {
-    const needsDivider = trailingKeys.has(key) && !trailingDividerPlaced;
-    if (needsDivider) trailingDividerPlaced = true;
+  const actions: InvoiceAction[] = statusSpecific.map((key) =>
+    toInvoiceAction(key, status),
+  );
 
-    if (key === "download" && status === "drafted") {
-      return { key, label: "Download Draft PDF", dividerBefore: needsDivider };
-    }
-    return {
-      key,
-      label: ACTION_META[key].label,
-      danger: ACTION_META[key].danger,
-      dividerBefore: needsDivider,
-    };
+  global.forEach((key, index) => {
+    actions.push(
+      toInvoiceAction(key, status, index === 0 && actions.length > 0),
+    );
   });
+
+  destructive.forEach((key, index) => {
+    actions.push(
+      toInvoiceAction(key, status, index === 0 && actions.length > 0),
+    );
+  });
+
+  return actions;
+}
+
+/** Bulk / floating-bar actions shared across invoice rows. */
+export function getInvoiceUniversalActions(): InvoiceAction[] {
+  const keys: InvoiceActionKey[] = ["download", "export_csv", "duplicate"];
+  return keys.map((key) => toInvoiceAction(key, "sent"));
+}
+
+/** Actions that are not meaningful (or safe) for multi-select. */
+const BULK_EXCLUDED_KEYS = new Set<InvoiceActionKey>([
+  "edit",
+  "mark_viewed",
+]);
+
+/**
+ * Bulk bar actions = intersection of actions available on every selected
+ * status (Edit / Mark As Viewed excluded — not bulk-friendly). Falls back to
+ * universal utilities when nothing is selected.
+ */
+export function getInvoiceBulkActions(
+  statuses: InvoiceStatus[],
+): InvoiceAction[] {
+  if (statuses.length === 0) return getInvoiceUniversalActions();
+
+  const unique = [...new Set(statuses)];
+  let sharedKeys = STATUS_ACTION_MATRIX[unique[0]!].filter(
+    (key) => !BULK_EXCLUDED_KEYS.has(key),
+  );
+
+  for (const status of unique.slice(1)) {
+    const allowed = new Set(STATUS_ACTION_MATRIX[status]);
+    sharedKeys = sharedKeys.filter((key) => allowed.has(key));
+  }
+
+  if (sharedKeys.length === 0) return getInvoiceUniversalActions();
+
+  const { statusSpecific, global, destructive } =
+    partitionInvoiceKeys(sharedKeys);
+  const labelStatus = unique.length === 1 ? unique[0]! : "sent";
+  const actions: InvoiceAction[] = statusSpecific.map((key) =>
+    toInvoiceAction(key, labelStatus),
+  );
+  global.forEach((key, index) => {
+    actions.push(
+      toInvoiceAction(key, labelStatus, index === 0 && actions.length > 0),
+    );
+  });
+  destructive.forEach((key, index) => {
+    actions.push(
+      toInvoiceAction(key, labelStatus, index === 0 && actions.length > 0),
+    );
+  });
+  return actions;
 }
 
 export const UNCOLLECTIBLE_REASON_CODES = [

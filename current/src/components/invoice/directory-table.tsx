@@ -18,6 +18,8 @@ export type DirectoryColumnDef<Id extends string> = {
   minWidth: number;
   defaultWidth: number;
   hideable?: boolean;
+  /** Hidden until the user turns it on in column settings. */
+  defaultHidden?: boolean;
 };
 
 export const MONEY_CELL = {
@@ -33,30 +35,41 @@ export function MoneyCell({
   amount,
   variant,
   query = "",
+  align = "right",
 }: {
   amount: number;
   variant: MoneyVariant;
   query?: string;
+  align?: "left" | "right";
 }) {
   const isZeroMoney =
     (variant === "paid" || variant === "outstanding") &&
     Math.abs(amount) < 0.005;
   const toneClass = isZeroMoney ? MONEY_CELL.zero : MONEY_CELL[variant];
+  const alignClass = align === "left" ? "text-left" : "text-right";
   const formatted = formatMoney(amount);
   const q = query.trim();
   if (!q || !formatted.toLowerCase().includes(q.toLowerCase())) {
-    return <span className={`block w-full text-right ${toneClass}`}>{formatted}</span>;
+    return (
+      <span className={`block w-full ${alignClass} ${toneClass}`}>
+        {formatted}
+      </span>
+    );
   }
 
   const lower = formatted.toLowerCase();
   const lowerQ = q.toLowerCase();
   const idx = lower.indexOf(lowerQ);
   if (idx < 0) {
-    return <span className={`block w-full text-right ${toneClass}`}>{formatted}</span>;
+    return (
+      <span className={`block w-full ${alignClass} ${toneClass}`}>
+        {formatted}
+      </span>
+    );
   }
   const end = idx + q.length;
   return (
-    <span className={`block w-full text-right ${toneClass}`}>
+    <span className={`block w-full ${alignClass} ${toneClass}`}>
       {formatted.slice(0, idx)}
       <mark className="rounded-sm bg-sunshine-yellow/70 px-0.5 text-inherit">
         {formatted.slice(idx, end)}
@@ -267,6 +280,153 @@ export function DirectoryViewToggle({
   );
 }
 
+export function DirectoryColumnsSettingsButton({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-black/15 bg-white text-midnight-ink transition hover:bg-black/[0.03]"
+      aria-label="Column settings"
+      title="Column settings"
+    >
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path
+          d="M6.5 2.5h3l.4 1.6a4.5 4.5 0 0 1 1.1.64l1.55-.55 1.5 2.6-1.25 1.05c.05.28.07.57.07.86s-.02.58-.07.86l1.25 1.05-1.5 2.6-1.55-.55a4.5 4.5 0 0 1-1.1.64L9.5 13.5h-3l-.4-1.6a4.5 4.5 0 0 1-1.1-.64l-1.55.55-1.5-2.6 1.25-1.05A4.6 4.6 0 0 1 3.13 8c0-.29.02-.58.07-.86L1.95 6.09l1.5-2.6 1.55.55c.33-.27.7-.49 1.1-.64L6.5 2.5Z"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <circle cx="8" cy="8" r="1.75" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+    </button>
+  );
+}
+
+export function RowSelectCheckbox({
+  checked,
+  indeterminate = false,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+
+  return (
+    <label
+      className="inline-flex cursor-pointer items-center gap-2"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <input
+        ref={ref}
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 shrink-0 accent-prime-blue"
+        aria-label={label}
+      />
+    </label>
+  );
+}
+
+export function DirectorySelectAllRow({
+  checked,
+  indeterminate = false,
+  onChange,
+  label = "Select all",
+  filters,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  label?: string;
+  filters?: ReactNode;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+
+  const hasFilters = Boolean(filters);
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-midnight-ink">
+        <input
+          ref={ref}
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          className="h-4 w-4 shrink-0 accent-prime-blue"
+          aria-label={label}
+        />
+        Select all
+      </label>
+      {hasFilters ? (
+        <>
+          <div className="h-5 w-px shrink-0 bg-black/15" aria-hidden />
+          <div className="min-w-0 flex-1">{filters}</div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+export function DirectoryBulkActionBar({
+  count,
+  actions,
+  onClear,
+  onAction,
+}: {
+  count: number;
+  actions: { key: string; label: string; danger?: boolean }[];
+  onClear: () => void;
+  onAction: (key: string) => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-6">
+      <div className="pointer-events-auto flex max-w-[1180px] flex-wrap items-center gap-3 rounded-[12px] bg-midnight-ink px-5 py-3.5 shadow-[0_12px_40px_rgb(0_0_0_/0.35)]">
+        <p className="type-body font-semibold text-white">{count} selected</p>
+        <div
+          className="mx-1 hidden h-6 w-px bg-white/20 sm:block"
+          aria-hidden
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              onClick={() => onAction(action.key)}
+              className={`inline-flex h-10 items-center justify-center rounded px-4 text-sm font-semibold text-white transition hover:opacity-90 ${
+                action.danger ? "bg-delete-red" : "bg-prime-blue"
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="ml-auto text-sm font-semibold text-white/80 underline underline-offset-2 transition hover:text-white"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ListViewIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -440,7 +600,7 @@ export function DirectoryColumnHeader({
       onDrop={onDrop}
       onContextMenu={onContextMenu}
     >
-      <div className="pr-2">{children}</div>
+      <div className="flex min-h-[1.25rem] items-center pr-2">{children}</div>
       <button
         type="button"
         aria-label={`Resize ${label} column`}
@@ -455,6 +615,14 @@ export function DirectoryColumnHeader({
   );
 }
 
+function defaultHiddenIds<Id extends string>(defs: DirectoryColumnDef<Id>[]) {
+  return defs
+    .filter(
+      (column) => column.defaultHidden && column.hideable !== false,
+    )
+    .map((column) => column.id);
+}
+
 function loadColumnPrefs<Id extends string>(
   storageKey: string,
   defs: DirectoryColumnDef<Id>[],
@@ -467,37 +635,59 @@ function loadColumnPrefs<Id extends string>(
   const defaultWidths = Object.fromEntries(
     defs.map((column) => [column.id, column.defaultWidth]),
   ) as Record<Id, number>;
+  const defaultHidden = defaultHiddenIds(defs);
 
   if (typeof window === "undefined") {
-    return { order: defaultOrder, widths: defaultWidths, hidden: [] };
+    return {
+      order: defaultOrder,
+      widths: defaultWidths,
+      hidden: defaultHidden,
+    };
   }
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) {
-      return { order: defaultOrder, widths: defaultWidths, hidden: [] };
+      return {
+        order: defaultOrder,
+        widths: defaultWidths,
+        hidden: defaultHidden,
+      };
     }
     const parsed = JSON.parse(raw) as {
       order?: Id[];
       widths?: Partial<Record<Id, number>>;
       hidden?: Id[];
     };
-    const order = Array.isArray(parsed.order)
-      ? [
-          ...parsed.order.filter((id) => defs.some((column) => column.id === id)),
-          ...defaultOrder.filter((id) => !parsed.order?.includes(id)),
-        ]
-      : defaultOrder;
+    const savedOrder = Array.isArray(parsed.order) ? parsed.order : [];
+    const order = [
+      ...savedOrder.filter((id) => defs.some((column) => column.id === id)),
+      ...defaultOrder.filter((id) => !savedOrder.includes(id)),
+    ];
+    const newlyAddedHidden = defaultOrder.filter((id) => {
+      if (savedOrder.includes(id)) return false;
+      return defs.some(
+        (column) =>
+          column.id === id &&
+          column.defaultHidden &&
+          column.hideable !== false,
+      );
+    });
+    const savedHidden = Array.isArray(parsed.hidden)
+      ? parsed.hidden.filter((id) =>
+          defs.some((column) => column.id === id && column.hideable !== false),
+        )
+      : defaultHidden;
     return {
       order,
       widths: { ...defaultWidths, ...(parsed.widths ?? {}) },
-      hidden: Array.isArray(parsed.hidden)
-        ? parsed.hidden.filter((id) =>
-            defs.some((column) => column.id === id && column.hideable !== false),
-          )
-        : [],
+      hidden: [...new Set([...savedHidden, ...newlyAddedHidden])],
     };
   } catch {
-    return { order: defaultOrder, widths: defaultWidths, hidden: [] };
+    return {
+      order: defaultOrder,
+      widths: defaultWidths,
+      hidden: defaultHidden,
+    };
   }
 }
 
@@ -519,7 +709,9 @@ export function useDirectoryColumns<Id extends string>(
   const [columnOrder, setColumnOrder] = useState<Id[]>(defaultOrder);
   const [columnWidths, setColumnWidths] =
     useState<Record<Id, number>>(defaultWidths);
-  const [hiddenColumns, setHiddenColumns] = useState<Id[]>([]);
+  const [hiddenColumns, setHiddenColumns] = useState<Id[]>(() =>
+    defaultHiddenIds(defs),
+  );
   const [hydrated, setHydrated] = useState(false);
   const [draggingColumn, setDraggingColumn] = useState<Id | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -660,8 +852,12 @@ export function useDirectoryColumns<Id extends string>(
 
   return {
     visibleColumns,
+    orderedColumns: columnOrder
+      .map((id) => defs.find((column) => column.id === id))
+      .filter((column): column is DirectoryColumnDef<Id> => Boolean(column)),
     gridTemplateColumns,
     columnWidths,
+    hiddenColumns,
     contextMenu,
     setContextMenu,
     onHeaderDragStart,
@@ -670,6 +866,27 @@ export function useDirectoryColumns<Id extends string>(
     hideColumn,
     showColumn,
     showAllColumns,
+    toggleColumnVisibility: (columnId: Id) => {
+      const def = defs.find((column) => column.id === columnId);
+      if (!def || def.hideable === false) return;
+      setHiddenColumns((prev) =>
+        prev.includes(columnId)
+          ? prev.filter((id) => id !== columnId)
+          : [...prev, columnId],
+      );
+    },
+    moveColumn: (fromId: Id, toId: Id) => {
+      if (fromId === toId) return;
+      setColumnOrder((prev) => {
+        const next = [...prev];
+        const from = next.indexOf(fromId);
+        const to = next.indexOf(toId);
+        if (from < 0 || to < 0) return prev;
+        next.splice(from, 1);
+        next.splice(to, 0, fromId);
+        return next;
+      });
+    },
     hiddenHideable,
   };
 }

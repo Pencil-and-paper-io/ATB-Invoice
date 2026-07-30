@@ -443,6 +443,8 @@ export type CustomerInvoiceRow = {
   balanceOutstanding: number;
   status: string;
   customerId: string;
+
+  scheduledReminder: string | null;
 };
 
 export type CustomerQuoteRow = {
@@ -453,6 +455,8 @@ export type CustomerQuoteRow = {
   amount: number;
   status: string;
   customerId: string;
+
+  scheduledReminder: string | null;
 };
 
 /** Demo invoices tied to customers for the customer profile page. */
@@ -467,6 +471,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 2187.5,
     status: "Sent",
     customerId: "acme",
+  scheduledReminder: "Aug 5, 2026",
   },
   {
     id: "inv-acme-2",
@@ -478,6 +483,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 2187.5,
     status: "Overdue",
     customerId: "acme",
+  scheduledReminder: "Aug 12, 2026",
   },
   {
     id: "inv-acme-3",
@@ -489,6 +495,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 1400,
     status: "Partially Paid",
     customerId: "acme",
+  scheduledReminder: null,
   },
   {
     id: "inv-acme-4",
@@ -500,6 +507,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 960,
     status: "Viewed",
     customerId: "acme",
+  scheduledReminder: null,
   },
   {
     id: "inv-cedar-1",
@@ -511,6 +519,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 0,
     status: "Paid",
     customerId: "cedar",
+  scheduledReminder: "Jul 30, 2026",
   },
   {
     id: "inv-delta-1",
@@ -522,6 +531,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 2200,
     status: "Uncollectible",
     customerId: "delta",
+  scheduledReminder: null,
   },
   // Scenario B: drafts only (Beta) — archive, cannot delete
   {
@@ -534,6 +544,7 @@ const SEED_CUSTOMER_INVOICES: CustomerInvoiceRow[] = [
     balanceOutstanding: 1200,
     status: "Draft",
     customerId: "beta",
+  scheduledReminder: null,
   },
 ];
 
@@ -604,7 +615,8 @@ function buildExtraInvoices(count: number): CustomerInvoiceRow[] {
       balanceOutstanding,
       status,
       customerId: DEMO_CUSTOMER_IDS[i % DEMO_CUSTOMER_IDS.length],
-    });
+    scheduledReminder: i % 5 === 0 ? demoDate(issuedOffset + 14) : null,
+});
   }
   return rows;
 }
@@ -623,7 +635,8 @@ function buildExtraQuotes(count: number): CustomerQuoteRow[] {
       amount,
       status,
       customerId: DEMO_CUSTOMER_IDS[i % DEMO_CUSTOMER_IDS.length],
-    });
+    scheduledReminder: i % 6 === 0 ? demoDate(createdOffset + 10) : null,
+});
   }
   return rows;
 }
@@ -643,6 +656,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 4200,
     status: "Accepted",
     customerId: "acme",
+  scheduledReminder: null,
   },
   {
     id: "quo-acme-2",
@@ -652,6 +666,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 1850,
     status: "Sent",
     customerId: "acme",
+  scheduledReminder: "Aug 1, 2026",
   },
   {
     id: "quo-acme-3",
@@ -661,6 +676,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 990,
     status: "Draft",
     customerId: "acme",
+  scheduledReminder: null,
   },
   {
     id: "quo-acme-4",
@@ -670,6 +686,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 2400,
     status: "Viewed",
     customerId: "acme",
+  scheduledReminder: null,
   },
   {
     id: "quo-cedar-1",
@@ -679,6 +696,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 3100,
     status: "Rejected",
     customerId: "cedar",
+  scheduledReminder: null,
   },
   {
     id: "quo-delta-1",
@@ -688,6 +706,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 1250,
     status: "Expired",
     customerId: "delta",
+  scheduledReminder: null,
   },
   {
     id: "quo-beta-1",
@@ -697,6 +716,7 @@ const SEED_CUSTOMER_QUOTES: CustomerQuoteRow[] = [
     amount: 850,
     status: "Draft",
     customerId: "beta",
+  scheduledReminder: "Jul 28, 2026",
   },
 ];
 

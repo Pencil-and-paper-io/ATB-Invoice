@@ -6,15 +6,17 @@ export function DirectoryFilterTags({
   tags,
   onRemove,
   onClearAll,
+  className = "mb-4",
 }: {
   tags: FilterTag[];
   onRemove: (id: string) => void;
   onClearAll: () => void;
+  className?: string;
 }) {
   if (tags.length === 0) return null;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
       {tags.map((tag) => (
         <button
           key={tag.id}

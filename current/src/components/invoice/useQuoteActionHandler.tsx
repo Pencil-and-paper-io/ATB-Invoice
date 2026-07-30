@@ -94,7 +94,10 @@ export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
     }
     if (action === "duplicate") {
       duplicateQuoteDetails();
-      router.push("/quote");
+      setFeedback({
+        kind: "info",
+        message: "Quote duplicated (demo).",
+      });
       return;
     }
     if (action === "copy_link") {
