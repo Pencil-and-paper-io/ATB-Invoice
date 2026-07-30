@@ -301,6 +301,45 @@ export function Modal({
   );
 }
 
+/** Soft pink callout used for incomplete setup / missing required fields. */
+export function MissingInfoFlag({
+  label = "Missing Information",
+  message,
+  className = "mt-5",
+}: {
+  label?: string;
+  message: string;
+  className?: string;
+}) {
+  return (
+    <div
+      role="status"
+      className={`${className} flex items-start gap-2.5 rounded-[10px] border border-[#F5C2C0] bg-[#FDECEC] px-3.5 py-3`}
+    >
+      <span className="mt-0.5 shrink-0 text-[#C62828]" aria-hidden>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path
+            d="M9 2.25 16.5 15.75H1.5L9 2.25Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M9 7.5v3.75"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <circle cx="9" cy="13.5" r="0.75" fill="currentColor" />
+        </svg>
+      </span>
+      <p className="type-body text-midnight-ink">
+        <span className="font-semibold">{label}:</span> {message}
+      </p>
+    </div>
+  );
+}
+
 function PlusIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -314,7 +353,9 @@ function PlusIcon() {
 export function CreatePlusIcon({ className }: { className?: string } = {}) {
   return (
     <span
-      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-prime-blue ${className ?? ""}`}
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+        className ?? "bg-white text-prime-blue"
+      }`}
       aria-hidden
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

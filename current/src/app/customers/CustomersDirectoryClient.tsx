@@ -609,7 +609,28 @@ export default function CustomersDirectoryClient() {
       tab !== "archived" &&
       filteredSortedCustomers.length === 0);
 
-  const customersEmptyState = (
+  const customersEmptyState = forceEmpty ? (
+    <div className="rounded-xl border border-black/10 bg-white px-5 py-16 text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/onboard-icon-people.png"
+        alt=""
+        className="mx-auto mb-5 h-14 w-14 object-contain sm:h-16 sm:w-16"
+      />
+      <p className="type-headline-6 text-midnight-ink">
+        Create your first customer!
+      </p>
+      <div className="mt-5 flex justify-center">
+        <Link
+          href="/customers/new?empty=1"
+          className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
+        >
+          <CreatePlusIcon />
+          Create New Customer
+        </Link>
+      </div>
+    </div>
+  ) : (
     <div className="rounded-xl border border-black/10 bg-white px-5 py-16 text-center">
       <p className="type-headline-6 text-midnight-ink">
         {searchQuery.trim() || activeFilterCount > 0
@@ -619,27 +640,15 @@ export default function CustomersDirectoryClient() {
             : "No customers yet."}
       </p>
       {showTrueEmpty ? (
-        <>
-          <p className="mx-auto mt-2 max-w-md type-paragraph-1 text-black/55">
-            Nothing has been created yet, and organization setup has not been
-            completed.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/customers/new"
-              className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
-            >
-              <CreatePlusIcon />
-              Create New Customer
-            </Link>
-            <Link
-              href="/onboarding"
-              className={`${UI_CLASS.btnSecondary} inline-flex h-11 items-center px-5`}
-            >
-              Complete setup
-            </Link>
-          </div>
-        </>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/customers/new?empty=1"
+            className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
+          >
+            <CreatePlusIcon />
+            Create New Customer
+          </Link>
+        </div>
       ) : null}
     </div>
   );
@@ -712,73 +721,80 @@ export default function CustomersDirectoryClient() {
               Customer directory for invoicing and quoting.
             </p>
           </div>
-          <Link
-            href="/customers/new"
-            className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
-          >
-            <CreatePlusIcon />
-            Create New Customer
-          </Link>
+          {!forceEmpty ? (
+            <Link
+              href="/customers/new"
+              className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center justify-center gap-2 px-5`}
+            >
+              <CreatePlusIcon />
+              Create New Customer
+            </Link>
+          ) : null}
         </div>
 
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div
-            className="inline-flex rounded-lg border border-black/10 bg-white p-1"
-            role="tablist"
-            aria-label="Customer directory tabs"
-          >
-            {(
-              [
-                ["active", "Active"],
-                ["archived", "Archived"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setTab(id)}
-                className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
-                  tab === id
-                    ? "bg-midnight-ink text-white"
-                    : "text-black/55 hover:text-black"
-                }`}
+        {!forceEmpty ? (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div
+                className="inline-flex rounded-lg border border-black/10 bg-white p-1"
+                role="tablist"
+                aria-label="Customer directory tabs"
               >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+                {(
+                  [
+                    ["active", "Active"],
+                    ["archived", "Archived"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                    className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
+                      tab === id
+                        ? "bg-midnight-ink text-white"
+                        : "text-black/55 hover:text-black"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <div className="mb-3 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <SearchField
-              id="customer-search"
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search by customer name, email, tags..."
-              label="Search customers"
+            <div className="mb-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  id="customer-search"
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Search by customer name, email, tags..."
+                  label="Search customers"
+                />
+              </div>
+              <FilterIconButton
+                activeCount={activeFilterCount}
+                onClick={() => setFilterOpen(true)}
+              />
+              <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+            </div>
+
+            <DirectoryFilterTags
+              tags={activeTags}
+              onRemove={(id) =>
+                setCustomerFilters((prev) => clearCustomerFilterTag(prev, id))
+              }
+              onClearAll={() => setCustomerFilters(defaultCustomerFilters())}
             />
-          </div>
-          <FilterIconButton
-            activeCount={activeFilterCount}
-            onClick={() => setFilterOpen(true)}
-          />
-          <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
-        </div>
+          </>
+        ) : null}
 
-        <DirectoryFilterTags
-          tags={activeTags}
-          onRemove={(id) =>
-            setCustomerFilters((prev) => clearCustomerFilterTag(prev, id))
-          }
-          onClearAll={() => setCustomerFilters(defaultCustomerFilters())}
-        />
-
-        {viewMode === "card" ? (
-          filteredSortedCustomers.length ? (
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {forceEmpty || filteredSortedCustomers.length === 0 ? (
+          customersEmptyState
+        ) : viewMode === "card" ? (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredSortedCustomers.map((customer) => {
                 const summary = getCustomerAccountSummary(customer.id);
                 return (
@@ -850,11 +866,6 @@ export default function CustomersDirectoryClient() {
                 );
               })}
             </ul>
-          ) : (
-            customersEmptyState
-          )
-        ) : filteredSortedCustomers.length === 0 ? (
-          customersEmptyState
         ) : (
         <div className="overflow-x-auto rounded-xl border border-black/10 bg-white">
           <div className="min-w-max">

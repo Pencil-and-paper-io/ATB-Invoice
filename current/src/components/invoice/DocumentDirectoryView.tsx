@@ -48,6 +48,7 @@ import { RowKebabMenu } from "./RowKebabMenu";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
+import { UI_CLASS } from "@/lib/design-tokens";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
 import {
@@ -66,7 +67,6 @@ import {
   type DirectoryColumnDef,
   type DirectoryViewMode,
 } from "./directory-table";
-import { UI_CLASS } from "@/lib/design-tokens";
 
 type DirectoryKind = "invoices" | "quotes";
 type SortDir = "asc" | "desc";
@@ -265,40 +265,66 @@ function CreatePrimaryLink({
   );
 }
 
+function CreatePrimaryDisabled({ children }: { children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      disabled
+      className="inline-flex h-11 cursor-not-allowed items-center gap-2 rounded bg-black/10 px-5 text-sm font-semibold text-black/40"
+    >
+      <CreatePlusIcon className="bg-black/15 text-black/40" />
+      {children}
+    </button>
+  );
+}
+
 function EmptyState({
   label,
   detail,
   href,
   cta,
-  secondaryHref,
-  secondaryCta,
+  iconSrc,
+  primaryAction,
 }: {
   label: string;
   detail?: string;
-  href: string;
-  cta: string;
-  secondaryHref?: string;
-  secondaryCta?: string;
+  href?: string;
+  cta?: string;
+  iconSrc?: string;
+  primaryAction?: { label: string; onClick: () => void };
 }) {
   return (
     <div className="px-5 py-16 text-center">
+      {iconSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={iconSrc}
+          alt=""
+          className="mx-auto mb-5 h-14 w-14 object-contain sm:h-16 sm:w-16"
+        />
+      ) : null}
       <p className="type-headline-6 text-midnight-ink">{label}</p>
       {detail ? (
         <p className="mx-auto mt-2 max-w-md type-paragraph-1 text-black/55">
           {detail}
         </p>
       ) : null}
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-        <CreatePrimaryLink href={href}>{cta}</CreatePrimaryLink>
-        {secondaryHref && secondaryCta ? (
-          <Link
-            href={secondaryHref}
-            className={`${UI_CLASS.btnSecondary} inline-flex h-11 items-center px-5`}
-          >
-            {secondaryCta}
-          </Link>
-        ) : null}
-      </div>
+      {primaryAction || (href && cta) ? (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          {primaryAction ? (
+            <button
+              type="button"
+              onClick={primaryAction.onClick}
+              className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center px-5`}
+            >
+              {primaryAction.label}
+            </button>
+          ) : null}
+          {href && cta ? (
+            <CreatePrimaryLink href={href}>{cta}</CreatePrimaryLink>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -333,21 +359,25 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     : "Estimates of proposed work — convert to an invoice when accepted.";
   const createHref = isInvoices ? "/" : "/quote";
   const createLabel = isInvoices ? "Create Invoice" : "Create Quote";
-  const emptyLabel = isInvoices ? "No invoices yet." : "No quotes yet.";
-  const emptyDetail =
-    "Nothing has been created yet, and organization setup has not been completed.";
+  const documentWord = isInvoices ? "invoice" : "quote";
   const filterEmptyLabel = isInvoices
     ? "No invoices match your filters."
     : "No quotes match your filters.";
 
-  const directoryEmptyState = (
+  const directoryEmptyState = forceEmpty ? (
     <EmptyState
-      label={forceEmpty ? emptyLabel : filterEmptyLabel}
-      detail={forceEmpty ? emptyDetail : undefined}
+      iconSrc="/onboard-moments-icon.png"
+      label={`Complete your setup to start on your first ${documentWord}!`}
+      primaryAction={{
+        label: "Finish Set Up",
+        onClick: () => router.push("/onboarding?start=wizard"),
+      }}
+    />
+  ) : (
+    <EmptyState
+      label={filterEmptyLabel}
       href={createHref}
       cta={createLabel}
-      secondaryHref={forceEmpty ? "/onboarding" : undefined}
-      secondaryCta={forceEmpty ? "Complete setup" : undefined}
     />
   );
 
@@ -495,55 +525,65 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
             <button
               type="button"
               className="ui-btn-secondary"
+              disabled={forceEmpty}
               onClick={() => {
+                if (forceEmpty) return;
                 if (isInvoices) exportInvoicesCsv(invoices);
                 else exportQuotesCsv(quotes);
               }}
             >
               Export CSV
             </button>
-            <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
+            {forceEmpty ? (
+              <CreatePrimaryDisabled>{createLabel}</CreatePrimaryDisabled>
+            ) : (
+              <CreatePrimaryLink href={createHref}>{createLabel}</CreatePrimaryLink>
+            )}
           </div>
         </div>
 
-        <div className="mb-3 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <SearchField
-              id={`${kind}-search`}
-              value={query}
-              onChange={(next) => {
-                setQuery(next);
-                setPage(1);
+        {!forceEmpty ? (
+          <>
+            <div className="mb-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  id={`${kind}-search`}
+                  value={query}
+                  onChange={(next) => {
+                    setQuery(next);
+                    setPage(1);
+                  }}
+                  placeholder={
+                    isInvoices
+                      ? "Search by status, customer name, invoice number..."
+                      : "Search by status, customer name, quote number..."
+                  }
+                  label={isInvoices ? "Search invoices" : "Search quotes"}
+                />
+              </div>
+              <FilterIconButton
+                activeCount={activeFilterCount}
+                onClick={() => setFilterOpen(true)}
+              />
+              <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
+            </div>
+
+            <DirectoryFilterTags
+              tags={activeTags}
+              onRemove={(id) => {
+                if (isInvoices) {
+                  applyInvoiceFilters(clearInvoiceFilterTag(invoiceFilters, id));
+                } else {
+                  applyQuoteFilters(clearQuoteFilterTag(quoteFilters, id));
+                }
               }}
-              placeholder={
-                isInvoices
-                  ? "Search by status, customer name, invoice number..."
-                  : "Search by status, customer name, quote number..."
-              }
-              label={isInvoices ? "Search invoices" : "Search quotes"}
+              onClearAll={() => {
+                if (isInvoices) applyInvoiceFilters(defaultInvoiceFilters());
+                else applyQuoteFilters(defaultQuoteFilters());
+              }}
             />
-          </div>
-          <FilterIconButton
-            activeCount={activeFilterCount}
-            onClick={() => setFilterOpen(true)}
-          />
-          <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
-        </div>
-
-        <DirectoryFilterTags
-          tags={activeTags}
-          onRemove={(id) => {
-            if (isInvoices) {
-              applyInvoiceFilters(clearInvoiceFilterTag(invoiceFilters, id));
-            } else {
-              applyQuoteFilters(clearQuoteFilterTag(quoteFilters, id));
-            }
-          }}
-          onClearAll={() => {
-            if (isInvoices) applyInvoiceFilters(defaultInvoiceFilters());
-            else applyQuoteFilters(defaultQuoteFilters());
-          }}
-        />
+          </>
+        ) : null}
 
         {totalItems === 0 ? (
           <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">

@@ -96,7 +96,7 @@ export function createAndPersistCustomer(
 
   const taxCascade = suggestCustomerTaxCascade(province);
   const profile: CustomerProfileSettings = {
-    taxStatus: taxCascade.taxStatus,
+    taxStatus: "Taxable",
     taxSuggestions: { ...taxCascade.suggestions },
   };
   saveCustomerProfileSettings(customer.id, profile);

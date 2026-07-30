@@ -266,6 +266,11 @@ body {
   background: rgb(0 0 0 / 0.05);
 }
 
+.ui-btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .ui-section-shell {
   display: flex;
   flex-direction: column;

@@ -12,14 +12,17 @@ export function OnboardingWelcomeHero({
   onStart,
   onLater,
   onClose,
+  firstDocument = "invoice",
 }: {
   onStart: () => void;
   onLater: () => void;
   onClose: () => void;
+  /** Shown in the title — quote vs invoice based on entry point. */
+  firstDocument?: "invoice" | "quote";
 }) {
   return (
     <Modal
-      title="You're just moments away from creating your first invoice"
+      title={`You're moments away from creating your first ${firstDocument}`}
       titleId="onboarding-welcome-title"
       onClose={onClose}
       maxWidthClass="max-w-[41.4rem]"

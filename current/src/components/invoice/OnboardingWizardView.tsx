@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { UI_CLASS } from "@/lib/design-tokens";
 import {
@@ -259,7 +259,9 @@ function ChoiceCard({
           onChange();
         }
       }}
-      className={`flex h-full min-w-0 flex-1 cursor-pointer flex-col rounded-[12px] px-6 pt-[94px] pb-[94px] transition ${
+      className={`flex h-full min-w-0 flex-1 cursor-pointer flex-col rounded-[12px] px-6 transition ${
+        checked && hasExpand ? "py-[30px]" : "py-8"
+      } ${
         checked ? "bg-midnight-ink" : "bg-page-grey hover:bg-black/[0.06]"
       }`}
     >
@@ -576,10 +578,14 @@ function persistWizard(
 
 export function OnboardingWizardView() {
   const router = useRouter();
-  // Always start as "terms" so SSR and the first client paint match; then
-  // sync from localStorage after mount to avoid hydration mismatches.
-  const [phase, setPhase] = useState<OnboardingPhase>("terms");
-  const [hydrated, setHydrated] = useState(false);
+  const searchParams = useSearchParams();
+  const startWizard = searchParams.get("start") === "wizard";
+  // Empty-state CTAs pass ?start=wizard — jump straight to Your Info (skip
+  // terms + welcome). Seed phase/hydrated so the first paint isn't a flash.
+  const [phase, setPhase] = useState<OnboardingPhase>(() =>
+    startWizard ? "wizard" : "terms",
+  );
+  const [hydrated, setHydrated] = useState(() => startWizard);
   const [step, setStep] = useState<StepIndex>(0);
   const [finishing, setFinishing] = useState(false);
   const [showPaymentConfirmError, setShowPaymentConfirmError] = useState(false);
@@ -591,16 +597,19 @@ export function OnboardingWizardView() {
   useEffect(() => {
     window.setTimeout(() => {
       try {
-        if (window.localStorage.getItem(TERMS_ACCEPTED_KEY) === "1") {
+        if (startWizard) {
+          window.localStorage.setItem(TERMS_ACCEPTED_KEY, "1");
+          setPhase("wizard");
+        } else if (window.localStorage.getItem(TERMS_ACCEPTED_KEY) === "1") {
           setPhase("welcome");
         }
       } catch {
-        /* keep terms */
+        if (startWizard) setPhase("wizard");
       }
       setState(settingsToWizard(loadOrganizationSettings()));
       setHydrated(true);
     }, 0);
-  }, []);
+  }, [startWizard]);
 
   useEffect(() => {
     if (phase !== "wizard" || finishing) return;

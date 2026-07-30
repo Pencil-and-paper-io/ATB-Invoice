@@ -473,3 +473,19 @@ export function getCustomerCascadeDefaults(
     receipts: settings.receipts,
   };
 }
+
+/** True when required business details and at least one payment method are set. */
+export function isOrganizationSetupComplete(
+  settings: OrganizationSettings = loadOrganizationSettings(),
+) {
+  const businessComplete =
+    Boolean(settings.businessName.trim()) &&
+    Boolean(settings.contactName.trim()) &&
+    Boolean(settings.email.trim()) &&
+    (settings.useLegalNameOnInvoices ||
+      Boolean(settings.tradingAsName.trim()));
+  const paymentsComplete = settings.paymentMethods.some(
+    (method) => method.enabled,
+  );
+  return businessComplete && paymentsComplete;
+}

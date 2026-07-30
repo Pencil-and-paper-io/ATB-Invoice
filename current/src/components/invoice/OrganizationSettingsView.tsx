@@ -24,7 +24,7 @@ import { GstHstNumberField } from "./GstHstNumberField";
 import { ReminderDeliveryControls } from "./ReminderDeliveryControls";
 import { TopNav } from "./TopNav";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { EditCloseButton, InfoTooltip, Modal, PencilIcon } from "./ui";
+import { EditCloseButton, InfoTooltip, MissingInfoFlag, Modal, PencilIcon } from "./ui";
 
 const TABS = ["Business Details", "Permissions", "Sub Users"] as const;
 type TabId = (typeof TABS)[number];
@@ -263,42 +263,6 @@ function EmptyValue() {
 
 function NoneSelected() {
   return <span className="text-black/40">None selected</span>;
-}
-
-function MissingInfoFlag({
-  label = "Missing Information",
-  message,
-}: {
-  label?: string;
-  message: string;
-}) {
-  return (
-    <div
-      role="status"
-      className="mt-5 flex items-start gap-2.5 rounded-[10px] border border-[#F5C2C0] bg-[#FDECEC] px-3.5 py-3"
-    >
-      <span className="mt-0.5 shrink-0 text-[#C62828]" aria-hidden>
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path
-            d="M9 2.25 16.5 15.75H1.5L9 2.25Z"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M9 7.5v3.75"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <circle cx="9" cy="13.5" r="0.75" fill="currentColor" />
-        </svg>
-      </span>
-      <p className="type-body text-midnight-ink">
-        <span className="font-semibold">{label}:</span> {message}
-      </p>
-    </div>
-  );
 }
 
 function displayOrNa(value: string | null | undefined) {
@@ -1148,7 +1112,7 @@ export function OrganizationSettingsView() {
                 </p>
               </div>
               <Link
-                href="/onboarding"
+                href="/onboarding?start=wizard"
                 className={`${UI_CLASS.btnPrimary} inline-flex h-11 shrink-0 items-center justify-center px-5`}
               >
                 Complete Setup

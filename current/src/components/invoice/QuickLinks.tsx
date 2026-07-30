@@ -294,6 +294,13 @@ const SECTIONS: QuickSection[] = [
         description: "No customers yet — setup not completed",
         matchEmpty: true,
       },
+      {
+        id: "empty-first-customer",
+        label: "Create First Customer",
+        href: "/customers/new?empty=1",
+        description: "First customer while setup incomplete",
+        matchEmpty: true,
+      },
     ],
   },
 ];
@@ -314,6 +321,8 @@ function isLinkActive(
 
   if (link.matchId !== undefined) {
     if (pathname !== "/customers/new") return false;
+    // Empty-state first-customer flow uses matchEmpty instead.
+    if (isEmpty) return false;
     return customerIdParam === link.matchId;
   }
   if (link.matchEmpty) {

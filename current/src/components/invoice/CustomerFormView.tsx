@@ -29,6 +29,7 @@ import {
   CORE_PAYMENT_METHODS,
   getCustomerCascadeDefaults,
   getEnabledPaymentMethodLabels,
+  isOrganizationSetupComplete,
   loadOrganizationSettings,
 } from "@/lib/organization-settings";
 import {
@@ -43,7 +44,6 @@ import {
   CUSTOMER_NON_TAXABLE_OPTIONS,
   CUSTOMER_TAXABLE_OPTIONS,
   TAX_SETTING_OPTIONS,
-  suggestCustomerTaxCascade,
   suggestNonTaxableForCustomer,
   suggestTaxableForCustomer,
   type TaxSuggestions,
@@ -55,7 +55,7 @@ import {
 import { TopNav } from "./TopNav";
 import { TaxSuggestionsEditor } from "./TaxSuggestionsEditor";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
-import { CreatePlusIcon, EditCloseButton, InfoTooltip, Modal, PencilIcon, TertiaryButton } from "./ui";
+import { CreatePlusIcon, EditCloseButton, InfoTooltip, MissingInfoFlag, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
 
@@ -129,18 +129,21 @@ type CustomerFormState = {
 
 function emptyCustomerForm(
   cascade = ORGANIZATION_DEFAULTS,
+  options: { emptyPayments?: boolean } = {},
 ): CustomerFormState {
-  const taxCascade = suggestCustomerTaxCascade("");
+  const taxable = suggestTaxableForCustomer("");
   return {
     businessName: "",
     email: "",
     phone: "",
     currency: LOCKED_CURRENCY,
-    taxStatus: taxCascade.taxStatus,
-    taxSuggestions: { ...taxCascade.suggestions },
+    taxStatus: "Taxable",
+    taxSuggestions: { ...taxable.suggestions },
     quoteExpiryDays: cascade.quoteExpiryDays,
     paymentTerms: cascade.paymentTerms,
-    paymentPreferences: [...cascade.paymentPreferences],
+    paymentPreferences: options.emptyPayments
+      ? []
+      : [...cascade.paymentPreferences],
     autoSend: cascade.autoSend,
     reminders: cascade.reminders,
     reminderDays: cascade.reminderDays,
@@ -654,8 +657,11 @@ function AddressFields({
   );
 }
 
-function formFromCustomerId(id: string | null): CustomerFormState {
-  const base = emptyCustomerForm(getCustomerCascadeDefaults());
+function formFromCustomerId(
+  id: string | null,
+  options: { emptyPayments?: boolean } = {},
+): CustomerFormState {
+  const base = emptyCustomerForm(getCustomerCascadeDefaults(), options);
   if (!id) return base;
   const customer = findCustomer(id);
   if (!customer) return base;
@@ -667,7 +673,6 @@ function formFromCustomerId(id: string | null): CustomerFormState {
   const [province = "", ...postalRest] = provincePostal.split(/\s+/);
   const postalCode = postalRest.join(" ");
   const profile = loadCustomerProfileSettings(id);
-  const taxCascade = suggestCustomerTaxCascade(province);
   const cascade = getCustomerCascadeDefaults();
 
   return {
@@ -680,10 +685,13 @@ function formFromCustomerId(id: string | null): CustomerFormState {
     province,
     postalCode,
     currency: LOCKED_CURRENCY,
-    taxStatus: profile?.taxStatus ?? taxCascade.taxStatus,
+    taxStatus: profile?.taxStatus ?? "Taxable",
     taxSuggestions: profile?.taxSuggestions
       ? { ...profile.taxSuggestions }
-      : { ...taxCascade.suggestions },
+      : { ...suggestTaxableForCustomer(province).suggestions },
+    paymentPreferences: options.emptyPayments
+      ? []
+      : [...cascade.paymentPreferences],
     autoSend: profile?.autoSend ?? cascade.autoSend,
     reminders: profile?.reminders ?? cascade.reminders,
     reminderDays: profile?.reminderDays?.trim() || cascade.reminderDays,
@@ -720,16 +728,17 @@ function CustomerFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("id");
+  const forceEmpty = searchParams.get("empty") === "1";
   const isEdit = Boolean(customerId);
 
   const [saved, setSaved] = useState<CustomerFormState>(() =>
-    formFromCustomerId(customerId),
+    formFromCustomerId(customerId, { emptyPayments: forceEmpty }),
   );
   const [editing, setEditing] = useState<SectionKey | null>(null);
   const [draft, setDraft] = useState<CustomerFormState>(saved);
   const [availablePaymentOptions, setAvailablePaymentOptions] = useState<
     string[]
-  >(() => [...ORGANIZATION_DEFAULTS.paymentPreferences]);
+  >(() => (forceEmpty ? [] : [...ORGANIZATION_DEFAULTS.paymentPreferences]));
   const [customerCreated, setCustomerCreated] = useState(() =>
     Boolean(customerId),
   );
@@ -752,20 +761,29 @@ function CustomerFormInner() {
   const showCreateModal = !isEdit && !customerCreated;
 
   useEffect(() => {
-    const next = formFromCustomerId(customerId);
+    const next = formFromCustomerId(customerId, {
+      emptyPayments: forceEmpty,
+    });
+    const tabParam = searchParams.get("tab");
     window.setTimeout(() => {
       const org = loadOrganizationSettings();
-      setAvailablePaymentOptions(getEnabledPaymentMethodLabels(org));
+      setAvailablePaymentOptions(
+        forceEmpty ? [] : getEnabledPaymentMethodLabels(org),
+      );
       setSaved(next);
       setDraft(next);
       setEditing(null);
       setCustomerCreated(Boolean(customerId));
-      setTab(customerId ? "Account Summary" : "Customer Settings");
+      if (tabParam === "settings" || !customerId) {
+        setTab("Customer Settings");
+      } else {
+        setTab("Account Summary");
+      }
       setArchived(isCustomerArchived(customerId));
       setLifecycleConfirm(null);
       setTagOptions(loadCustomerTags());
     }, 0);
-  }, [customerId]);
+  }, [customerId, forceEmpty, searchParams]);
 
   useEffect(() => {
     if (archived) setEditing(null);
@@ -899,6 +917,9 @@ function CustomerFormInner() {
   const canArchiveCustomer =
     documentLifecycle === "drafts_only" || documentLifecycle === "has_sent";
   const showLifecycleActions = Boolean(customerId) || customerCreated;
+  const setupIncomplete = forceEmpty || !isOrganizationSetupComplete();
+  const orgPaymentsMissing =
+    forceEmpty || availablePaymentOptions.length === 0;
 
   const internalNotesEditor =
     editing === "notes" ? (
@@ -1033,16 +1054,32 @@ function CustomerFormInner() {
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full flex-col gap-1 px-4 py-3 text-left transition hover:bg-prime-blue/10"
+                      disabled={setupIncomplete}
+                      className={`flex w-full flex-col gap-1 px-4 py-3 text-left transition ${
+                        setupIncomplete
+                          ? "cursor-not-allowed text-black/35"
+                          : "hover:bg-prime-blue/10"
+                      }`}
                       onClick={() => {
+                        if (setupIncomplete) return;
                         setCreateMenuOpen(false);
                         router.push("/quote");
                       }}
                     >
-                      <span className="text-sm font-semibold text-midnight-ink">
+                      <span
+                        className={`text-sm font-semibold ${
+                          setupIncomplete
+                            ? "text-black/35"
+                            : "text-midnight-ink"
+                        }`}
+                      >
                         Quote
                       </span>
-                      <span className="text-xs font-normal leading-4 text-black/55">
+                      <span
+                        className={`text-xs font-normal leading-4 ${
+                          setupIncomplete ? "text-black/30" : "text-black/55"
+                        }`}
+                      >
                         An estimate to help your customer understand costs. This
                         can be turned into an invoice later.
                       </span>
@@ -1052,21 +1089,57 @@ function CustomerFormInner() {
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex w-full flex-col gap-1 px-4 py-3 text-left transition hover:bg-prime-blue/10"
+                      disabled={setupIncomplete}
+                      className={`flex w-full flex-col gap-1 px-4 py-3 text-left transition ${
+                        setupIncomplete
+                          ? "cursor-not-allowed text-black/35"
+                          : "hover:bg-prime-blue/10"
+                      }`}
                       onClick={() => {
+                        if (setupIncomplete) return;
                         setCreateMenuOpen(false);
                         router.push("/");
                       }}
                     >
-                      <span className="text-sm font-semibold text-midnight-ink">
+                      <span
+                        className={`text-sm font-semibold ${
+                          setupIncomplete
+                            ? "text-black/35"
+                            : "text-midnight-ink"
+                        }`}
+                      >
                         Invoice
                       </span>
-                      <span className="text-xs font-normal leading-4 text-black/55">
+                      <span
+                        className={`text-xs font-normal leading-4 ${
+                          setupIncomplete ? "text-black/30" : "text-black/55"
+                        }`}
+                      >
                         A formal request of payment for goods and services
                         rendered.
                       </span>
                     </button>
                   </li>
+                  {setupIncomplete ? (
+                    <li role="none" className="px-3 pb-3 pt-1">
+                      <MissingInfoFlag
+                        className="mt-0"
+                        label="Missing information"
+                        message="Finish organization setup before creating quotes or invoices."
+                      />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`${UI_CLASS.btnPrimary} mt-3 inline-flex h-10 w-full items-center justify-center px-4`}
+                        onClick={() => {
+                          setCreateMenuOpen(false);
+                          router.push("/onboarding?start=wizard");
+                        }}
+                      >
+                        Finish Set Up
+                      </button>
+                    </li>
+                  ) : null}
                 </ul>
               ) : null}
             </div>
@@ -1146,7 +1219,11 @@ function CustomerFormInner() {
             </div>
 
             <div className="mt-5">
-              <CustomerDocumentsPanel invoices={invoices} quotes={quotes} />
+              <CustomerDocumentsPanel
+                invoices={invoices}
+                quotes={quotes}
+                setupIncomplete={setupIncomplete}
+              />
             </div>
           </section>
         ) : (
@@ -1313,7 +1390,7 @@ function CustomerFormInner() {
                                 value={draft.taxSuggestions}
                                 options={CUSTOMER_NON_TAXABLE_OPTIONS}
                                 placeholder="Select a tax category..."
-                                ariaLabel="Tax category"
+                                ariaLabel="Tax Category"
                                 recommendedLabel={
                                   showRecommended
                                     ? nonTaxable.label
@@ -1360,8 +1437,8 @@ function CustomerFormInner() {
                         <ViewField
                           label={
                             saved.taxStatus === "Tax-exempt"
-                              ? "Tax category"
-                              : "Tax rate"
+                              ? "Tax Category"
+                              : "Tax Rate"
                           }
                           value={detail}
                         />
@@ -1469,6 +1546,12 @@ function CustomerFormInner() {
                 ) : (
                   <p className="type-body-muted">No payment preferences set.</p>
                 )}
+                {orgPaymentsMissing ? (
+                  <MissingInfoFlag
+                    label="Missing information"
+                    message="Select a payment option so that you can receive payment from customers, or you will not be able to send an invoice."
+                  />
+                ) : null}
               </ViewCard>
             )}
 
@@ -1968,7 +2051,13 @@ function CustomerFormInner() {
           onClose={cancelCreateModal}
           onCreated={(customer) => {
             setCustomerCreated(true);
-            router.replace(`/customers/new?id=${customer.id}`);
+            setTab("Customer Settings");
+            const params = new URLSearchParams({
+              id: customer.id,
+              tab: "settings",
+            });
+            if (forceEmpty) params.set("empty", "1");
+            router.replace(`/customers/new?${params.toString()}`);
           }}
         />
       ) : null}

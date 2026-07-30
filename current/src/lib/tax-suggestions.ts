@@ -161,35 +161,16 @@ export function suggestTaxableForCustomer(province: string): TaxableSuggestion {
  * Cascade org Tax Setting (+ location) into a recommended customer tax status
  * and nested rate / category defaults for new or empty profiles.
  */
+/**
+ * Cascade org location into a recommended customer tax rate. New customers
+ * always default to Taxable unless the user chooses Tax-exempt.
+ */
 export function suggestCustomerTaxCascade(province: string): {
   taxStatus: TaxStatusOption;
   suggestions: TaxSuggestions;
   recommendedLabel: string;
   recommendedNote: string;
 } {
-  const org = loadOrganizationSettings();
-  const outsideCanada =
-    province.trim().toUpperCase() === OUTSIDE_CANADA_LOCATION.code;
-
-  if (orgDefaultsTaxExempt(org)) {
-    if (outsideCanada) {
-      const option = findTaxOption("Zero-rated - 0%")!;
-      return {
-        taxStatus: "Tax-exempt",
-        suggestions: taxSuggestionsFromOption(option),
-        recommendedLabel: option.label,
-        recommendedNote: "Recommended for customers outside Canada",
-      };
-    }
-    const option = findTaxOption("Tax Exempt")!;
-    return {
-      taxStatus: "Tax-exempt",
-      suggestions: taxSuggestionsFromOption(option),
-      recommendedLabel: option.label,
-      recommendedNote: "Recommended based on your organization default",
-    };
-  }
-
   const taxable = suggestTaxableForCustomer(province);
   return {
     taxStatus: "Taxable",
@@ -206,15 +187,7 @@ export function suggestCustomerTaxCascade(province: string): {
 export function suggestNonTaxableForCustomer(
   province: string,
 ): NonTaxableSuggestion {
-  const cascade = suggestCustomerTaxCascade(province);
-  if (cascade.taxStatus === "Tax-exempt") {
-    return {
-      label: cascade.recommendedLabel,
-      note: cascade.recommendedNote,
-      suggestions: cascade.suggestions,
-    };
-  }
-
+  const org = loadOrganizationSettings();
   const outsideCanada =
     province.trim().toUpperCase() === OUTSIDE_CANADA_LOCATION.code;
   if (outsideCanada) {
@@ -222,6 +195,14 @@ export function suggestNonTaxableForCustomer(
     return {
       label: option.label,
       note: "Recommended for customers outside Canada",
+      suggestions: taxSuggestionsFromOption(option),
+    };
+  }
+  if (orgDefaultsTaxExempt(org)) {
+    const option = findTaxOption("Tax Exempt")!;
+    return {
+      label: option.label,
+      note: "Recommended based on your organization default",
       suggestions: taxSuggestionsFromOption(option),
     };
   }

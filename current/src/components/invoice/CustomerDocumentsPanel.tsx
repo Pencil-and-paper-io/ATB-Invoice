@@ -267,9 +267,11 @@ function clearFilterTag(
 export function CustomerDocumentsPanel({
   invoices,
   quotes,
+  setupIncomplete = false,
 }: {
   invoices: CustomerInvoiceRow[];
   quotes: CustomerQuoteRow[];
+  setupIncomplete?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -350,37 +352,52 @@ export function CustomerDocumentsPanel({
   const emptyLabel =
     query.trim() || activeFilterCount > 0
       ? "No quotes or invoices match your filters."
-      : "No quotes or invoices yet for this customer.";
+      : setupIncomplete
+        ? "No quotes or invoices have been created for this customer. Complete your onboarding to start!"
+        : "No quotes or invoices yet for this customer.";
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-2.5">
-        <div className="w-full max-w-[280px]">
-          <SearchField
-            id="customer-docs-search"
-            value={query}
-            onChange={setQuery}
-            placeholder="Search by status, number..."
-            label="Search quotes and invoices"
-          />
-        </div>
-        <FilterIconButton
-          activeCount={activeFilterCount}
-          onClick={() => setFilterOpen(true)}
-        />
-      </div>
+      {!setupIncomplete ? (
+        <>
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="w-full max-w-[280px]">
+              <SearchField
+                id="customer-docs-search"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search by status, number..."
+                label="Search quotes and invoices"
+              />
+            </div>
+            <FilterIconButton
+              activeCount={activeFilterCount}
+              onClick={() => setFilterOpen(true)}
+            />
+          </div>
 
-      <DirectoryFilterTags
-        tags={tags}
-        onRemove={(id) => setFilters((prev) => clearFilterTag(prev, id))}
-        onClearAll={() => setFilters(defaultFilters())}
-      />
+          <DirectoryFilterTags
+            tags={tags}
+            onRemove={(id) => setFilters((prev) => clearFilterTag(prev, id))}
+            onClearAll={() => setFilters(defaultFilters())}
+          />
+        </>
+      ) : null}
 
       <div className="overflow-hidden rounded-[10px] border border-black/10 bg-white">
         {sortedRows.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <p className="type-body-muted">{emptyLabel}</p>
-            {!(query.trim() || activeFilterCount > 0) ? (
+            {setupIncomplete && !(query.trim() || activeFilterCount > 0) ? (
+              <div className="mt-5 flex justify-center">
+                <Link
+                  href="/onboarding?start=wizard"
+                  className={`${UI_CLASS.btnPrimary} inline-flex h-11 items-center px-5`}
+                >
+                  Finish Set Up
+                </Link>
+              </div>
+            ) : !(query.trim() || activeFilterCount > 0) ? (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5">
                 <Link
                   href="/quote"
