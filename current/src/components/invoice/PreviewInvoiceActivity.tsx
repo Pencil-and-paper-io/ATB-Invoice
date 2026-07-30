@@ -44,8 +44,8 @@ export function PreviewDocumentActivity({
     id: "preview-created",
     time: isQuote ? "July 3, 2026" : "July 3, 7:01pm",
     text: isQuote
-      ? "Quote was created for $353.00"
-      : "Invoice was created for $353.00",
+      ? "Quote was created"
+      : "Invoice was created",
   };
 
   return (

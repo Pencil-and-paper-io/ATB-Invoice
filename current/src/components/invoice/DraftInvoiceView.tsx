@@ -188,7 +188,9 @@ export function DraftInvoiceView() {
   } = useInvoiceActionHandler("drafted");
   const moreActions = getActionsForStatus(
     "drafted",
-    isFirstInvoicePlaythrough ? ["edit", "template"] : ["edit"],
+    isFirstInvoicePlaythrough
+      ? ["edit", "template", "send_test"]
+      : ["edit", "send_test"],
   );
 
   function togglePayment(id: InvoicePaymentOption["id"]) {

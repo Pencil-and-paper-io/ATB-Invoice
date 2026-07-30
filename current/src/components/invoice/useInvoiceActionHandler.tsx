@@ -3,16 +3,26 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { exportSingleInvoiceCsv } from "@/lib/csv-export";
-import { draftInvoice } from "@/lib/invoice-demo-data";
+import {
+  appendInvoiceActivityExtra,
+  formatActivityNow,
+} from "@/lib/document-activity";
+import {
+  channelLabel,
+  loadOrInitDocumentAutomations,
+  persistDocumentAutomations,
+} from "@/lib/document-automations";
+import { draftInvoice, previewMeta } from "@/lib/invoice-demo-data";
 import {
   UNCOLLECTIBLE_REASON_CODES,
   type InvoiceActionKey,
   type InvoiceStatus,
 } from "@/lib/invoice-actions";
+import type { DocumentAutomationsState } from "./DocumentAutomationsSection";
 import { DownloadPdfModal } from "./DownloadPdfModal";
 import { ManualReceiptModal } from "./ManualReceiptModal";
+import { EditScheduledReminderModal } from "./ScheduledReminderPanel";
 import { SendInvoiceModal } from "./SendInvoiceModal";
-import { SendReminderModal } from "./SendReminderModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
@@ -46,9 +56,20 @@ function ConfirmModal({
   );
 }
 
-export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
+export function useInvoiceActionHandler(
+  initialStatus: InvoiceStatus = "sent",
+  options?: {
+    anchorLabel?: string;
+    customerId?: string | null;
+    allowSendNow?: boolean;
+  },
+) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
+  const anchorLabel =
+    options?.anchorLabel ?? previewMeta.dueDate.replace(/^Due\s+/i, "");
+  const customerId = options?.customerId ?? null;
+  const allowSendNow = options?.allowSendNow ?? true;
 
   useEffect(() => {
     setStatus(initialStatus);
@@ -58,6 +79,8 @@ export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
   const [showDownload, setShowDownload] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
+  const [reminderSchedule, setReminderSchedule] =
+    useState<DocumentAutomationsState | null>(null);
   const [sendModal, setSendModal] = useState<SendModalMode>(null);
   const [confirm, setConfirm] = useState<"delete" | "void" | null>(null);
   const [reason, setReason] = useState<(typeof UNCOLLECTIBLE_REASON_CODES)[number]>(
@@ -78,6 +101,66 @@ export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
     }
   }
 
+  function openReminderEditor() {
+    setReminderSchedule(loadOrInitDocumentAutomations("invoice", customerId));
+    setShowReminder(true);
+  }
+
+  function logReminderActivity(text: string) {
+    appendInvoiceActivityExtra({
+      id: `rem-${Date.now()}`,
+      time: formatActivityNow(),
+      text,
+    });
+  }
+
+  function applyReminderSchedule(next: DocumentAutomationsState) {
+    if (next.reminderSendDate === "now") {
+      const cleared = {
+        ...next,
+        reminders: false,
+        reminderSendDate: null,
+        reminderChannel: null as DocumentAutomationsState["reminderChannel"],
+      };
+      persistDocumentAutomations("invoice", cleared);
+      setReminderSchedule(cleared);
+      setShowReminder(false);
+      logReminderActivity(`${channelLabel(next.reminderChannel)} reminder sent`);
+      setFeedback({
+        kind: "info",
+        message: `${channelLabel(next.reminderChannel)} reminder sent.`,
+      });
+      return;
+    }
+
+    persistDocumentAutomations("invoice", next);
+    setReminderSchedule(next);
+    setShowReminder(false);
+    setFeedback({
+      kind: "info",
+      message: next.reminders
+        ? "Scheduled reminder saved."
+        : "Reminder updated.",
+    });
+  }
+
+  function removeReminderSchedule() {
+    if (!reminderSchedule) {
+      setShowReminder(false);
+      return;
+    }
+    const next = {
+      ...reminderSchedule,
+      reminders: false,
+      reminderChannel: null,
+      reminderSendDate: null,
+    };
+    persistDocumentAutomations("invoice", next);
+    setReminderSchedule(next);
+    setShowReminder(false);
+    setFeedback({ kind: "info", message: "Scheduled reminder removed." });
+  }
+
   function handleAction(key: string, forStatus?: InvoiceStatus) {
     if (forStatus) setStatus(forStatus);
     const action = key as InvoiceActionKey;
@@ -91,7 +174,7 @@ export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
       return;
     }
     if (action === "send_reminder") {
-      setShowReminder(true);
+      openReminderEditor();
       return;
     }
     if (action === "resend") {
@@ -275,20 +358,18 @@ export function useInvoiceActionHandler(initialStatus: InvoiceStatus = "sent") {
     />
   ) : null;
 
-  const reminderModal = showReminder ? (
-    <SendReminderModal
-      onClose={() => setShowReminder(false)}
-      onSent={(method) =>
-        setFeedback({
-          kind: "info",
-          message:
-            method === "email"
-              ? `Reminder emailed to ${draftInvoice.customer.email}.`
-              : `Reminder texted to ${draftInvoice.customer.phone}.`,
-        })
-      }
-    />
-  ) : null;
+  const reminderModal =
+    showReminder && reminderSchedule ? (
+      <EditScheduledReminderModal
+        documentKind="invoice"
+        value={reminderSchedule}
+        anchorLabel={anchorLabel}
+        allowSendNow={allowSendNow}
+        onClose={() => setShowReminder(false)}
+        onSave={applyReminderSchedule}
+        onRemove={removeReminderSchedule}
+      />
+    ) : null;
 
   const sendModalNode = sendModal ? (
     <SendInvoiceModal

@@ -2,10 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  appendQuoteActivityExtra,
+  formatActivityNow,
+} from "@/lib/document-activity";
+import {
+  channelLabel,
+  loadOrInitDocumentAutomations,
+  persistDocumentAutomations,
+} from "@/lib/document-automations";
+import { exportSingleQuoteCsv } from "@/lib/csv-export";
 import type { QuoteActionKey, QuoteStatus } from "@/lib/quote-actions";
 import { duplicateQuoteDetails } from "@/lib/quote-details";
 import { markQuoteAcceptedForInvoice } from "@/lib/quote-to-invoice";
+import type { DocumentAutomationsState } from "./DocumentAutomationsSection";
 import { DownloadPdfModal } from "./DownloadPdfModal";
+import { EditScheduledReminderModal } from "./ScheduledReminderPanel";
 import { SendQuoteModal } from "./SendQuoteModal";
 import { Modal } from "./ui";
 
@@ -40,15 +52,28 @@ function ConfirmModal({
   );
 }
 
-export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
+export function useQuoteActionHandler(
+  initialStatus: QuoteStatus = "sent",
+  options?: {
+    anchorLabel?: string;
+    customerId?: string | null;
+    allowSendNow?: boolean;
+  },
+) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
+  const anchorLabel = options?.anchorLabel ?? "August 5, 2026";
+  const customerId = options?.customerId ?? null;
+  const allowSendNow = options?.allowSendNow ?? true;
 
   useEffect(() => {
     setStatus(initialStatus);
   }, [initialStatus]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [showDownload, setShowDownload] = useState(false);
+  const [showReminder, setShowReminder] = useState(false);
+  const [reminderSchedule, setReminderSchedule] =
+    useState<DocumentAutomationsState | null>(null);
   const [sendModal, setSendModal] = useState<SendModalMode>(null);
   const [confirm, setConfirm] = useState<"delete" | "void" | "mark_rejected" | null>(
     null,
@@ -67,12 +92,76 @@ export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
     }
   }
 
+  function openReminderEditor() {
+    setReminderSchedule(loadOrInitDocumentAutomations("quote", customerId));
+    setShowReminder(true);
+  }
+
+  function logReminderActivity(text: string) {
+    appendQuoteActivityExtra({
+      id: `rem-${Date.now()}`,
+      time: formatActivityNow(),
+      text,
+    });
+  }
+
+  function applyReminderSchedule(next: DocumentAutomationsState) {
+    if (next.reminderSendDate === "now") {
+      const cleared = {
+        ...next,
+        reminders: false,
+        reminderSendDate: null,
+        reminderChannel: null as DocumentAutomationsState["reminderChannel"],
+      };
+      persistDocumentAutomations("quote", cleared);
+      setReminderSchedule(cleared);
+      setShowReminder(false);
+      logReminderActivity(`${channelLabel(next.reminderChannel)} reminder sent`);
+      setFeedback({
+        kind: "info",
+        message: `${channelLabel(next.reminderChannel)} reminder sent.`,
+      });
+      return;
+    }
+
+    persistDocumentAutomations("quote", next);
+    setReminderSchedule(next);
+    setShowReminder(false);
+    setFeedback({
+      kind: "info",
+      message: next.reminders
+        ? "Scheduled reminder saved."
+        : "Reminder updated.",
+    });
+  }
+
+  function removeReminderSchedule() {
+    if (!reminderSchedule) {
+      setShowReminder(false);
+      return;
+    }
+    const next = {
+      ...reminderSchedule,
+      reminders: false,
+      reminderChannel: null,
+      reminderSendDate: null,
+    };
+    persistDocumentAutomations("quote", next);
+    setReminderSchedule(next);
+    setShowReminder(false);
+    setFeedback({ kind: "info", message: "Scheduled reminder removed." });
+  }
+
   function handleAction(key: string, forStatus?: QuoteStatus) {
     if (forStatus) setStatus(forStatus);
     const action = key as QuoteActionKey;
 
     if (action === "delete" || action === "void" || action === "mark_rejected") {
       setConfirm(action);
+      return;
+    }
+    if (action === "send_reminder") {
+      openReminderEditor();
       return;
     }
     if (action === "mark_viewed") {
@@ -90,6 +179,11 @@ export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
     }
     if (action === "download") {
       setShowDownload(true);
+      return;
+    }
+    if (action === "export_csv") {
+      exportSingleQuoteCsv();
+      setFeedback({ kind: "info", message: "CSV exported." });
       return;
     }
     if (action === "duplicate") {
@@ -194,6 +288,19 @@ export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
     />
   ) : null;
 
+  const reminderModal =
+    showReminder && reminderSchedule ? (
+      <EditScheduledReminderModal
+        documentKind="quote"
+        value={reminderSchedule}
+        anchorLabel={anchorLabel}
+        allowSendNow={allowSendNow}
+        onClose={() => setShowReminder(false)}
+        onSave={applyReminderSchedule}
+        onRemove={removeReminderSchedule}
+      />
+    ) : null;
+
   const sendModalNode = sendModal ? (
     <SendQuoteModal
       mode={sendModal}
@@ -218,6 +325,7 @@ export function useQuoteActionHandler(initialStatus: QuoteStatus = "sent") {
     feedbackBanner,
     confirmModal,
     downloadModal,
+    reminderModal,
     sendModal: sendModalNode,
   };
 }

@@ -96,14 +96,22 @@ const VARIANT_META: Record<
 const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
   awaiting: [
     {
+      id: "q-link",
+      time: "July 4, 4:12pm",
+      text: "You sent the quote by copying a shareable URL",
+      kind: "sent_link",
+      // Demo: ~11m 47s left when the page loads
+      linkRemainingSeconds: 11 * 60 + 47,
+    },
+    {
       id: "q2",
       time: "July 4, 9:01am",
-      text: "You sent the quote totalling $3,555.99 via email",
+      text: "You sent the quote via email",
     },
     {
       id: "q1",
       time: "July 3, 7:01pm",
-      text: "Quote was created for $3,555.99",
+      text: "Quote was created",
     },
   ],
   viewed: [
@@ -115,12 +123,12 @@ const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
     {
       id: "q2",
       time: "July 4, 9:01am",
-      text: "You sent the quote totalling $3,555.99 via email",
+      text: "You sent the quote via email",
     },
     {
       id: "q1",
       time: "July 3, 7:01pm",
-      text: "Quote was created for $3,555.99",
+      text: "Quote was created",
     },
   ],
   rejected: [
@@ -137,7 +145,7 @@ const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
     {
       id: "r3",
       time: "July 4, 9:01am",
-      text: "You sent the quote totalling $3,555.99 via email",
+      text: "You sent the quote via email",
     },
   ],
   expired: [
@@ -149,7 +157,7 @@ const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
     {
       id: "e2",
       time: "July 4, 9:01am",
-      text: "You sent the quote totalling $3,555.99 via email",
+      text: "You sent the quote via email",
     },
   ],
   void: [
@@ -161,7 +169,7 @@ const ACTIVITY: Record<QuoteSentVariant, ActivityItem[]> = {
     {
       id: "v2",
       time: "July 4, 9:01am",
-      text: "You sent the quote totalling $3,555.99 via email",
+      text: "You sent the quote via email",
     },
   ],
 };
@@ -220,15 +228,28 @@ export function SentQuoteView({
   const router = useRouter();
   const status = VARIANT_STATUS[variant];
   const meta = VARIANT_META[variant];
-  const { handleAction, feedbackBanner, confirmModal, downloadModal, sendModal } =
-    useQuoteActionHandler(status);
   const [showDecision, setShowDecision] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>(() =>
     mergeQuoteActivity(ACTIVITY[variant]),
   );
   const [expiryAnchor, setExpiryAnchor] = useState("August 5, 2026");
+  const {
+    handleAction,
+    feedbackBanner,
+    confirmModal,
+    downloadModal,
+    reminderModal,
+    sendModal,
+  } = useQuoteActionHandler(status, {
+    anchorLabel: expiryAnchor,
+    allowSendNow: true,
+  });
   // Edit is a surface button when available — keep it out of More Actions.
-  const moreActions = getQuoteActionsForStatus(status, ["edit"]);
+  const moreActions = getQuoteActionsForStatus(status, [
+    "edit",
+    "view_history",
+    "copy_link",
+  ]);
   const showScheduledReminder =
     variant === "awaiting" || variant === "viewed";
 
@@ -298,6 +319,7 @@ export function SentQuoteView({
               <DocumentActivityTimeline
                 documentKind="quote"
                 pastItems={activity}
+                onPastItemsChange={setActivity}
                 anchorLabel={expiryAnchor}
                 customerId="acme"
                 showScheduledReminder={showScheduledReminder}
@@ -343,6 +365,7 @@ export function SentQuoteView({
       {feedbackBanner}
       {confirmModal}
       {downloadModal}
+      {reminderModal}
       {sendModal}
     </div>
   );

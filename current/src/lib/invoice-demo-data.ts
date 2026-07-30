@@ -213,9 +213,9 @@ export const previewMeta = {
   issuedDate: "Issued June 3, 2026",
   activity: [
     { id: "a4", time: "July 4, 3:33pm", text: "Invoice was viewed by the customer for the first time" },
-    { id: "a3", time: "July 4, 9:01am", text: "You sent the invoice totalling $503.00 via email" },
+    { id: "a3", time: "July 4, 9:01am", text: "You sent the invoice via email" },
     { id: "a2", time: "July 3, 7:22pm", text: "You updated the invoice" },
-    { id: "a1", time: "July 3, 7:01pm", text: "Invoice was created for $353.00" },
+    { id: "a1", time: "July 3, 7:01pm", text: "Invoice was created" },
   ],
   noteToSelf: {
     title: "Remind this dude",
@@ -240,7 +240,7 @@ export const sentVariantMeta: Record<
     amountLabel: string;
     badge: { label: string; className: string };
     showRecordPayment: boolean;
-    activity: { id: string; time: string; text: string }[];
+    activity: { id: string; time: string; text: string; kind?: "sent_link"; linkRemainingSeconds?: number; linkRevoked?: boolean }[];
   }
 > = {
   sent: {
@@ -251,7 +251,43 @@ export const sentVariantMeta: Record<
       className: "border-[#CCCCCC] bg-[#3C6CFF]/10 text-[#3C6CFF]",
     },
     showRecordPayment: true,
-    activity: previewMeta.activity,
+    activity: [
+      {
+        id: "a-link-latest",
+        time: "July 4, 4:12pm",
+        text: "You sent the invoice by copying a shareable URL",
+        kind: "sent_link",
+        // Demo: ~11m 47s left when the page loads
+        linkRemainingSeconds: 11 * 60 + 47,
+      },
+      {
+        id: "a4",
+        time: "July 4, 3:33pm",
+        text: "Invoice was viewed by the customer for the first time",
+      },
+      {
+        id: "a-link-first",
+        time: "July 4, 10:20am",
+        text: "You sent the invoice by copying a shareable URL",
+        kind: "sent_link",
+        linkRemainingSeconds: 0,
+      },
+      {
+        id: "a3",
+        time: "July 4, 9:01am",
+        text: "You sent the invoice via email",
+      },
+      {
+        id: "a2",
+        time: "July 3, 7:22pm",
+        text: "You updated the invoice",
+      },
+      {
+        id: "a1",
+        time: "July 3, 7:01pm",
+        text: "Invoice was created",
+      },
+    ],
   },
   viewed: {
     title: "Invoice Viewed",
@@ -285,12 +321,12 @@ export const sentVariantMeta: Record<
       {
         id: "p3",
         time: "July 4, 9:01am",
-        text: "You sent the invoice totalling $3,555.99 via email",
+        text: "You sent the invoice via email",
       },
       {
         id: "p4",
         time: "July 3, 7:01pm",
-        text: "Invoice was created for $3,555.99",
+        text: "Invoice was created",
       },
     ],
   },
@@ -316,12 +352,12 @@ export const sentVariantMeta: Record<
       {
         id: "pp3",
         time: "July 4, 9:01am",
-        text: "You sent the invoice totalling $3,555.99 via email",
+        text: "You sent the invoice via email",
       },
       {
         id: "pp4",
         time: "July 3, 7:01pm",
-        text: "Invoice was created for $3,555.99",
+        text: "Invoice was created",
       },
     ],
   },
@@ -347,12 +383,12 @@ export const sentVariantMeta: Record<
       {
         id: "o3",
         time: "July 4, 9:01am",
-        text: "You sent the invoice totalling $3,555.99 via email",
+        text: "You sent the invoice via email",
       },
       {
         id: "o4",
         time: "July 3, 7:01pm",
-        text: "Invoice was created for $3,555.99",
+        text: "Invoice was created",
       },
     ],
   },
@@ -378,7 +414,7 @@ export const sentVariantMeta: Record<
       {
         id: "o3",
         time: "July 4, 9:01am",
-        text: "You sent the invoice totalling $3,555.99 via email",
+        text: "You sent the invoice via email",
       },
     ],
   },
@@ -399,7 +435,7 @@ export const sentVariantMeta: Record<
       {
         id: "v2",
         time: "July 4, 9:01am",
-        text: "You sent the invoice totalling $3,555.99 via email",
+        text: "You sent the invoice via email",
       },
     ],
   },

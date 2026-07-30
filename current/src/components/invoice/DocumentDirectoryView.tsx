@@ -1365,6 +1365,7 @@ function QuoteTable({
     feedbackBanner,
     confirmModal,
     downloadModal,
+    reminderModal,
     sendModal,
   } = useQuoteActionHandler("sent");
 
@@ -1572,6 +1573,7 @@ function QuoteTable({
       {feedbackBanner}
       {confirmModal}
       {downloadModal}
+      {reminderModal}
       {sendModal}
     </>
   );

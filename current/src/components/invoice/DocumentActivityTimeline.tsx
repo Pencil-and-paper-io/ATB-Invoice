@@ -1,27 +1,94 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   channelLabel,
   formatReminderSendDateLabel,
   loadOrInitDocumentAutomations,
   persistDocumentAutomations,
+  DOCUMENT_AUTOMATIONS_CHANGED_EVENT,
   type DocumentKind,
 } from "@/lib/document-automations";
 import {
   appendInvoiceActivityExtra,
   appendQuoteActivityExtra,
   formatActivityNow,
+  type ActivityItem,
 } from "@/lib/document-activity";
+import { draftInvoice } from "@/lib/invoice-demo-data";
+import {
+  formatLinkCountdown,
+  SHAREABLE_LINK_TTL_SECONDS,
+} from "@/lib/shareable-link";
 import type { DocumentAutomationsState } from "./DocumentAutomationsSection";
 import { EditScheduledReminderModal } from "./ScheduledReminderPanel";
 import { PencilIcon } from "./ui";
 
-export type DocumentActivityItem = {
-  id: string;
-  time: string;
-  text: string;
-};
+export type DocumentActivityItem = ActivityItem;
+
+function ChannelTooltip({
+  channel,
+  destination,
+}: {
+  channel: "email" | "text";
+  destination: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+
+  return (
+    <span className="relative inline">
+      <button
+        type="button"
+        className="inline text-inherit underline decoration-black/35 underline-offset-2 transition hover:decoration-black/70"
+        aria-describedby={open ? id : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        {channel}
+      </button>
+      {open ? (
+        <span
+          id={id}
+          role="tooltip"
+          className="absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-midnight-ink px-2.5 py-1.5 text-xs leading-4 text-white shadow-lg"
+        >
+          {destination}
+          <span
+            className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-midnight-ink"
+            aria-hidden
+          />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function ActivityHistoryText({ item }: { item: DocumentActivityItem }) {
+  const match = item.text.match(/via (email|text)\b/i);
+  if (!match || match.index == null) {
+    return <p className="mt-1 text-sm text-[#666666]">{item.text}</p>;
+  }
+
+  const channel = match[1].toLowerCase() as "email" | "text";
+  const before = item.text.slice(0, match.index);
+  const after = item.text.slice(match.index + match[0].length);
+  const destination =
+    item.sendDestination ??
+    (channel === "email"
+      ? draftInvoice.customer.email
+      : draftInvoice.customer.phone);
+
+  return (
+    <p className="mt-1 text-sm text-[#666666]">
+      {before}via{" "}
+      <ChannelTooltip channel={channel} destination={destination} />
+      {after}
+    </p>
+  );
+}
 
 function ActivityDot({ upcoming }: { upcoming?: boolean }) {
   if (upcoming) {
@@ -47,6 +114,71 @@ function sendByLabel(channel: DocumentAutomationsState["reminderChannel"]) {
 const reminderPillClass =
   "mt-1.5 flex w-full max-w-[220px] items-center justify-between gap-2 rounded-md border border-black/12 bg-black/[0.04] px-2.5 py-1.5 text-left text-sm text-black/50 transition hover:border-black/20 hover:bg-black/[0.07] hover:text-black/70";
 
+function SentLinkActivityExtras({
+  item,
+  onRevoke,
+}: {
+  item: DocumentActivityItem;
+  onRevoke: () => void;
+}) {
+  const [expiresAt] = useState(() => {
+    if (item.linkExpiresAt) return item.linkExpiresAt;
+    const remaining =
+      item.linkRemainingSeconds ?? SHAREABLE_LINK_TTL_SECONDS;
+    return Date.now() + remaining * 1000;
+  });
+  const [remainingSeconds, setRemainingSeconds] = useState(() =>
+    Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+  );
+  const revoked = Boolean(item.linkRevoked);
+  const expired = !revoked && remainingSeconds <= 0;
+
+  useEffect(() => {
+    if (revoked) return;
+    const id = window.setInterval(() => {
+      setRemainingSeconds(
+        Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)),
+      );
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [expiresAt, revoked]);
+
+  if (revoked) {
+    return (
+      <span className="mt-1.5 inline-flex items-center rounded bg-black/[0.04] px-2 py-0.5 text-xs font-semibold text-black/55">
+        Link revoked
+      </span>
+    );
+  }
+
+  if (expired) {
+    return (
+      <span className="mt-1.5 inline-flex items-center rounded bg-black/[0.04] px-2 py-0.5 text-xs font-semibold text-black/55">
+        Link expired
+      </span>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <span
+        className="inline-flex items-center rounded border border-sunshine-yellow/70 bg-sunshine-yellow/40 px-2 py-0.5 text-xs font-semibold tabular-nums text-midnight-ink"
+        role="status"
+        aria-live="polite"
+      >
+        {formatLinkCountdown(remainingSeconds)} left
+      </span>
+      <button
+        type="button"
+        onClick={onRevoke}
+        className="text-xs font-semibold text-prime-blue underline-offset-2 hover:underline"
+      >
+        Revoke access
+      </button>
+    </div>
+  );
+}
+
 /**
  * Shared activity timeline for preview/sent invoices and quotes.
  * Optionally prepends a scheduled reminder row (or an Add reminder slot).
@@ -54,6 +186,7 @@ const reminderPillClass =
 export function DocumentActivityTimeline({
   documentKind,
   pastItems,
+  onPastItemsChange,
   anchorLabel,
   customerId,
   showScheduledReminder = true,
@@ -61,6 +194,8 @@ export function DocumentActivityTimeline({
 }: {
   documentKind: DocumentKind;
   pastItems: DocumentActivityItem[];
+  /** When provided, enables revoke updates for shareable-link rows. */
+  onPastItemsChange?: (items: DocumentActivityItem[]) => void;
   /** Due date or expiry label used to compute the reminder send date. */
   anchorLabel: string;
   customerId?: string | null;
@@ -75,6 +210,23 @@ export function DocumentActivityTimeline({
 
   useEffect(() => {
     setSchedule(loadOrInitDocumentAutomations(documentKind, customerId));
+  }, [documentKind, customerId]);
+
+  useEffect(() => {
+    function onAutomationsChanged(event: Event) {
+      const detail = (event as CustomEvent<{ kind?: DocumentKind }>).detail;
+      if (detail?.kind && detail.kind !== documentKind) return;
+      setSchedule(loadOrInitDocumentAutomations(documentKind, customerId));
+    }
+    window.addEventListener(
+      DOCUMENT_AUTOMATIONS_CHANGED_EVENT,
+      onAutomationsChanged,
+    );
+    return () =>
+      window.removeEventListener(
+        DOCUMENT_AUTOMATIONS_CHANGED_EVENT,
+        onAutomationsChanged,
+      );
   }, [documentKind, customerId]);
 
   function logActivity(text: string) {
@@ -121,6 +273,14 @@ export function DocumentActivityTimeline({
     persistDocumentAutomations(documentKind, next);
     setSchedule(next);
     setEditing(false);
+  }
+
+  function revokeLink(itemId: string) {
+    onPastItemsChange?.(
+      pastItems.map((item) =>
+        item.id === itemId ? { ...item, linkRevoked: true } : item,
+      ),
+    );
   }
 
   const showReminderSlot = Boolean(showScheduledReminder && schedule);
@@ -196,7 +356,13 @@ export function DocumentActivityTimeline({
 
               <div className={`min-w-0 flex-1 ${isLast ? "pb-0" : "pb-4"}`}>
                 <p className="type-subtitle-1 text-black">{item.time}</p>
-                <p className="mt-1 text-sm text-[#666666]">{item.text}</p>
+                <ActivityHistoryText item={item} />
+                {item.kind === "sent_link" ? (
+                  <SentLinkActivityExtras
+                    item={item}
+                    onRevoke={() => revokeLink(item.id)}
+                  />
+                ) : null}
               </div>
             </div>
           );

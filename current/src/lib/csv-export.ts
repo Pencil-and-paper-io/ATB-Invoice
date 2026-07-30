@@ -87,3 +87,8 @@ export function exportSingleInvoiceCsv(invoiceNumber = "3001") {
   const match = customerInvoices.find((row) => row.number === invoiceNumber);
   exportInvoicesCsv(match ? [match] : customerInvoices.slice(0, 1), `invoice-${invoiceNumber}.csv`);
 }
+
+export function exportSingleQuoteCsv(quoteNumber = "Q-118") {
+  const match = customerQuotes.find((row) => row.number === quoteNumber);
+  exportQuotesCsv(match ? [match] : customerQuotes.slice(0, 1), `quote-${quoteNumber}.csv`);
+}

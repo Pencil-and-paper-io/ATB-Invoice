@@ -9,6 +9,7 @@ import {
   useSendMethodSelection,
 } from "./SendMethodAccordion";
 import { InvoiceNotificationPreview } from "./NotificationMessagePreview";
+import { ShareableLinkHelp } from "./ShareableLinkHelp";
 import { Modal } from "./ui";
 
 const COMPANY_NAME = draftInvoice.business.name;
@@ -40,11 +41,11 @@ export function SendInvoiceModal({
   const textAvailable = Boolean(DEMO_DESTINATIONS.phone);
   const title =
     mode === "resend"
-      ? "Re-send invoice"
+      ? "Re-Send Invoice"
       : mode === "test"
-        ? "Send test invoice"
-        : "Send invoice";
-  const includeLink = mode === "send";
+        ? "Send Test Invoice"
+        : "Send Invoice";
+  const includeLink = mode !== "test";
 
   async function handleConfirm() {
     if (!selected || sending) return;
@@ -115,76 +116,61 @@ export function SendInvoiceModal({
       )}
 
       <div className={mode === "send" ? "mt-6" : "mt-5"}>
-        <p className="text-sm font-semibold text-black">
-          How do you want to send it?
-        </p>
-        <p className="mt-1 text-xs text-black/50">
-          Choose one option below.
-        </p>
-        <div className="mt-4">
-          <SendMethodAccordion
-            selected={selected}
-            onSelect={selectMethod}
-            sections={[
-              {
-                method: "email",
-                title: "Email",
-                summary: emailAvailable
-                  ? `Send to ${DEMO_DESTINATIONS.email}`
-                  : "No email on file — add one on the customer page",
-                available: emailAvailable,
-                children: (
-                  <MessagePreview>
-                    <InvoiceNotificationPreview
-                      customerName={contactName}
-                      companyName={COMPANY_NAME}
-                      dueDate={dueDate}
-                    />
-                  </MessagePreview>
-                ),
-              },
-              {
-                method: "text",
-                title: "Text message",
-                summary: textAvailable
-                  ? `Send to ${DEMO_DESTINATIONS.phone}`
-                  : "No phone on file — add one on the customer page",
-                available: textAvailable,
-                children: (
-                  <MessagePreview>
-                    <InvoiceNotificationPreview
-                      customerName={contactName}
-                      companyName={COMPANY_NAME}
-                      dueDate={dueDate}
-                    />
-                  </MessagePreview>
-                ),
-              },
-              ...(includeLink
-                ? [
-                    {
-                      method: "link" as const,
-                      title: "URL link",
-                      summary: "Copy a shareable link",
-                      available: true,
-                      children: (
-                        <div className="flex flex-col gap-3">
-                          <p className="text-sm leading-6 text-black/70">
-                            Copy this link and send it in your own custom email
-                            or through your own other means. We will not send
-                            anything on your behalf.
-                          </p>
-                          <p className="break-all rounded-lg border border-black/10 bg-black/[0.02] px-3.5 py-2.5 text-sm text-black/80">
-                            {DEMO_DESTINATIONS.link}
-                          </p>
-                        </div>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </div>
+        <SendMethodAccordion
+          selected={selected}
+          onSelect={selectMethod}
+          sections={[
+            {
+              method: "email",
+              title: "Email",
+              summary: emailAvailable
+                ? `Send to ${DEMO_DESTINATIONS.email}`
+                : "No email on file — add one on the customer page",
+              available: emailAvailable,
+              children: (
+                <MessagePreview>
+                  <InvoiceNotificationPreview
+                    customerName={contactName}
+                    companyName={COMPANY_NAME}
+                    dueDate={dueDate}
+                  />
+                </MessagePreview>
+              ),
+            },
+            {
+              method: "text",
+              title: "Text message",
+              summary: textAvailable
+                ? `Send to ${DEMO_DESTINATIONS.phone}`
+                : "No phone on file — add one on the customer page",
+              available: textAvailable,
+              children: (
+                <MessagePreview>
+                  <InvoiceNotificationPreview
+                    customerName={contactName}
+                    companyName={COMPANY_NAME}
+                    dueDate={dueDate}
+                  />
+                </MessagePreview>
+              ),
+            },
+            ...(includeLink
+              ? [
+                  {
+                    method: "link" as const,
+                    title: "URL link",
+                    summary: "Copy a shareable link",
+                    available: true,
+                    children: (
+                      <ShareableLinkHelp
+                        mode={mode === "resend" ? "resend" : "send"}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       </div>
     </Modal>
   );

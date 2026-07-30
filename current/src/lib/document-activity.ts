@@ -2,6 +2,15 @@ export type ActivityItem = {
   id: string;
   time: string;
   text: string;
+  /** Shareable URL copy — shows time-left flag + revoke on the timeline. */
+  kind?: "sent_link";
+  /** Absolute expiry (ms). If omitted, remainingSeconds is used from mount. */
+  linkExpiresAt?: number;
+  /** Remaining TTL when the row first mounts (demo seed). */
+  linkRemainingSeconds?: number;
+  linkRevoked?: boolean;
+  /** Destination shown in tooltip for “via email” / “via text” rows. */
+  sendDestination?: string;
 };
 
 const QUOTE_TIMELINE_KEY = "atb-quote-timeline-for-invoice";
@@ -27,12 +36,12 @@ export const DEFAULT_QUOTE_TIMELINE_FOR_INVOICE: ActivityItem[] = [
   {
     id: "q2",
     time: "July 4, 9:01am",
-    text: "You sent the quote totalling $3,555.99 via email",
+    text: "You sent the quote via email",
   },
   {
     id: "q1",
     time: "July 3, 7:01pm",
-    text: "Quote was created for $3,555.99",
+    text: "Quote was created",
   },
 ];
 

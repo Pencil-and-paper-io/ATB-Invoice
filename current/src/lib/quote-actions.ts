@@ -14,9 +14,11 @@ export type QuoteActionKey =
   | "template"
   | "duplicate"
   | "download"
+  | "export_csv"
   | "resend"
   | "copy_link"
   | "send_test"
+  | "send_reminder"
   | "mark_viewed"
   | "mark_rejected"
   | "mark_accepted"
@@ -32,6 +34,7 @@ export type QuoteAction = {
 /** Utilities available across statuses (shown in a shared menu section). */
 export const QUOTE_GLOBAL_ACTION_KEYS: readonly QuoteActionKey[] = [
   "download",
+  "export_csv",
   "duplicate",
   "template",
   "view_history",
@@ -49,13 +52,31 @@ export const QUOTE_DESTRUCTIVE_ACTION_KEYS: readonly QuoteActionKey[] = [
  */
 export const QUOTE_STATUS_ACTION_MATRIX: Record<QuoteStatus, QuoteActionKey[]> =
   {
-    drafted: ["edit", "download", "duplicate", "delete"],
-    sent: ["resend", "download", "copy_link", "template", "duplicate", "void"],
-    viewed: ["resend", "download", "copy_link", "template", "duplicate", "void"],
-    accepted: ["download", "copy_link", "template", "duplicate"],
-    rejected: ["download", "copy_link", "template", "duplicate"],
-    expired: ["edit", "download", "template", "duplicate", "void"],
-    void: ["download", "template", "duplicate"],
+    drafted: ["edit", "download", "export_csv", "duplicate", "delete"],
+    sent: [
+      "resend",
+      "send_reminder",
+      "download",
+      "export_csv",
+      "copy_link",
+      "template",
+      "duplicate",
+      "void",
+    ],
+    viewed: [
+      "resend",
+      "send_reminder",
+      "download",
+      "export_csv",
+      "copy_link",
+      "template",
+      "duplicate",
+      "void",
+    ],
+    accepted: ["download", "export_csv", "copy_link", "template", "duplicate"],
+    rejected: ["download", "export_csv", "copy_link", "template", "duplicate"],
+    expired: ["edit", "download", "export_csv", "template", "duplicate", "void"],
+    void: ["download", "export_csv", "template", "duplicate"],
   };
 
 const ACTION_META: Record<
@@ -64,13 +85,15 @@ const ACTION_META: Record<
 > = {
   edit: { label: "Edit" },
   download: { label: "Download PDF" },
+  export_csv: { label: "Download CSV" },
   delete: { label: "Delete", danger: true },
   void: { label: "Void Quote", danger: true },
   template: { label: "Save As Template" },
   duplicate: { label: "Duplicate" },
-  resend: { label: "Re-Send" },
+  resend: { label: "Re-Send Quote" },
   copy_link: { label: "Copy Quote Link" },
   send_test: { label: "Send Test Quote" },
+  send_reminder: { label: "Send Reminder" },
   mark_viewed: { label: "Viewed" },
   mark_rejected: { label: "Rejected" },
   mark_accepted: { label: "Accepted" },
@@ -88,7 +111,7 @@ function toQuoteAction(
   if (key === "download" && status === "drafted") {
     return {
       key,
-      label: "Download Draft PDF",
+      label: "Download PDF",
       danger: ACTION_META[key].danger,
       dividerBefore,
     };
@@ -134,12 +157,20 @@ export function getQuoteActionsForStatus(
     actions.push(toQuoteAction(key, status, index === 0 && actions.length > 0));
   });
 
+  const resendIndex = actions.findIndex((action) => action.key === "resend");
+  if (resendIndex >= 0 && actions[resendIndex + 1]) {
+    actions[resendIndex + 1] = {
+      ...actions[resendIndex + 1]!,
+      dividerBefore: true,
+    };
+  }
+
   return actions;
 }
 
 /** Bulk / floating-bar actions shared across quote rows. */
 export function getQuoteUniversalActions(): QuoteAction[] {
-  const keys: QuoteActionKey[] = ["download", "duplicate"];
+  const keys: QuoteActionKey[] = ["download", "export_csv", "duplicate"];
   return keys.map((key) => toQuoteAction(key, "sent"));
 }
 

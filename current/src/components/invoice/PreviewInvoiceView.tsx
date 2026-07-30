@@ -50,6 +50,7 @@ export function PreviewInvoiceView() {
     uncollectibleModal,
     confirmModal,
     downloadModal,
+    sendModal,
   } = useInvoiceActionHandler("drafted");
   const [showSendModal, setShowSendModal] = useState(false);
 
@@ -98,9 +99,16 @@ export function PreviewInvoiceView() {
           </aside>
 
           <div className="flex flex-col gap-5">
-            <p className="text-base font-semibold text-black">
-              Below is a preview of what your customer will receive:
-            </p>
+            <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-4 py-4">
+              <p className="type-headline-5 text-midnight-ink">
+                Below is what your customer will see:
+              </p>
+              <p className="mt-2 type-paragraph-1 text-midnight-ink">
+                Once you send this invoice, you will not be able to edit it
+                further. Your customer will be able to view your invoice details
+                and pay online using the payment options shown below.
+              </p>
+            </div>
             <CustomerInvoiceCard shadow="preview" />
           </div>
         </div>
@@ -112,6 +120,7 @@ export function PreviewInvoiceView() {
       {uncollectibleModal}
       {confirmModal}
       {downloadModal}
+      {sendModal}
     </div>
   );
 }

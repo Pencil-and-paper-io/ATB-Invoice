@@ -54,14 +54,13 @@ export const INVOICE_DESTRUCTIVE_ACTION_KEYS: readonly InvoiceActionKey[] = [
  * Draft has no public link yet (no copy_link / send_test / resend).
  */
 export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
-  drafted: ["edit", "download", "export_csv", "duplicate", "delete"],
+  drafted: ["edit", "download", "export_csv", "send_test", "duplicate", "delete"],
   sent: [
     "resend",
     "send_reminder",
     "download",
     "export_csv",
     "copy_link",
-    "send_test",
     "mark_viewed",
     "void",
     "template",
@@ -74,7 +73,6 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "download",
     "export_csv",
     "copy_link",
-    "send_test",
     "void",
     "template",
     "view_history",
@@ -107,7 +105,6 @@ export const STATUS_ACTION_MATRIX: Record<InvoiceStatus, InvoiceActionKey[]> = {
     "download",
     "export_csv",
     "copy_link",
-    "send_test",
     "void",
     "template",
     "view_history",
@@ -134,14 +131,14 @@ const ACTION_META: Record<
 > = {
   edit: { label: "Edit" },
   download: { label: "Download PDF" },
-  export_csv: { label: "Export CSV" },
+  export_csv: { label: "Download CSV" },
   send_receipt: { label: "Send Receipt" },
   delete: { label: "Delete", danger: true },
   void: { label: "Void Invoice", danger: true },
   template: { label: "Save As Template" },
   uncollectible: { label: "Mark As Uncollectible", danger: true },
   duplicate: { label: "Duplicate" },
-  resend: { label: "Re-Send" },
+  resend: { label: "Re-Send Invoice" },
   copy_link: { label: "Copy Invoice Link" },
   send_test: { label: "Send Test Invoice" },
   send_reminder: { label: "Send Reminder" },
@@ -160,7 +157,7 @@ function toInvoiceAction(
   if (key === "download" && status === "drafted") {
     return {
       key,
-      label: "Download Draft PDF",
+      label: "Download PDF",
       danger: ACTION_META[key].danger,
       dividerBefore,
     };
@@ -207,6 +204,14 @@ export function getActionsForStatus(
       toInvoiceAction(key, status, index === 0 && actions.length > 0),
     );
   });
+
+  const resendIndex = actions.findIndex((action) => action.key === "resend");
+  if (resendIndex >= 0 && actions[resendIndex + 1]) {
+    actions[resendIndex + 1] = {
+      ...actions[resendIndex + 1]!,
+      dividerBefore: true,
+    };
+  }
 
   return actions;
 }

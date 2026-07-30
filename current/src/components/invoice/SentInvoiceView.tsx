@@ -18,7 +18,7 @@ import {
 } from "@/lib/document-activity";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { DocumentActivityTimeline } from "./DocumentActivityTimeline";
-import { ModeBackButton } from "./ModeBackButton";
+import { DownloadMenuButton } from "./DownloadMenuButton";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
 import { RecordPaymentModal } from "./RecordPaymentModal";
@@ -54,6 +54,7 @@ export function SentInvoiceView({
 }) {
   const status = VARIANT_STATUS[variant];
   const meta = sentVariantMeta[variant];
+  const dueAnchor = previewMeta.dueDate.replace(/^Due\s+/i, "");
   const {
     handleAction,
     feedbackBanner,
@@ -63,18 +64,25 @@ export function SentInvoiceView({
     receiptModal,
     reminderModal,
     sendModal,
-  } = useInvoiceActionHandler(status);
+  } = useInvoiceActionHandler(status, {
+    anchorLabel: dueAnchor,
+    allowSendNow: true,
+  });
   const [showPayment, setShowPayment] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>(() =>
     mergeInvoiceActivity(meta.activity),
   );
   const [paymentToast, setPaymentToast] = useState<string | null>(null);
-  const moreActions = getActionsForStatus(status);
+  const moreActions = getActionsForStatus(status, [
+    "view_history",
+    "copy_link",
+    "download",
+    "export_csv",
+  ]);
   const balanceDue =
     variant === "partially_paid"
       ? Math.max(0, Number((previewMeta.amount - 1500).toFixed(2)))
       : previewMeta.amount;
-  const dueAnchor = previewMeta.dueDate.replace(/^Due\s+/i, "");
 
   useEffect(() => {
     setActivity(mergeInvoiceActivity(meta.activity));
@@ -107,14 +115,15 @@ export function SentInvoiceView({
 
       <main className="mx-auto max-w-[1440px] px-4 pb-24 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col gap-3">
-            <ModeBackButton label="Back to preview" fallbackHref="/preview" />
-            <h1 className="type-page-title">
-              {meta.title}
-            </h1>
-          </div>
+          <h1 className="type-page-title">
+            {meta.title}
+          </h1>
           <div className="flex flex-wrap items-center gap-2.5">
             <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+            <DownloadMenuButton
+              onDownloadPdf={() => handleAction("download")}
+              onDownloadCsv={() => handleAction("export_csv")}
+            />
             {meta.showRecordPayment ? (
               <button
                 type="button"
@@ -150,6 +159,7 @@ export function SentInvoiceView({
               <DocumentActivityTimeline
                 documentKind="invoice"
                 pastItems={activity}
+                onPastItemsChange={setActivity}
                 anchorLabel={dueAnchor}
                 customerId="acme"
                 showScheduledReminder={SHOW_SCHEDULED_REMINDER[variant]}

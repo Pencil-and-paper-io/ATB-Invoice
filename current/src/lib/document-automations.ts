@@ -74,12 +74,21 @@ export function loadDocumentAutomations(
   }
 }
 
+/** Fired after document automations are written to sessionStorage. */
+export const DOCUMENT_AUTOMATIONS_CHANGED_EVENT =
+  "atb-document-automations-changed";
+
 export function persistDocumentAutomations(
   kind: DocumentKind,
   value: DocumentAutomationsState,
 ) {
   if (!canUseStorage()) return;
   sessionStorage.setItem(STORAGE_KEYS[kind], JSON.stringify(value));
+  window.dispatchEvent(
+    new CustomEvent(DOCUMENT_AUTOMATIONS_CHANGED_EVENT, {
+      detail: { kind },
+    }),
+  );
 }
 
 export function loadOrInitDocumentAutomations(
