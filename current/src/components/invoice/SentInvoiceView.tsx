@@ -29,6 +29,7 @@ import { NoteToSelfSection } from "./NoteToSelfSection";
 import { RecordPaymentModal } from "./RecordPaymentModal";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
+import { useIsDesktopLg } from "./useIsDesktopLg";
 
 const VARIANT_STATUS: Record<SentViewVariant, InvoiceStatus> = {
   sent: "sent",
@@ -79,6 +80,7 @@ export function SentInvoiceView({
 }: {
   variant?: SentViewVariant;
 }) {
+  const isDesktop = useIsDesktopLg();
   const status = VARIANT_STATUS[variant];
   const meta = sentVariantMeta[variant];
   const dueAnchor = previewMeta.dueDate.replace(/^Due\s+/i, "");
@@ -234,29 +236,54 @@ export function SentInvoiceView({
           </div>
         </div>
 
-        <div className="mb-5">
-          <FullscreenDetailCards
-            listLabel="Invoice details"
-            cards={metaCards}
-            onActiveChange={setPanelOpen}
-          />
-        </div>
+        {isDesktop === false ? (
+          <div className="mb-5">
+            <FullscreenDetailCards
+              listLabel="Invoice details"
+              cards={metaCards}
+              onActiveChange={setPanelOpen}
+            />
+          </div>
+        ) : null}
 
         <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="hidden flex-col gap-[15px] lg:flex">
-            <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
-              <h2 className="text-base font-semibold text-black">
-                {meta.amountLabel}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <p className="type-amount">{formatMoney(balanceDue)}</p>
-                <StatusBadge
-                  label={meta.badge.label}
-                  className={meta.badge.className}
+          {isDesktop ? (
+            <aside className="flex flex-col gap-[15px]">
+              <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">
+                  {meta.amountLabel}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <p className="type-amount">{formatMoney(balanceDue)}</p>
+                  <StatusBadge
+                    label={meta.badge.label}
+                    className={meta.badge.className}
+                  />
+                </div>
+              </section>
+
+              <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">Activity</h2>
+                <DocumentActivityTimeline
+                  documentKind="invoice"
+                  pastItems={activity}
+                  onPastItemsChange={setActivity}
+                  anchorLabel={dueAnchor}
+                  customerId="acme"
+                  showScheduledReminder={SHOW_SCHEDULED_REMINDER[variant]}
+                  showRevokeAllAccess={SHOW_SCHEDULED_REMINDER[variant]}
+                  allowSendNow
                 />
-              </div>
-            </section>
-          </aside>
+              </section>
+
+              <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">
+                  Note to Self
+                </h2>
+                <NoteToSelfSection />
+              </section>
+            </aside>
+          ) : null}
 
           <CustomerInvoiceCard shadow="sent" />
         </div>

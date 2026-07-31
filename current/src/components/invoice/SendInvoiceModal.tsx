@@ -12,6 +12,8 @@ import {
 } from "./SendMethodAccordion";
 import { InvoiceNotificationPreview } from "./NotificationMessagePreview";
 import { ShareableLinkHelp } from "./ShareableLinkHelp";
+import { Modal } from "./ui";
+import { useIsDesktopLg } from "./useIsDesktopLg";
 
 const COMPANY_NAME = draftInvoice.business.name;
 
@@ -53,6 +55,7 @@ export function SendInvoiceModal({
   navigateOnSend?: boolean;
 }) {
   const router = useRouter();
+  const isDesktop = useIsDesktopLg();
   const [entered, setEntered] = useState(false);
   const { selected, copied, sending, setCopied, setSending, selectMethod } =
     useSendMethodSelection();
@@ -70,6 +73,7 @@ export function SendInvoiceModal({
   const includeLink = mode !== "test";
 
   useEffect(() => {
+    if (isDesktop !== false) return;
     setEntered(false);
     const frame = window.requestAnimationFrame(() => {
       setEntered(true);
@@ -80,7 +84,7 @@ export function SendInvoiceModal({
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [isDesktop]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -128,6 +132,109 @@ export function SendInvoiceModal({
   const confirmDisabled =
     !selected || sending || (!includeLink && selected === "link");
 
+  const body = (
+    <>
+      {mode === "send" ? (
+        <div
+          className="rounded-lg border border-[#E8A317]/40 bg-[#FFF8E6] px-4 py-3.5 text-sm leading-5 text-black/80"
+          role="status"
+        >
+          Once you send this invoice, you will no longer be able to edit it. You
+          can still void it or mark it uncollectible later if needed.
+        </div>
+      ) : (
+        <p className="text-sm leading-5 text-black/65">
+          {mode === "test"
+            ? "Send a test copy to yourself or the customer to verify delivery."
+            : `Re-send invoice ${previewMeta.invoiceNumber} to ${contactName}.`}
+        </p>
+      )}
+
+      <div className={mode === "send" ? "mt-6" : "mt-5"}>
+        <SendMethodAccordion
+          selected={selected}
+          onSelect={selectMethod}
+          sections={[
+            {
+              method: "email",
+              title: "Email",
+              summary: emailAvailable
+                ? `Send to ${DEMO_DESTINATIONS.email}`
+                : "No email on file — add one on the customer page",
+              available: emailAvailable,
+              children: (
+                <MessagePreview>
+                  <InvoiceNotificationPreview
+                    customerName={contactName}
+                    companyName={COMPANY_NAME}
+                    dueDate={dueDate}
+                  />
+                </MessagePreview>
+              ),
+            },
+            {
+              method: "text",
+              title: "Text message",
+              summary: textAvailable
+                ? `Send to ${DEMO_DESTINATIONS.phone}`
+                : "No phone on file — add one on the customer page",
+              available: textAvailable,
+              children: (
+                <MessagePreview>
+                  <InvoiceNotificationPreview
+                    customerName={contactName}
+                    companyName={COMPANY_NAME}
+                    dueDate={dueDate}
+                  />
+                </MessagePreview>
+              ),
+            },
+            ...(includeLink
+              ? [
+                  {
+                    method: "link" as const,
+                    title: "URL link",
+                    summary: "Copy a shareable link",
+                    available: true,
+                    children: (
+                      <ShareableLinkHelp
+                        mode={mode === "resend" ? "resend" : "send"}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
+    </>
+  );
+
+  if (isDesktop === null) return null;
+
+  if (isDesktop) {
+    return (
+      <Modal
+        title={title}
+        titleId="send-invoice-title"
+        onClose={onClose}
+        maxWidthClass="max-w-2xl"
+        zClass="z-[80]"
+        confirmLabel={confirmLabel}
+        onConfirm={() => void handleConfirm()}
+        confirmDisabled={confirmDisabled}
+        confirmChildren={
+          <>
+            {selected ? <SendButtonIcon method={selected} /> : null}
+            {confirmLabel}
+          </>
+        }
+      >
+        {body}
+      </Modal>
+    );
+  }
+
   return (
     <div
       className={`fixed inset-0 z-[200] flex flex-col bg-white transition duration-300 ease-out ${
@@ -159,78 +266,7 @@ export function SendInvoiceModal({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="px-8 py-6 sm:px-12 sm:py-8 lg:px-16">
           <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-            {mode === "send" ? (
-              <div
-                className="rounded-lg border border-[#E8A317]/40 bg-[#FFF8E6] px-4 py-3.5 text-sm leading-5 text-black/80"
-                role="status"
-              >
-                Once you send this invoice, you will no longer be able to edit
-                it. You can still void it or mark it uncollectible later if
-                needed.
-              </div>
-            ) : (
-              <p className="text-sm leading-5 text-black/65">
-                {mode === "test"
-                  ? "Send a test copy to yourself or the customer to verify delivery."
-                  : `Re-send invoice ${previewMeta.invoiceNumber} to ${contactName}.`}
-              </p>
-            )}
-
-            <SendMethodAccordion
-              selected={selected}
-              onSelect={selectMethod}
-              sections={[
-                {
-                  method: "email",
-                  title: "Email",
-                  summary: emailAvailable
-                    ? `Send to ${DEMO_DESTINATIONS.email}`
-                    : "No email on file — add one on the customer page",
-                  available: emailAvailable,
-                  children: (
-                    <MessagePreview>
-                      <InvoiceNotificationPreview
-                        customerName={contactName}
-                        companyName={COMPANY_NAME}
-                        dueDate={dueDate}
-                      />
-                    </MessagePreview>
-                  ),
-                },
-                {
-                  method: "text",
-                  title: "Text message",
-                  summary: textAvailable
-                    ? `Send to ${DEMO_DESTINATIONS.phone}`
-                    : "No phone on file — add one on the customer page",
-                  available: textAvailable,
-                  children: (
-                    <MessagePreview>
-                      <InvoiceNotificationPreview
-                        customerName={contactName}
-                        companyName={COMPANY_NAME}
-                        dueDate={dueDate}
-                      />
-                    </MessagePreview>
-                  ),
-                },
-                ...(includeLink
-                  ? [
-                      {
-                        method: "link" as const,
-                        title: "URL link",
-                        summary: "Copy a shareable link",
-                        available: true,
-                        children: (
-                          <ShareableLinkHelp
-                            mode={mode === "resend" ? "resend" : "send"}
-                          />
-                        ),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
+            {body}
           </div>
         </div>
       </div>

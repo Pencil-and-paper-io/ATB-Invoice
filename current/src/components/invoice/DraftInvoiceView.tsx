@@ -41,6 +41,7 @@ import { CustomerNotesSection } from "./CustomerNotesSection";
 import { DraftComposerSteps, type DraftComposerStep } from "./DraftComposerSteps";
 import {
   DocumentAutomationsEditor,
+  DocumentAutomationsSection,
   type DocumentAutomationsState,
 } from "./DocumentAutomationsSection";
 import {
@@ -66,12 +67,14 @@ import {
   PaymentOptionsEditor,
   type PaymentOptionsEditorHandle,
 } from "./AddPaymentOptionsModal";
+import { PaymentOptionsSection } from "./PaymentOptionsSection";
 import { TemplatePicker } from "./TemplatePicker";
 import { TopNav } from "./TopNav";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
-import { ContactBlock, TextLink } from "./ui";
+import { ContactBlock, SectionCard, TextLink } from "./ui";
 import { DEFAULT_SELF_NOTES } from "@/lib/invoice-self-notes";
 import type { CustomerNote } from "@/lib/invoice-demo-data";
+import { useIsDesktopLg } from "./useIsDesktopLg";
 
 function automationsFromCascade(
   customerId?: string | null,
@@ -103,6 +106,7 @@ function GstMissingWarning({ chargingTax }: { chargingTax: boolean }) {
 }
 
 export function DraftInvoiceView() {
+  const isDesktop = useIsDesktopLg();
   const [payments, setPayments] = useState<InvoicePaymentOption[]>([]);
   const [defaultTaxLabel, setDefaultTaxLabel] = useState("");
   const [recommendedTaxNote, setRecommendedTaxNote] = useState("");
@@ -522,7 +526,7 @@ export function DraftInvoiceView() {
     <div className="min-h-screen bg-page-grey text-black">
       <TopNav />
 
-      <main className="mx-auto max-w-[1440px] px-4 pb-28 pt-10 sm:px-8 lg:px-[158px] lg:pt-16">
+      <main className="mx-auto max-w-[1440px] px-4 pb-28 pt-10 sm:px-8 lg:px-[158px] lg:pb-16 lg:pt-16">
         {fromQuote ? (
           <div className="mb-5 rounded-lg border border-prime-blue/30 bg-prime-blue/5 px-4 py-3 text-sm text-black/80">
             Created from accepted quote
@@ -543,15 +547,128 @@ export function DraftInvoiceView() {
               defaultTaxLabel !== "Zero-rated - 0%",
           )}
         />
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="type-page-title">Draft Invoice</h1>
+          <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
+            {isFirstInvoicePlaythrough ? null : <TemplatePicker />}
+            <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+            <Link href="/preview" className="ui-btn-primary">
+              Save and Preview
+            </Link>
+          </div>
         </div>
 
-        <DraftComposerSteps steps={composerSteps} />
+        {/* Mobile: progressive composer steps */}
+        {isDesktop === false ? (
+          <DraftComposerSteps steps={composerSteps} />
+        ) : null}
+
+        {/* Desktop: original two-column layout */}
+        {isDesktop ? (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_331px]">
+          <div className="flex flex-col gap-2.5">
+            <BillToSection
+              key={
+                billToSkipped
+                  ? "skipped-bill-to"
+                  : isFirstInvoicePlaythrough
+                    ? "fresh-bill-to"
+                    : "demo-bill-to"
+              }
+              defaultCustomer={
+                billToSkipped || isFirstInvoicePlaythrough
+                  ? null
+                  : defaultDraftCustomer
+              }
+              onCustomerChange={handleCustomerChange}
+            >
+              <InvoiceDetailsPanel
+                details={details}
+                onChange={updateDetails}
+              />
+            </BillToSection>
+
+            <SectionCard title="Line Items" className="gap-2.5">
+              <LineItemsSection
+                key={useSampleContent ? "sample-lines" : "fresh-lines"}
+                initialItems={useSampleContent ? draftInvoice.lineItems : []}
+                taxMode={details.taxMode}
+                currency={details.currency}
+                defaultTaxLabel={defaultTaxLabel}
+                recommendedTaxNote={recommendedTaxNote}
+              />
+            </SectionCard>
+
+            <SectionCard title="Note to Customer" className="gap-2.5">
+              <CustomerNotesSection
+                key={useSampleContent ? "sample-notes" : "fresh-notes"}
+                initialNotes={useSampleContent ? draftInvoice.customerNotes : []}
+              />
+            </SectionCard>
+          </div>
+
+          <aside className="flex flex-col gap-[15px]">
+            <PaymentOptionsSection
+              payments={payments}
+              onToggle={togglePayment}
+              onChange={updatePayments}
+              compact
+            />
+
+            <DocumentAutomationsSection
+              value={automations}
+              onChange={updateAutomations}
+              documentKind="invoice"
+            />
+
+            <SectionCard title="Note to Self" className="gap-2.5">
+              <NoteToSelfSection />
+            </SectionCard>
+
+            <SectionCard title="Style" className="gap-2.5">
+              <div className="rounded-[10px] border border-black/10 p-[30px]">
+                <ContactBlock {...draftInvoice.business} />
+                <div className="mt-2.5">
+                  <TextLink>Edit Business Info</TextLink>
+                </div>
+              </div>
+
+              <div className="rounded-[10px] border border-black/10 p-[30px]">
+                <div className="flex flex-col gap-[11px]">
+                  <div>
+                    <p className="text-sm text-black">Company Color</p>
+                    <div className="mt-2.5 flex items-center gap-2.5 text-sm text-black">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full"
+                        style={{ backgroundColor: draftInvoice.business.color }}
+                      />
+                      <span>{draftInvoice.business.color}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-black">Company Style</p>
+                    <Image
+                      src="/brand/company-style.png"
+                      alt="Company style preview"
+                      width={80}
+                      height={50}
+                      className="mt-2.5 h-[50px] w-20 rounded object-cover"
+                    />
+                  </div>
+                </div>
+                <div className="mt-2.5">
+                  <TextLink>Edit Company Style</TextLink>
+                </div>
+              </div>
+            </SectionCard>
+          </aside>
+        </div>
+        ) : null}
       </main>
 
+      {isDesktop === false ? (
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5 lg:px-[158px]">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5">
           {isFirstInvoicePlaythrough ? null : <TemplatePicker />}
           <MoreActionsMenu actions={moreActions} onAction={handleAction} />
           <Link href="/preview" className="ui-btn-primary">
@@ -559,6 +676,7 @@ export function DraftInvoiceView() {
           </Link>
         </div>
       </div>
+      ) : null}
 
       {feedbackBanner}
       {uncollectibleModal}

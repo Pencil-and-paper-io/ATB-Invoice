@@ -38,7 +38,7 @@ export function DesignSystemPanel() {
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-24 right-5 z-[200] flex flex-col items-end gap-2"
+      className="fixed bottom-24 right-5 z-[200] flex flex-col items-end gap-2 lg:bottom-5"
       data-prototype-chrome="design-system"
     >
       {open ? (

@@ -15,6 +15,7 @@ import { PreviewDocumentActivity } from "./PreviewInvoiceActivity";
 import { SendQuoteModal } from "./SendQuoteModal";
 import { TopNav } from "./TopNav";
 import { useQuoteActionHandler } from "./useQuoteActionHandler";
+import { useIsDesktopLg } from "./useIsDesktopLg";
 
 function ActionButton({
   children,
@@ -71,6 +72,7 @@ function truncateSummary(text: string, max = 80) {
 }
 
 export function PreviewQuoteView() {
+  const isDesktop = useIsDesktopLg();
   const { handleAction, feedbackBanner, confirmModal, downloadModal } =
     useQuoteActionHandler("drafted");
   const [showSendModal, setShowSendModal] = useState(false);
@@ -142,28 +144,53 @@ export function PreviewQuoteView() {
           </div>
         </div>
 
-        <div className="mb-5">
-          <FullscreenDetailCards
-            listLabel="Quote details"
-            cards={metaCards}
-            onActiveChange={setPanelOpen}
-          />
-        </div>
+        {isDesktop === false ? (
+          <div className="mb-5">
+            <FullscreenDetailCards
+              listLabel="Quote details"
+              cards={metaCards}
+              onActiveChange={setPanelOpen}
+            />
+          </div>
+        ) : null}
 
         <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="hidden flex-col gap-[15px] lg:flex">
-            <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
-              <h2 className="text-base font-semibold text-black">Status</h2>
-              <DraftBadge />
-            </section>
-          </aside>
+          {isDesktop ? (
+            <aside className="flex flex-col gap-[15px]">
+              <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">Status</h2>
+                <DraftBadge />
+              </section>
+
+              <section className="flex flex-col gap-5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">Activity</h2>
+                <PreviewDocumentActivity documentKind="quote" />
+              </section>
+
+              <section className="flex flex-col gap-2.5 rounded-[10px] bg-white p-[30px]">
+                <h2 className="text-base font-semibold text-black">
+                  Note to Self
+                </h2>
+                <NoteToSelfSection />
+              </section>
+            </aside>
+          ) : null}
 
           <div className="flex flex-col gap-5">
             <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-4 py-4">
-              <p className="type-headline-6 text-midnight-ink">
+              <p className="type-headline-6 text-midnight-ink lg:hidden">
                 Below is what your customer will see:
               </p>
-              <p className="mt-2 type-paragraph-2 text-midnight-ink">
+              <p className="hidden type-headline-5 text-midnight-ink lg:block">
+                Below is what your customer will see:
+              </p>
+              <p className="mt-2 type-paragraph-2 text-midnight-ink lg:hidden">
+                Once you send this quote, you can still make adjustments until
+                the customer accepts it. Payment options are hidden on quotes
+                because customers can’t pay them here—they’ll appear when this
+                quote becomes an invoice.
+              </p>
+              <p className="mt-2 hidden type-paragraph-1 text-midnight-ink lg:block">
                 Once you send this quote, you can still make adjustments until
                 the customer accepts it. Payment options are hidden on quotes
                 because customers can’t pay them here—they’ll appear when this
