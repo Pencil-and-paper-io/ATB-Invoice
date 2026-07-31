@@ -333,7 +333,7 @@ export function DraftQuoteView() {
         id: "noteToSelf",
         title: "Note to self",
         summary: "Private notes (not shared with the customer)",
-        content: <NoteToSelfSection />,
+        content: <NoteToSelfSection autoOpen />,
       },
       {
         id: "style",

@@ -72,13 +72,28 @@ body {
 }
 
 /* Headline 2 — ATB TT Norms Bold 42 */
-.type-headline-2,
-.type-page-title {
+.type-headline-2 {
   font-family: var(--font-montserrat), Helvetica, sans-serif;
   font-size: 42px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.025em;
+}
+
+/* Page title — Headline 3 on mobile, Headline 2 from lg up */
+.type-page-title {
+  font-family: var(--font-montserrat), Helvetica, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+@media (min-width: 1024px) {
+  .type-page-title {
+    font-size: 42px;
+    line-height: 1;
+    letter-spacing: -0.025em;
+  }
 }
 
 /* Headline 3 — ATB TT Norms Bold 30 */

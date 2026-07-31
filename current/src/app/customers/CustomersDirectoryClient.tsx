@@ -841,7 +841,7 @@ export default function CustomersDirectoryClient() {
       >
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="type-headline-2 text-midnight-ink">Customers</h1>
+            <h1 className="type-page-title text-midnight-ink">Customers</h1>
             <p className="mt-2 type-subtitle-1 text-black/55">
               Customer directory for invoicing and quoting.
             </p>

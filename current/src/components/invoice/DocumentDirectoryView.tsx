@@ -662,7 +662,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
       >
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="type-headline-2 text-midnight-ink">{title}</h1>
+            <h1 className="type-page-title text-midnight-ink">{title}</h1>
             <p className="mt-2 type-subtitle-1 text-black/55">{subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">

@@ -549,7 +549,7 @@ export function QuickLinks() {
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-5 left-5 z-[200] flex flex-col items-start gap-2"
+      className="fixed bottom-24 left-5 z-[200] flex flex-col items-start gap-2"
       data-prototype-chrome="quick-links"
     >
       {open ? (

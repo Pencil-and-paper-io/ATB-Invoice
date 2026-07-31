@@ -448,6 +448,7 @@ export function DraftInvoiceView() {
         summary: selfNoteListSummary,
         content: (
           <NoteToSelfSection
+            autoOpen
             onNoteChange={(note) => setSelfNoteSummary(note?.body ?? "")}
           />
         ),

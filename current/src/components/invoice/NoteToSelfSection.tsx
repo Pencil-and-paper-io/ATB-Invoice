@@ -116,8 +116,11 @@ function SelfNoteForm({
 
 export function NoteToSelfSection({
   onNoteChange,
+  autoOpen = false,
 }: {
   onNoteChange?: (note: SelfNote | null) => void;
+  /** When true, open the editor immediately (draft composer step). */
+  autoOpen?: boolean;
 } = {}) {
   const [note, setNote] = useState<SelfNote | null>(null);
   const [editing, setEditing] = useState(false);
@@ -129,14 +132,19 @@ export function NoteToSelfSection({
       const loaded = loadSelfNotes()[0] ?? null;
       setNote(loaded);
       onNoteChange?.(loaded);
-      if (loaded) {
-        setIsCreating(false);
-        setEditing(true);
+      if (autoOpen) {
+        if (loaded) {
+          setIsCreating(false);
+          setEditing(true);
+        } else {
+          const blank = { id: `self-note-${Date.now()}`, body: "" };
+          setNote(blank);
+          setIsCreating(true);
+          setEditing(true);
+        }
       } else {
-        const blank = { id: `self-note-${Date.now()}`, body: "" };
-        setNote(blank);
-        setIsCreating(true);
-        setEditing(true);
+        setIsCreating(false);
+        setEditing(false);
       }
       setHydrated(true);
     }, 0);
