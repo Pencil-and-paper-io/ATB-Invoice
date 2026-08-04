@@ -167,11 +167,17 @@ export function SendButtonIcon({
   );
 }
 
-export function MessagePreview({ children }: { children: React.ReactNode }) {
+export function MessagePreview({
+  children,
+  label = "Preview",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-black/45">
-        Preview
+        {label}
       </p>
       <div className="rounded-lg bg-black/[0.03] px-3.5 py-3 text-sm leading-6 text-black/80">
         {children}

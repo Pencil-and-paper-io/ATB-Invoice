@@ -3,10 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
+  formatReminderSendDateLabel,
+  todayIsoDate,
+  channelLabel,
+} from "@/lib/document-automations";
+import {
+  draftInvoice,
   hrefForCustomerInvoice,
   hrefForCustomerQuote,
 } from "@/lib/invoice-demo-data";
+import { InvoiceNotificationPreview } from "./NotificationMessagePreview";
+import { MessagePreview } from "./SendMethodAccordion";
 import { SendReminderModal } from "./SendReminderModal";
+import type { ReminderChannel } from "./DocumentAutomationsSection";
 
 type NotificationKind =
   | "paid"
@@ -14,7 +23,8 @@ type NotificationKind =
   | "viewed"
   | "partially_paid"
   | "quote_accepted"
-  | "quote_rejected";
+  | "quote_rejected"
+  | "scheduled_reminder";
 
 export type AppNotification = {
   id: string;
@@ -31,9 +41,58 @@ export type AppNotification = {
   customerName?: string;
   /** Status string used for routing to the document detail view. */
   routeStatus: string;
+  /** YYYY-MM-DD when a scheduled reminder is set to send. */
+  scheduledSendDate?: string;
+  /** True after the user snoozes this reminder notification. */
+  snoozed?: boolean;
+  /** Delivery channel for scheduled payment reminders. */
+  reminderChannel?: ReminderChannel;
+  /** Due date label shown in the reminder message preview. */
+  dueDate?: string;
+  /** Numeric amount for the reminder message preview. */
+  amountValue?: number;
 };
 
+function addDaysToIso(iso: string, days: number) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const next = new Date(year, month - 1, day + days);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+}
+
+function shortDateLabel(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+function longDateLabel(iso: string) {
+  return formatReminderSendDateLabel(iso, 0, iso);
+}
+
+const DEMO_SCHEDULED_SEND = addDaysToIso(todayIsoDate(), 1);
+const DEMO_DAYS_SINCE_SENT = 18;
+
 const DEMO_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: "n0",
+    kind: "scheduled_reminder",
+    documentKind: "invoice",
+    title: "Upcoming payment reminder",
+    body: `You're scheduled to remind Acme Construction Co to pay the invoice you sent them ${DEMO_DAYS_SINCE_SENT} days ago by email on ${shortDateLabel(DEMO_SCHEDULED_SEND)}.`,
+    timeAgo: "Just now",
+    unread: true,
+    number: "3002",
+    amount: "$ 2,187.50",
+    amountValue: 2187.5,
+    metaLabel: `Sends ${shortDateLabel(DEMO_SCHEDULED_SEND)}`,
+    customerName: "Acme Construction Co",
+    routeStatus: "Overdue",
+    scheduledSendDate: DEMO_SCHEDULED_SEND,
+    reminderChannel: "email",
+    dueDate: "Jul 5, 2026",
+  },
   {
     id: "n1",
     kind: "paid",
@@ -168,6 +227,11 @@ const KIND_STYLE: Record<
     amount: "text-midnight-ink",
     meta: "bg-[#FDECEC] text-[#C62828]",
   },
+  scheduled_reminder: {
+    iconWrap: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+    amount: "text-midnight-ink",
+    meta: "bg-[#3C6CFF]/10 text-[#3C6CFF]",
+  },
 };
 
 export function NotificationsPanel({
@@ -182,6 +246,7 @@ export function NotificationsPanel({
   const [reminderTarget, setReminderTarget] = useState<AppNotification | null>(
     null,
   );
+  const [snoozeToast, setSnoozeToast] = useState<string | null>(null);
   const unreadCount = useMemo(
     () => items.filter((item) => item.unread).length,
     [items],
@@ -207,6 +272,32 @@ export function NotificationsPanel({
         : hrefForCustomerInvoice(item.routeStatus);
     onClose?.();
     router.push(href);
+  }
+
+  function snoozeReminder(item: AppNotification) {
+    const nextIso = addDaysToIso(todayIsoDate(), 7);
+    const nextLabel = longDateLabel(nextIso);
+    setItems((prev) =>
+      prev.map((entry) =>
+        entry.id === item.id
+          ? {
+              ...entry,
+              unread: false,
+              snoozed: true,
+              scheduledSendDate: nextIso,
+              metaLabel: `Sends ${shortDateLabel(nextIso)}`,
+              body: `You're scheduled to remind ${entry.customerName ?? "the customer"} to pay the invoice you sent them ${DEMO_DAYS_SINCE_SENT} days ago by email on ${shortDateLabel(nextIso)}.`,
+              timeAgo: "Just now",
+            }
+          : entry,
+      ),
+    );
+    setSnoozeToast(`Payment reminder delayed 1 week — sends ${nextLabel}.`);
+  }
+
+  function cancelReminder(item: AppNotification) {
+    setItems((prev) => prev.filter((entry) => entry.id !== item.id));
+    setSnoozeToast("Scheduled payment reminder cancelled.");
   }
 
   return (
@@ -246,6 +337,8 @@ export function NotificationsPanel({
                     markRead(item.id);
                     setReminderTarget(item);
                   }}
+                  onSnooze={() => snoozeReminder(item)}
+                  onCancel={() => cancelReminder(item)}
                 />
               </li>
             ))}
@@ -261,6 +354,22 @@ export function NotificationsPanel({
           onSent={() => setReminderTarget(null)}
         />
       ) : null}
+
+      {snoozeToast ? (
+        <div
+          className="fixed bottom-8 left-1/2 z-[70] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 text-sm font-medium text-white shadow-lg"
+          role="status"
+        >
+          {snoozeToast}
+          <button
+            type="button"
+            className="ml-3 underline"
+            onClick={() => setSnoozeToast(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -269,13 +378,18 @@ function NotificationItem({
   item,
   onActivate,
   onSendReminder,
+  onSnooze,
+  onCancel,
 }: {
   item: AppNotification;
   onActivate: () => void;
   onSendReminder: () => void;
+  onSnooze: () => void;
+  onCancel: () => void;
 }) {
   const style = KIND_STYLE[item.kind];
   const isOverdue = item.kind === "overdue";
+  const isScheduledReminder = item.kind === "scheduled_reminder";
   const docLabel = item.documentKind === "quote" ? "Quote" : "Invoice";
 
   return (
@@ -311,28 +425,48 @@ function NotificationItem({
           </div>
           <p className="mt-1.5 text-sm leading-5 text-black/70">{item.body}</p>
 
-          <div className="mt-4 rounded-lg border border-black/10 bg-white px-3.5 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold text-midnight-ink">
-                {docLabel} #{item.number.replace(/^#/, "")}
-              </p>
-              <p className={`shrink-0 text-sm font-semibold ${style.amount}`}>
-                {item.amount}
-              </p>
-            </div>
-            <div className="mt-2.5 flex items-center justify-between gap-3">
-              <span
-                className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${style.meta}`}
+          {isScheduledReminder ? (
+            <div
+              className="mt-4"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <MessagePreview
+                label={`${channelLabel(item.reminderChannel ?? "email")} preview`}
               >
-                {item.metaLabel}
-              </span>
-              {item.accountMasked ? (
-                <span className="text-xs tracking-wide text-black/45">
-                  {item.accountMasked}
-                </span>
-              ) : null}
+                <InvoiceNotificationPreview
+                  customerName={item.customerName}
+                  companyName={draftInvoice.business.name}
+                  invoiceNumber={`#${item.number.replace(/^#/, "")}`}
+                  amount={item.amountValue}
+                  dueDate={item.dueDate}
+                />
+              </MessagePreview>
             </div>
-          </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-black/10 bg-white px-3.5 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-semibold text-midnight-ink">
+                  {docLabel} #{item.number.replace(/^#/, "")}
+                </p>
+                <p className={`shrink-0 text-sm font-semibold ${style.amount}`}>
+                  {item.amount}
+                </p>
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${style.meta}`}
+                >
+                  {item.metaLabel}
+                </span>
+                {item.accountMasked ? (
+                  <span className="ml-auto text-xs tracking-wide text-black/45">
+                    {item.accountMasked}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           {isOverdue ? (
             <button
@@ -346,6 +480,37 @@ function NotificationItem({
               Send reminder
             </button>
           ) : null}
+
+          {isScheduledReminder ? (
+            item.snoozed ? (
+              <p className="mt-4 text-sm font-semibold text-prime-blue">
+                Snoozed — sends {item.metaLabel.replace(/^Sends\s+/i, "")}
+              </p>
+            ) : (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="ui-btn-secondary h-9 px-4 text-sm"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSnooze();
+                  }}
+                >
+                  Snooze for 1 week
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold text-midnight-ink transition hover:bg-black/[0.06]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCancel();
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )
+          ) : null}
         </div>
       </div>
     </div>
@@ -357,6 +522,7 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
   if (kind === "overdue") return <OverdueIcon />;
   if (kind === "viewed") return <EyeIcon />;
   if (kind === "partially_paid") return <PartialIcon />;
+  if (kind === "scheduled_reminder") return <ReminderIcon />;
   return <RejectIcon />;
 }
 
@@ -411,6 +577,25 @@ function PartialIcon() {
         d="M12 3.75a8.25 8.25 0 0 1 0 16.5"
         fill="currentColor"
         opacity="0.35"
+      />
+    </svg>
+  );
+}
+
+function ReminderIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 4.5a6.5 6.5 0 0 1 6.5 6.5v2.4l1.3 2.4a.75.75 0 0 1-.66 1.1H4.86a.75.75 0 0 1-.66-1.1l1.3-2.4V11A6.5 6.5 0 0 1 12 4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 18.4a2 2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
       />
     </svg>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  CUSTOMER_LIFECYCLE_OPTIONS,
   DATE_RANGE_PRESETS,
   EMPTY_AMOUNT,
   INVOICE_STATUS_OPTIONS,
@@ -319,6 +320,41 @@ function CustomerFilterFields({
 
   return (
     <div className="flex flex-col gap-7">
+      <fieldset>
+        <legend className="mb-2 text-sm font-semibold text-midnight-ink">
+          Status
+        </legend>
+        <div className="flex flex-col gap-1.5" role="radiogroup">
+          {CUSTOMER_LIFECYCLE_OPTIONS.map((option) => {
+            const selected = value.lifecycle === option;
+            return (
+              <label
+                key={option}
+                className={`flex cursor-pointer items-center gap-3 py-1.5 text-sm transition ${
+                  selected
+                    ? "font-semibold text-prime-blue"
+                    : "text-midnight-ink hover:text-prime-blue"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="customer-lifecycle"
+                  className="h-4 w-4 accent-prime-blue"
+                  checked={selected}
+                  onChange={() => onChange({ ...value, lifecycle: option })}
+                />
+                <span>
+                  {option === "All"
+                    ? "All customers"
+                    : option === "Active"
+                      ? "Active"
+                      : "Archived"}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       <div>
         <FieldLabel>Tags</FieldLabel>
         {availableTags.length === 0 ? (

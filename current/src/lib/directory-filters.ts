@@ -74,12 +74,21 @@ export type QuoteDirectoryFilters = {
   total: AmountFilter;
 };
 
+export type CustomerLifecycleOption = "All" | "Active" | "Archived";
+
 export type CustomerDirectoryFilters = {
+  lifecycle: CustomerLifecycleOption;
   tags: string[];
   total: AmountFilter;
   outstanding: AmountFilter;
   paid: AmountFilter;
 };
+
+export const CUSTOMER_LIFECYCLE_OPTIONS: readonly CustomerLifecycleOption[] = [
+  "All",
+  "Active",
+  "Archived",
+];
 
 export type FilterTag = {
   id: string;
@@ -119,6 +128,7 @@ export function defaultQuoteFilters(
 
 export function defaultCustomerFilters(): CustomerDirectoryFilters {
   return {
+    lifecycle: "Active",
     tags: [],
     total: { ...EMPTY_AMOUNT },
     outstanding: { ...EMPTY_AMOUNT },
@@ -289,6 +299,15 @@ export function customerFilterTags(
   filters: CustomerDirectoryFilters,
 ): FilterTag[] {
   const tags: FilterTag[] = [];
+  if (filters.lifecycle !== "Active") {
+    tags.push({
+      id: "lifecycle",
+      label:
+        filters.lifecycle === "All"
+          ? "All customers"
+          : "Archived customers",
+    });
+  }
   if (filters.tags.length > 0) {
     tags.push({
       id: "tags",
@@ -312,6 +331,8 @@ export function clearCustomerFilterTag(
   tagId: string,
 ): CustomerDirectoryFilters {
   switch (tagId) {
+    case "lifecycle":
+      return { ...filters, lifecycle: "Active" };
     case "tags":
       return { ...filters, tags: [] };
     case "total":

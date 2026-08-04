@@ -8,7 +8,22 @@ export type MenuAction = {
   danger?: boolean;
   dividerBefore?: boolean;
   sectionTitleBefore?: string;
+  submenu?: { key: string; label: string; danger?: boolean }[];
 };
+
+function SubmenuChevron() {
+  return (
+    <svg width="6" height="10" viewBox="0 0 6 10" fill="none" aria-hidden>
+      <path
+        d="M1 1l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function MoreActionsMenu({
   actions,
@@ -20,17 +35,43 @@ export function MoreActionsMenu({
   align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
+  const [openSubmenuKey, setOpenSubmenuKey] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const closeSubmenuTimer = useRef<number | null>(null);
+
+  function clearCloseSubmenuTimer() {
+    if (closeSubmenuTimer.current != null) {
+      window.clearTimeout(closeSubmenuTimer.current);
+      closeSubmenuTimer.current = null;
+    }
+  }
+
+  function openSubmenu(key: string) {
+    clearCloseSubmenuTimer();
+    setOpenSubmenuKey(key);
+  }
+
+  function scheduleCloseSubmenu() {
+    clearCloseSubmenuTimer();
+    closeSubmenuTimer.current = window.setTimeout(() => {
+      setOpenSubmenuKey(null);
+      closeSubmenuTimer.current = null;
+    }, 120);
+  }
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setOpen(false);
+        setOpenSubmenuKey(null);
       }
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        setOpenSubmenuKey(null);
+      }
     }
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -40,9 +81,67 @@ export function MoreActionsMenu({
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) {
+      clearCloseSubmenuTimer();
+      setOpenSubmenuKey(null);
+    }
+  }, [open]);
+
+  useEffect(() => () => clearCloseSubmenuTimer(), []);
+
   if (!actions.length) return null;
 
   function renderItem(action: MenuAction) {
+    if (action.submenu?.length) {
+      const submenuOpen = openSubmenuKey === action.key;
+      return (
+        <div
+          key={action.key}
+          className="relative"
+          onMouseEnter={() => openSubmenu(action.key)}
+          onMouseLeave={scheduleCloseSubmenu}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            aria-expanded={submenuOpen}
+            className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm font-medium text-midnight-ink transition hover:bg-black/[0.04]"
+          >
+            <span>{action.label}</span>
+            <SubmenuChevron />
+          </button>
+          {submenuOpen ? (
+            <div
+              role="menu"
+              className="absolute left-full top-0 z-[60] ml-1 min-w-[160px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-lg"
+              onMouseEnter={() => openSubmenu(action.key)}
+              onMouseLeave={scheduleCloseSubmenu}
+            >
+              {action.submenu.map((sub) => (
+                <button
+                  key={sub.key}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onAction?.(sub.key);
+                    setOpen(false);
+                    setOpenSubmenuKey(null);
+                  }}
+                  className={`flex w-full px-4 py-2.5 text-left text-sm font-medium transition hover:bg-black/[0.04] ${
+                    sub.danger ? "text-delete-red" : "text-midnight-ink"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <button
         key={action.key}
@@ -52,6 +151,7 @@ export function MoreActionsMenu({
           onAction?.(action.key);
           setOpen(false);
         }}
+        onMouseEnter={() => setOpenSubmenuKey(null)}
         className={`flex w-full px-4 py-2.5 text-left text-sm font-medium transition hover:bg-black/[0.04] ${
           action.danger ? "text-delete-red" : "text-midnight-ink"
         }`}
@@ -83,7 +183,7 @@ export function MoreActionsMenu({
         <div
           id={menuId}
           role="menu"
-          className={`absolute top-full z-50 mt-1 min-w-[220px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-lg ${
+          className={`absolute top-full z-50 mt-1 min-w-[220px] overflow-visible rounded-lg border border-black/10 bg-white py-1 shadow-lg ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

@@ -52,7 +52,6 @@ import {
   RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
-  directoryTableMinWidthPx,
   useForceDirectoryCardView,
   type DirectoryViewMode,
 } from "@/components/invoice/directory-table";
@@ -71,7 +70,6 @@ type SortKey =
   | "paid"
   | "outstanding";
 type SortDir = "asc" | "desc";
-type DirectoryTab = "active" | "archived";
 type ColumnId = SortKey | "tags";
 
 const COLUMN_DEFS: DirectoryColumnDef<ColumnId>[] = [
@@ -144,8 +142,8 @@ function sortValue(customer: Customer, key: SortKey): string | number {
   }
 }
 
-function getCustomerRowActions(tab: DirectoryTab): MenuAction[] {
-  if (tab === "archived") {
+function getCustomerRowActions(isArchived: boolean): MenuAction[] {
+  if (isArchived) {
     return [
       { key: "view", label: "View customer" },
       { key: "unarchive", label: "Unarchive customer", dividerBefore: true },
@@ -261,7 +259,6 @@ export default function CustomersDirectoryClient() {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [searchQuery, setSearchQuery] = useState("");
-  const [tab, setTab] = useState<DirectoryTab>("active");
   const [viewMode, setViewMode] = useState<DirectoryViewMode>("list");
   const [filterOpen, setFilterOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -427,27 +424,19 @@ export default function CustomersDirectoryClient() {
     .join(" ")} 44px`;
 
   const contentRef = useRef<HTMLElement>(null);
-  const tableMinWidth = useMemo(
-    () =>
-      directoryTableMinWidthPx(
-        visibleColumns.map(
-          (column) => columnWidths[column.id] ?? column.defaultWidth,
-        ),
-      ),
-    [visibleColumns, columnWidths],
-  );
-  const forceCardView = useForceDirectoryCardView(contentRef, tableMinWidth);
+  const forceCardView = useForceDirectoryCardView(contentRef);
   const effectiveViewMode: DirectoryViewMode = forceCardView
     ? "card"
     : viewMode;
+  const lifecycle = customerFilters.lifecycle;
 
   const filteredSortedCustomers = useMemo(() => {
     if (forceEmpty) return [];
     const archived = new Set(archivedIds);
     const filtered = directoryCustomers.filter((customer) => {
       const isArchived = archived.has(customer.id);
-      if (tab === "active" && isArchived) return false;
-      if (tab === "archived" && !isArchived) return false;
+      if (lifecycle === "Active" && isArchived) return false;
+      if (lifecycle === "Archived" && !isArchived) return false;
       if (!customerMatchesQuery(customer, searchQuery)) return false;
       if (!matchesCustomerTags(customer.tags, customerFilters.tags)) {
         return false;
@@ -479,7 +468,7 @@ export default function CustomersDirectoryClient() {
     customerFilters,
     archivedIds,
     searchQuery,
-    tab,
+    lifecycle,
     tagRevision,
     forceEmpty,
   ]);
@@ -712,7 +701,11 @@ export default function CustomersDirectoryClient() {
 
   const customerBulkActions = useMemo(() => {
     if (selectedIds.size === 0) return [] as MenuAction[];
-    if (tab === "archived") {
+    const archived = new Set(archivedIds);
+    const selectedAreArchived = [...selectedIds].every((id) =>
+      archived.has(id),
+    );
+    if (selectedAreArchived) {
       return [{ key: "unarchive", label: "Unarchive customer" }];
     }
     return [
@@ -720,13 +713,12 @@ export default function CustomersDirectoryClient() {
       { key: "create_quote", label: "Create quote" },
       { key: "archive", label: "Archive customer", danger: true },
     ];
-  }, [selectedIds.size, tab]);
+  }, [selectedIds, archivedIds]);
 
   const showTrueEmpty =
     forceEmpty ||
     (!searchQuery.trim() &&
       activeFilterCount === 0 &&
-      tab !== "archived" &&
       filteredSortedCustomers.length === 0);
 
   const customersEmptyState = forceEmpty ? (
@@ -755,7 +747,7 @@ export default function CustomersDirectoryClient() {
       <p className="type-headline-6 text-midnight-ink">
         {searchQuery.trim() || activeFilterCount > 0
           ? "No customers match your filters."
-          : tab === "archived"
+          : lifecycle === "Archived"
             ? "No archived customers."
             : "No customers yet."}
       </p>
@@ -835,8 +827,8 @@ export default function CustomersDirectoryClient() {
       <TopNav />
       <main
         ref={contentRef}
-        className={`mx-auto max-w-6xl px-6 py-12 sm:px-8 ${
-          selectedIds.size > 0 ? "pb-28" : ""
+        className={`mx-auto max-w-[1180px] px-4 pt-10 sm:px-8 lg:pt-16 ${
+          selectedIds.size > 0 ? "pb-28" : "pb-16"
         }`}
       >
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -859,39 +851,6 @@ export default function CustomersDirectoryClient() {
 
         {!forceEmpty ? (
           <>
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div
-                className="inline-flex rounded-lg border border-black/10 bg-white p-1"
-                role="tablist"
-                aria-label="Customer directory tabs"
-              >
-                {(
-                  [
-                    ["active", "Active"],
-                    ["archived", "Archived"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === id}
-                    onClick={() => {
-                      setTab(id);
-                      setSelectedIds(new Set());
-                    }}
-                    className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition ${
-                      tab === id
-                        ? "bg-midnight-ink text-white"
-                        : "text-black/55 hover:text-black"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="mb-3 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <SearchField
@@ -908,9 +867,11 @@ export default function CustomersDirectoryClient() {
               />
               {forceCardView ? null : (
                 <>
-                  <DirectoryColumnsSettingsButton
-                    onClick={() => setColumnsOpen(true)}
-                  />
+                  {effectiveViewMode === "list" ? (
+                    <DirectoryColumnsSettingsButton
+                      onClick={() => setColumnsOpen(true)}
+                    />
+                  ) : null}
                   <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
                 </>
               )}
@@ -1027,16 +988,18 @@ export default function CustomersDirectoryClient() {
                             </div>
                           ) : null}
                         </Link>
+                        <div className="-mr-1 -mt-1 shrink-0">
+                          <RowKebabMenu
+                            label={`Actions for ${customer.name}`}
+                            actions={getCustomerRowActions(
+                              archivedIds.includes(customer.id),
+                            )}
+                            onAction={(key) =>
+                              handleCustomerAction(customer.id, key)
+                            }
+                          />
+                        </div>
                       </div>
-                      {tab === "archived" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleUnarchive(customer.id)}
-                          className="text-left text-sm font-semibold text-prime-blue underline-offset-2 hover:underline"
-                        >
-                          Unarchive Customer
-                        </button>
-                      ) : null}
                     </div>
                   </li>
                 );
@@ -1168,7 +1131,9 @@ export default function CustomersDirectoryClient() {
                       ))}
                       <RowKebabMenu
                         label={`Actions for ${customer.name}`}
-                        actions={getCustomerRowActions(tab)}
+                        actions={getCustomerRowActions(
+                          archivedIds.includes(customer.id),
+                        )}
                         onAction={(key) =>
                           handleCustomerAction(customer.id, key)
                         }
@@ -1262,7 +1227,10 @@ export default function CustomersDirectoryClient() {
           onClose={() => setFilterOpen(false)}
           customerFilters={customerFilters}
           availableTags={availableTags}
-          onApplyCustomer={setCustomerFilters}
+          onApplyCustomer={(next) => {
+            setCustomerFilters(next);
+            setSelectedIds(new Set());
+          }}
         />
 
         {contextMenu ? (

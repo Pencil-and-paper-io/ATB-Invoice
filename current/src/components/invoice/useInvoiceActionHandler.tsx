@@ -26,7 +26,7 @@ import { SendInvoiceModal } from "./SendInvoiceModal";
 import { Modal } from "./ui";
 
 type Feedback = { kind: "info" | "danger"; message: string } | null;
-type SendModalMode = "resend" | "test" | null;
+type SendModalMode = "send" | "resend" | "test" | null;
 
 function ConfirmModal({
   title,
@@ -54,6 +54,14 @@ function ConfirmModal({
       body={body}
     />
   );
+}
+
+function logManualMarkActivity(text: string) {
+  appendInvoiceActivityExtra({
+    id: `mark-${Date.now()}`,
+    time: formatActivityNow(),
+    text,
+  });
 }
 
 export function useInvoiceActionHandler(
@@ -88,18 +96,6 @@ export function useInvoiceActionHandler(
   );
   const [otherReason, setOtherReason] = useState("");
   const isDraft = status === "drafted";
-
-  async function copyDemoLink() {
-    try {
-      await navigator.clipboard.writeText("https://pay.atb.com/invoice/3001");
-      setFeedback({ kind: "info", message: "Invoice link copied." });
-    } catch {
-      setFeedback({
-        kind: "info",
-        message: "Invoice link ready (clipboard blocked in this browser).",
-      });
-    }
-  }
 
   function openReminderEditor() {
     setReminderSchedule(loadOrInitDocumentAutomations("invoice", customerId));
@@ -177,6 +173,10 @@ export function useInvoiceActionHandler(
       openReminderEditor();
       return;
     }
+    if (action === "send") {
+      setSendModal("send");
+      return;
+    }
     if (action === "resend") {
       setSendModal("resend");
       return;
@@ -185,8 +185,30 @@ export function useInvoiceActionHandler(
       setSendModal("test");
       return;
     }
+    if (action === "mark_sent") {
+      logManualMarkActivity("You marked this invoice as sent");
+      setFeedback({ kind: "info", message: "Invoice marked as sent." });
+      router.push("/sent");
+      return;
+    }
     if (action === "mark_viewed") {
+      logManualMarkActivity("You marked this invoice as viewed");
+      setFeedback({ kind: "info", message: "Invoice marked as viewed." });
       router.push("/sent/viewed");
+      return;
+    }
+    if (action === "mark_followed_up") {
+      logManualMarkActivity("You recorded a follow-up on this invoice");
+      setFeedback({
+        kind: "info",
+        message: "Follow-up recorded. Status unchanged.",
+      });
+      return;
+    }
+    if (action === "mark_paid") {
+      logManualMarkActivity("You marked this invoice as paid");
+      setFeedback({ kind: "info", message: "Invoice marked as paid." });
+      router.push("/sent/paid");
       return;
     }
     if (action === "edit") {
@@ -206,15 +228,10 @@ export function useInvoiceActionHandler(
       setFeedback({ kind: "info", message: "CSV exported." });
       return;
     }
-    if (action === "copy_link") {
-      void copyDemoLink();
-      return;
-    }
 
     const messages: Partial<Record<InvoiceActionKey, string>> = {
       template: "Saved as template (demo).",
       duplicate: "Invoice duplicated (demo).",
-      view_history: "Opening history (demo).",
     };
 
     setFeedback({
@@ -374,7 +391,7 @@ export function useInvoiceActionHandler(
   const sendModalNode = sendModal ? (
     <SendInvoiceModal
       mode={sendModal}
-      navigateOnSend={false}
+      navigateOnSend={sendModal === "send"}
       onClose={() => setSendModal(null)}
       onSent={(method) =>
         setFeedback({

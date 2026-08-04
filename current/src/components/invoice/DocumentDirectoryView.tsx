@@ -34,6 +34,7 @@ import {
 import {
   getActionsForStatus,
   getInvoiceBulkActions,
+  isManualMarkActionKey,
   type InvoiceStatus,
 } from "@/lib/invoice-actions";
 import {
@@ -49,6 +50,7 @@ import {
 } from "./DirectoryFilterTags";
 import { RowKebabMenu } from "./RowKebabMenu";
 import { SendReminderModal } from "./SendReminderModal";
+import { SendInvoiceModal } from "./SendInvoiceModal";
 import { TopNav } from "./TopNav";
 import { CreatePlusIcon } from "./ui";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
@@ -73,7 +75,6 @@ import {
   RowSelectCheckbox,
   SearchField,
   SortHeaderButton,
-  directoryTableMinWidthPx,
   useDirectoryColumns,
   useForceDirectoryCardView,
   type DirectoryColumnDef,
@@ -384,6 +385,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkReminderPreview, setBulkReminderPreview] =
     useState<CustomerInvoiceRow | null>(null);
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [bulkToast, setBulkToast] = useState<string | null>(null);
 
   const isInvoices = kind === "invoices";
@@ -400,21 +402,7 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
     { fluid: true },
   );
   const contentRef = useRef<HTMLElement>(null);
-  const activeColumnState = isInvoices ? invoiceColumnState : quoteColumnState;
-  const tableMinWidth = useMemo(
-    () =>
-      directoryTableMinWidthPx(
-        activeColumnState.visibleColumns.map(
-          (column) =>
-            activeColumnState.columnWidths[column.id] ?? column.defaultWidth,
-        ),
-      ),
-    [
-      activeColumnState.visibleColumns,
-      activeColumnState.columnWidths,
-    ],
-  );
-  const forceCardView = useForceDirectoryCardView(contentRef, tableMinWidth);
+  const forceCardView = useForceDirectoryCardView(contentRef);
   const effectiveViewMode: DirectoryViewMode = forceCardView
     ? "card"
     : viewMode;
@@ -649,6 +637,26 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
       if (preview) setBulkReminderPreview(preview);
       return;
     }
+    if ((key === "send" || key === "resend" || key === "send_test") && isInvoices) {
+      setBulkSendOpen(true);
+      return;
+    }
+    if (isManualMarkActionKey(key) && isInvoices) {
+      const labels: Record<string, string> = {
+        mark_sent: "sent",
+        mark_viewed: "viewed",
+        mark_followed_up: "followed up",
+        mark_paid: "paid",
+      };
+      const noun = selectedIds.size === 1 ? "invoice" : "invoices";
+      setBulkToast(
+        key === "mark_followed_up"
+          ? `Follow-up recorded for ${selectedIds.size} ${noun}.`
+          : `${selectedIds.size} ${noun} marked as ${labels[key] ?? "updated"}.`,
+      );
+      setSelectedIds(new Set());
+      return;
+    }
     setBulkToast("Action completed (demo).");
   }
 
@@ -712,9 +720,11 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
               />
               {forceCardView ? null : (
                 <>
-                  <DirectoryColumnsSettingsButton
-                    onClick={() => setColumnsOpen(true)}
-                  />
+                  {effectiveViewMode === "list" ? (
+                    <DirectoryColumnsSettingsButton
+                      onClick={() => setColumnsOpen(true)}
+                    />
+                  ) : null}
                   <DirectoryViewToggle value={viewMode} onChange={setViewMode} />
                 </>
               )}
@@ -865,6 +875,27 @@ export function DocumentDirectoryView({ kind }: { kind: DirectoryKind }) {
         />
       ) : null}
 
+      {bulkSendOpen ? (
+        <SendInvoiceModal
+          mode="send"
+          navigateOnSend={false}
+          onClose={() => setBulkSendOpen(false)}
+          onSent={(method) => {
+            const count = selectedIds.size;
+            const noun = count === 1 ? "invoice" : "invoices";
+            setBulkToast(
+              method === "email"
+                ? `${count} ${noun} emailed.`
+                : method === "text"
+                  ? `${count} ${noun} texted.`
+                  : `Link copied for ${count} ${noun}.`,
+            );
+            setBulkSendOpen(false);
+            setSelectedIds(new Set());
+          }}
+        />
+      ) : null}
+
       {bulkToast ? (
         <div
           className="fixed bottom-8 left-1/2 z-[70] max-w-md -translate-x-1/2 rounded-lg bg-midnight-ink px-4 py-3 text-sm font-medium text-white shadow-lg"
@@ -925,96 +956,125 @@ function InvoiceCardGrid({
   selectedIds: Set<string>;
   onToggleRow: (id: string) => void;
 }) {
+  const {
+    handleAction,
+    feedbackBanner,
+    uncollectibleModal,
+    confirmModal,
+    downloadModal,
+    receiptModal,
+    reminderModal,
+    sendModal,
+  } = useInvoiceActionHandler("sent");
+
   if (rows.length === 0) {
     return null;
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((invoice) => {
-        const selected = selectedIds.has(invoice.id);
-        return (
-          <li key={invoice.id}>
-            <div
-              className={
-                selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
-              }
-            >
-              <div className="flex items-start gap-3">
-                <RowSelectCheckbox
-                  checked={selected}
-                  onChange={() => onToggleRow(invoice.id)}
-                  label={`Select invoice ${invoice.number}`}
-                />
-                <Link
-                  href={hrefForCustomerInvoice(invoice.status)}
-                  className="min-w-0 flex-1"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="type-subtitle-2 text-midnight-ink">
-                        <HighlightText
-                          text={`#${invoice.number}`}
-                          query={query}
-                        />
-                      </p>
-                      <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
-                        <HighlightText
-                          text={customerName(invoice.customerId)}
-                          query={query}
-                        />
-                      </p>
+    <>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((invoice) => {
+          const selected = selectedIds.has(invoice.id);
+          const actionStatus = mapDirectoryInvoiceStatus(invoice.status);
+          const actions = getActionsForStatus(actionStatus);
+          return (
+            <li key={invoice.id}>
+              <div
+                className={
+                  selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
+                }
+              >
+                <div className="flex items-start gap-3">
+                  <RowSelectCheckbox
+                    checked={selected}
+                    onChange={() => onToggleRow(invoice.id)}
+                    label={`Select invoice ${invoice.number}`}
+                  />
+                  <Link
+                    href={hrefForCustomerInvoice(invoice.status)}
+                    className="min-w-0 flex-1"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="type-subtitle-2 text-midnight-ink">
+                          <HighlightText
+                            text={`#${invoice.number}`}
+                            query={query}
+                          />
+                        </p>
+                        <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
+                          <HighlightText
+                            text={customerName(invoice.customerId)}
+                            query={query}
+                          />
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                        {/^overdue/i.test(invoice.status) ? (
+                          <span className="inline-flex w-fit items-center rounded bg-[#F3F3F3] px-2 py-0.5 type-subtitle-2 text-[#666666]">
+                            {overdueDaysLateLabel(invoice.dueDate)}
+                          </span>
+                        ) : null}
+                        <StatusBadge status={invoice.status} query={query} />
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                      {/^overdue/i.test(invoice.status) ? (
-                        <span className="inline-flex w-fit items-center rounded bg-[#F3F3F3] px-2 py-0.5 type-subtitle-2 text-[#666666]">
-                          {overdueDaysLateLabel(invoice.dueDate)}
-                        </span>
-                      ) : null}
-                      <StatusBadge status={invoice.status} query={query} />
-                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <dt className="type-caption">Issued</dt>
+                        <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                          <DateCell value={invoice.dateIssued} query={query} />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="type-caption">Due</dt>
+                        <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                          <DateCell value={invoice.dueDate} query={query} />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="type-caption">Total</dt>
+                        <dd className="mt-0.5">
+                          <MoneyCell
+                            amount={invoice.amount}
+                            variant="total"
+                            align="left"
+                          />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="type-caption">Outstanding</dt>
+                        <dd className="mt-0.5">
+                          <MoneyCell
+                            amount={invoice.balanceOutstanding}
+                            variant="outstanding"
+                            align="left"
+                          />
+                        </dd>
+                      </div>
+                    </dl>
+                  </Link>
+                  <div className="-mr-1 -mt-1 shrink-0">
+                    <RowKebabMenu
+                      label={`Actions for invoice ${invoice.number}`}
+                      actions={actions}
+                      onAction={(key) => handleAction(key, actionStatus)}
+                    />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
-                    <div>
-                      <dt className="type-caption">Issued</dt>
-                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
-                        <DateCell value={invoice.dateIssued} query={query} />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="type-caption">Due</dt>
-                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
-                        <DateCell value={invoice.dueDate} query={query} />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="type-caption">Total</dt>
-                      <dd className="mt-0.5">
-                        <MoneyCell
-                          amount={invoice.amount}
-                          variant="total"
-                          align="left"
-                        />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="type-caption">Outstanding</dt>
-                      <dd className="mt-0.5">
-                        <MoneyCell
-                          amount={invoice.balanceOutstanding}
-                          variant="outstanding"
-                          align="left"
-                        />
-                      </dd>
-                    </div>
-                  </dl>
-                </Link>
+                </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+      {feedbackBanner}
+      {uncollectibleModal}
+      {confirmModal}
+      {downloadModal}
+      {receiptModal}
+      {reminderModal}
+      {sendModal}
+    </>
   );
 }
 
@@ -1029,79 +1089,104 @@ function QuoteCardGrid({
   selectedIds: Set<string>;
   onToggleRow: (id: string) => void;
 }) {
+  const {
+    handleAction,
+    feedbackBanner,
+    confirmModal,
+    downloadModal,
+    reminderModal,
+    sendModal,
+  } = useQuoteActionHandler("sent");
+
   if (rows.length === 0) {
     return null;
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((quote) => {
-        const selected = selectedIds.has(quote.id);
-        return (
-          <li key={quote.id}>
-            <div
-              className={
-                selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
-              }
-            >
-              <div className="flex items-start gap-3">
-                <RowSelectCheckbox
-                  checked={selected}
-                  onChange={() => onToggleRow(quote.id)}
-                  label={`Select quote ${quote.number}`}
-                />
-                <Link
-                  href={hrefForCustomerQuote(quote.status)}
-                  className="min-w-0 flex-1"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="type-subtitle-2 text-midnight-ink">
-                        <HighlightText
-                          text={`#${quote.number}`}
-                          query={query}
-                        />
-                      </p>
-                      <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
-                        <HighlightText
-                          text={customerName(quote.customerId)}
-                          query={query}
-                        />
-                      </p>
+    <>
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((quote) => {
+          const selected = selectedIds.has(quote.id);
+          const actionStatus = mapDirectoryQuoteStatus(quote.status);
+          const actions = getQuoteActionsForStatus(actionStatus);
+          return (
+            <li key={quote.id}>
+              <div
+                className={
+                  selected ? DIRECTORY_CARD_SELECTED_CLASS : DIRECTORY_CARD_CLASS
+                }
+              >
+                <div className="flex items-start gap-3">
+                  <RowSelectCheckbox
+                    checked={selected}
+                    onChange={() => onToggleRow(quote.id)}
+                    label={`Select quote ${quote.number}`}
+                  />
+                  <Link
+                    href={hrefForCustomerQuote(quote.status)}
+                    className="min-w-0 flex-1"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="type-subtitle-2 text-midnight-ink">
+                          <HighlightText
+                            text={`#${quote.number}`}
+                            query={query}
+                          />
+                        </p>
+                        <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
+                          <HighlightText
+                            text={customerName(quote.customerId)}
+                            query={query}
+                          />
+                        </p>
+                      </div>
+                      <StatusBadge status={quote.status} query={query} />
                     </div>
-                    <StatusBadge status={quote.status} query={query} />
+                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <dt className="type-caption">Created</dt>
+                        <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                          <DateCell value={quote.dateCreated} query={query} />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="type-caption">Expiry</dt>
+                        <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                          <DateCell value={quote.expiryDate} query={query} />
+                        </dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="type-caption">Total</dt>
+                        <dd className="mt-0.5">
+                          <MoneyCell
+                            amount={quote.amount}
+                            variant="total"
+                            align="left"
+                          />
+                        </dd>
+                      </div>
+                    </dl>
+                  </Link>
+                  <div className="-mr-1 -mt-1 shrink-0">
+                    <RowKebabMenu
+                      label={`Actions for quote ${quote.number}`}
+                      actions={actions}
+                      onAction={(key) => handleAction(key, actionStatus)}
+                    />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
-                    <div>
-                      <dt className="type-caption">Created</dt>
-                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
-                        <DateCell value={quote.dateCreated} query={query} />
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="type-caption">Expiry</dt>
-                      <dd className="mt-0.5 type-paragraph-2 text-black/75">
-                        <DateCell value={quote.expiryDate} query={query} />
-                      </dd>
-                    </div>
-                    <div className="col-span-2">
-                      <dt className="type-caption">Total</dt>
-                      <dd className="mt-0.5">
-                        <MoneyCell
-                          amount={quote.amount}
-                          variant="total"
-                          align="left"
-                        />
-                      </dd>
-                    </div>
-                  </dl>
-                </Link>
+                </div>
               </div>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+      {feedbackBanner}
+      {confirmModal}
+      {downloadModal}
+      {reminderModal}
+      {sendModal}
+    </>
   );
 }
 

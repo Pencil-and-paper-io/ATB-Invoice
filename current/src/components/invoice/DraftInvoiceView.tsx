@@ -238,6 +238,7 @@ export function DraftInvoiceView() {
     uncollectibleModal,
     confirmModal,
     downloadModal,
+    sendModal,
   } = useInvoiceActionHandler("drafted");
   const moreActions = getActionsForStatus(
     "drafted",
@@ -682,6 +683,7 @@ export function DraftInvoiceView() {
       {uncollectibleModal}
       {confirmModal}
       {downloadModal}
+      {sendModal}
     </div>
   );
 }

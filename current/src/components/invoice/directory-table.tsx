@@ -11,6 +11,13 @@ import {
   type RefObject,
 } from "react";
 import { formatMoney } from "@/lib/invoice-demo-data";
+import {
+  isDownloadMenuActionKey,
+  isManualMarkActionKey,
+  isMarkMenuActionKey,
+  isSendActionKey,
+  isSendMenuActionKey,
+} from "@/lib/invoice-actions";
 
 export type DirectoryColumnDef<Id extends string> = {
   id: Id;
@@ -255,32 +262,23 @@ export function directoryTableMinWidthPx(columnWidthsPx: number[]) {
 }
 
 /**
- * Force card view when the directory content area is less than
- * tableMinWidth + 40px wide.
+ * Force card view below the Tailwind `lg` breakpoint (1024px).
+ * Wide tables scroll horizontally on desktop instead of locking list view off
+ * when column widths exceed the content max-width.
  */
 export function useForceDirectoryCardView(
-  containerRef: RefObject<HTMLElement | null>,
-  tableMinWidthPx: number,
+  _containerRef?: RefObject<HTMLElement | null>,
+  _tableMinWidthPx?: number,
 ) {
   const [forceCard, setForceCard] = useState(false);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-
-    function update(width: number) {
-      setForceCard(width < tableMinWidthPx + DIRECTORY_LIST_FIT_BUFFER_PX);
-    }
-
-    update(el.clientWidth);
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      update(entry.contentRect.width);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [containerRef, tableMinWidthPx]);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setForceCard(!mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   return forceCard;
 }
@@ -439,10 +437,30 @@ export function DirectoryBulkActionBar({
   onAction,
 }: {
   count: number;
-  actions: { key: string; label: string; danger?: boolean }[];
+  actions: {
+    key: string;
+    label: string;
+    danger?: boolean;
+    sectionTitleBefore?: string;
+    submenu?: { key: string; label: string }[];
+  }[];
   onClear: () => void;
   onAction: (key: string) => void;
 }) {
+  const flatActions = actions.filter(
+    (action) =>
+      !isManualMarkActionKey(action.key) &&
+      !isSendActionKey(action.key) &&
+      !isDownloadMenuActionKey(action.key) &&
+      !isMarkMenuActionKey(action.key) &&
+      !isSendMenuActionKey(action.key),
+  );
+  const sendAction = actions.find((action) => isSendMenuActionKey(action.key));
+  const downloadAction = actions.find((action) =>
+    isDownloadMenuActionKey(action.key),
+  );
+  const markAction = actions.find((action) => isMarkMenuActionKey(action.key));
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-6">
       <div className="pointer-events-auto flex max-w-[1180px] flex-wrap items-center gap-3 rounded-[12px] bg-midnight-ink px-5 py-3.5 shadow-[0_12px_40px_rgb(0_0_0_/0.35)]">
@@ -452,18 +470,48 @@ export function DirectoryBulkActionBar({
           aria-hidden
         />
         <div className="flex flex-wrap items-center gap-2">
-          {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              onClick={() => onAction(action.key)}
-              className={`inline-flex h-10 items-center justify-center rounded px-4 text-sm font-semibold text-white transition hover:opacity-90 ${
-                action.danger ? "bg-delete-red" : "bg-prime-blue"
-              }`}
-            >
-              {action.label}
-            </button>
-          ))}
+          {sendAction?.submenu?.length ? (
+            <BulkSubmenuButton
+              label={sendAction.label}
+              actions={sendAction.submenu}
+              onAction={onAction}
+            />
+          ) : null}
+          {markAction?.submenu?.length ? (
+            <BulkSubmenuButton
+              label={markAction.label}
+              actions={markAction.submenu}
+              onAction={onAction}
+            />
+          ) : null}
+          {downloadAction?.submenu?.length ? (
+            <BulkSubmenuButton
+              label={downloadAction.label}
+              actions={downloadAction.submenu}
+              onAction={onAction}
+            />
+          ) : null}
+          {flatActions.map((action) =>
+            action.submenu?.length ? (
+              <BulkSubmenuButton
+                key={action.key}
+                label={action.label}
+                actions={action.submenu}
+                onAction={onAction}
+              />
+            ) : (
+              <button
+                key={action.key}
+                type="button"
+                onClick={() => onAction(action.key)}
+                className={`inline-flex h-10 items-center justify-center rounded px-4 text-sm font-semibold text-white transition hover:opacity-90 ${
+                  action.danger ? "bg-delete-red" : "bg-prime-blue"
+                }`}
+              >
+                {action.label}
+              </button>
+            ),
+          )}
         </div>
         <button
           type="button"
@@ -473,6 +521,82 @@ export function DirectoryBulkActionBar({
           Clear
         </button>
       </div>
+    </div>
+  );
+}
+
+function BulkSubmenuButton({
+  label,
+  actions,
+  onAction,
+}: {
+  label: string;
+  actions: { key: string; label: string }[];
+  onAction: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex h-10 items-stretch overflow-hidden rounded bg-prime-blue text-sm font-semibold text-white transition hover:opacity-90"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span className="flex items-center px-4">{label}</span>
+        <span className="flex w-10 items-center justify-center bg-black/20">
+          <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
+            <path
+              d={open ? "M1 5l4.5-4L10 5" : "M1 1l4.5 4L10 1"}
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute bottom-full left-0 z-50 mb-2 min-w-[200px] overflow-hidden rounded-lg border border-black/10 bg-white py-1 shadow-lg"
+        >
+          {actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onAction(action.key);
+                setOpen(false);
+              }}
+              className="flex w-full px-4 py-2.5 text-left text-sm font-medium text-midnight-ink transition hover:bg-black/[0.04]"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

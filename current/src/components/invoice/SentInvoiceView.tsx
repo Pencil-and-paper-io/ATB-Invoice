@@ -107,8 +107,6 @@ export function SentInvoiceView({
     "Add a private note",
   );
   const moreActions = getActionsForStatus(status, [
-    "view_history",
-    "copy_link",
     "download",
     "export_csv",
   ]);
