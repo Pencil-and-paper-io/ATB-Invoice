@@ -518,7 +518,11 @@ export function DraftQuoteView() {
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:px-8">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5">
           <TemplatePicker />
-          <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+          <MoreActionsMenu
+            actions={moreActions}
+            onAction={handleAction}
+            placement="top"
+          />
           <Link href="/quote/preview" className="ui-btn-primary">
             Save and Preview
           </Link>

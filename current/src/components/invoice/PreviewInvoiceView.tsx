@@ -125,11 +125,15 @@ export function PreviewInvoiceView() {
     [selfNoteSummary],
   );
 
-  function renderActions() {
+  function renderActions(menuPlacement: "top" | "bottom" = "bottom") {
     return (
       <>
         <ActionButton href="/">Edit</ActionButton>
-        <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+        <MoreActionsMenu
+          actions={moreActions}
+          onAction={handleAction}
+          placement={menuPlacement}
+        />
         <ActionButton variant="primary" onClick={() => setShowSendModal(true)}>
           Send
         </ActionButton>
@@ -185,19 +189,11 @@ export function PreviewInvoiceView() {
           ) : null}
 
           <div className="flex flex-col gap-5">
-            <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-4 py-4">
-              <p className="type-headline-6 text-midnight-ink lg:hidden">
+            <div className="rounded-lg border border-sunshine-yellow/60 bg-sunshine-yellow/35 px-4 py-4 sm:px-5">
+              <p className="text-base font-semibold leading-snug text-midnight-ink sm:text-lg">
                 Below is what your customer will see:
               </p>
-              <p className="hidden type-headline-5 text-midnight-ink lg:block">
-                Below is what your customer will see:
-              </p>
-              <p className="mt-2 type-paragraph-2 text-midnight-ink lg:hidden">
-                Once you send this invoice, you will not be able to edit it
-                further. Your customer will be able to view your invoice details
-                and pay online using the payment options shown below.
-              </p>
-              <p className="mt-2 hidden type-paragraph-1 text-midnight-ink lg:block">
+              <p className="mt-2 text-sm leading-relaxed text-midnight-ink sm:text-base">
                 Once you send this invoice, you will not be able to edit it
                 further. Your customer will be able to view your invoice details
                 and pay online using the payment options shown below.
@@ -211,7 +207,7 @@ export function PreviewInvoiceView() {
       {!panelOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:px-8 lg:hidden">
           <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5">
-            {renderActions()}
+            {renderActions("top")}
           </div>
         </div>
       ) : null}

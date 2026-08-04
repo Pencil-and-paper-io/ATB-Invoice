@@ -82,7 +82,7 @@ function PartyBlock({
         </div>
         <div className="flex items-center gap-2.5 text-sm text-black">
           <MailIcon />
-          <span>{email}</span>
+          <span className="min-w-0 break-words">{email}</span>
         </div>
       </div>
     </div>
@@ -105,29 +105,33 @@ function InvoiceLineItem({
   badges: { label: string }[];
 }) {
   return (
-    <div className="flex flex-col gap-5 rounded-[10px] border border-black/10 px-[30px] py-5">
-      <div className="flex flex-col gap-5 lg:flex-row lg:gap-[30px]">
+    <div className="flex flex-col gap-4 rounded-[10px] border border-black/10 px-4 py-4 sm:gap-5 sm:px-[30px] sm:py-5">
+      <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:gap-[30px]">
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-black">{name}</p>
           <p className="mt-2.5 text-sm text-black">{description}</p>
         </div>
-        <div className="grid grid-cols-3 gap-[30px] text-right">
-          <div className="w-[65px]">
+        <div className="grid grid-cols-3 gap-3 text-right sm:gap-[30px]">
+          <div className="min-w-0 sm:w-[65px]">
             <p className="text-sm text-black/40">Unit Price</p>
-            <p className="mt-2.5 text-sm text-black">{formatMoney(unitPrice)}</p>
+            <p className="mt-2.5 break-words text-sm text-black">
+              {formatMoney(unitPrice)}
+            </p>
           </div>
-          <div className="w-[65px]">
+          <div className="min-w-0 sm:w-[65px]">
             <p className="text-sm text-black/40">Qty</p>
             <p className="mt-2.5 text-sm text-black">{qty}</p>
           </div>
-          <div className="w-[65px]">
+          <div className="min-w-0 sm:w-[65px]">
             <p className="text-sm text-black/40">Total</p>
-            <p className="mt-2.5 text-sm text-black">{formatMoney(total)}</p>
+            <p className="mt-2.5 break-words text-sm text-black">
+              {formatMoney(total)}
+            </p>
           </div>
         </div>
       </div>
       {badges.length ? (
-        <div className="flex flex-wrap gap-5">
+        <div className="flex flex-wrap gap-2 sm:gap-5">
           {badges.map((badge) => (
             <span
               key={badge.label}
@@ -144,9 +148,9 @@ function InvoiceLineItem({
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex h-10 items-center justify-end gap-5 px-[30px]">
+    <div className="flex h-10 items-center justify-end gap-3 px-4 sm:gap-5 sm:px-[30px]">
       <span className="text-base text-black">{label}</span>
-      <span className="w-40 text-right text-base font-semibold text-black">
+      <span className="w-28 shrink-0 text-right text-base font-semibold text-black sm:w-40">
         {value}
       </span>
     </div>
@@ -281,20 +285,20 @@ export function CustomerInvoiceCard({
 
   return (
     <div
-      className={`relative flex flex-col gap-5 overflow-hidden border-y-8 border-brand-orange bg-white px-6 py-[50px] sm:px-10 ${shadowClass}`}
+      className={`relative flex flex-col gap-5 overflow-hidden border-y-8 border-brand-orange bg-white px-3 py-8 sm:px-6 sm:py-[50px] lg:px-10 ${shadowClass}`}
     >
       {showDraftWatermark ? (
         <div
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
           aria-hidden
         >
-          <span className="select-none -rotate-[35deg] border-[6px] border-black/20 px-8 py-2 font-display text-[72px] font-bold leading-none tracking-[0.2em] text-black/20 sm:text-[96px]">
+          <span className="select-none -rotate-[35deg] border-[6px] border-black/20 px-8 py-2 font-display text-[56px] font-bold leading-none tracking-[0.2em] text-black/20 sm:text-[72px] md:text-[96px]">
             DRAFT
           </span>
         </div>
       ) : null}
-      <div className="flex flex-col items-start gap-5 px-4 sm:flex-row sm:items-center sm:gap-5 sm:px-[30px]">
-        <div className="flex w-[295px] max-w-full flex-col gap-2.5">
+      <div className="flex flex-col items-start gap-5 px-3 sm:flex-row sm:items-center sm:gap-5 sm:px-[30px]">
+        <div className="flex w-full max-w-[295px] flex-col gap-2.5">
           <Image
             src="/brand/company-style.png"
             alt="Company logo"
@@ -302,12 +306,12 @@ export function CustomerInvoiceCard({
             height={100}
             className="h-[100px] w-[160px] rounded object-cover"
           />
-          <p className="type-doc-id">
+          <p className="type-doc-id text-[24px] leading-tight sm:text-[30px] sm:leading-[1.15]">
             {documentNumber}
           </p>
         </div>
-        <div className="flex w-full flex-col gap-2.5 rounded-md border-2 border-brand-orange/50 p-10 sm:w-[312px]">
-          <p className="type-amount">
+        <div className="flex w-full flex-col gap-2.5 rounded-md border-2 border-brand-orange/50 p-5 sm:w-[312px] sm:p-10">
+          <p className="type-amount text-[20px] sm:text-[24px]">
             {formatMoney(previewMeta.amount)}
           </p>
           <div>
@@ -351,7 +355,7 @@ export function CustomerInvoiceCard({
         </div>
       </div>
 
-      <div className="flex flex-col gap-5 px-4 py-5 sm:flex-row sm:px-[30px]">
+      <div className="flex flex-col gap-5 px-3 py-5 sm:flex-row sm:px-[30px]">
         <PartyBlock
           label="From"
           {...draftInvoice.business}
@@ -382,18 +386,18 @@ export function CustomerInvoiceCard({
 
       <DashedDivider />
 
-      <div className="flex items-center justify-end gap-2.5 px-4 sm:px-[30px]">
-        <div className="text-right">
+      <div className="flex min-w-0 items-center justify-end gap-2.5 px-3 sm:px-[30px]">
+        <div className="min-w-0 text-right">
           <p className="text-base font-bold text-black">Total</p>
           <p className="text-sm text-black/40">(Tax exclusive)</p>
         </div>
-        <p className="w-[180px] text-right type-amount">
+        <p className="w-[140px] shrink-0 text-right type-amount text-[20px] sm:w-[180px] sm:text-[24px]">
           {formatMoney(previewMeta.amount)}
         </p>
       </div>
 
       {draftInvoice.customerNotes.map((note) => (
-        <div key={note.id} className="flex flex-col gap-5 px-4 sm:px-[30px]">
+        <div key={note.id} className="flex flex-col gap-5 px-3 sm:px-[30px]">
           <div>
             <p className="text-base font-bold text-black">{note.title}</p>
             <p className="mt-2.5 text-sm leading-5 text-black">{note.body}</p>
@@ -402,7 +406,7 @@ export function CustomerInvoiceCard({
       ))}
 
       {showPayment ? (
-        <div className="flex flex-col gap-5 px-4 sm:px-[30px]">
+        <div className="flex flex-col gap-5 px-3 sm:px-[30px]">
           <p className="text-base font-bold text-black">Payment Options</p>
           <div className="flex flex-col gap-4">
             {paymentOptions.map((option) => {

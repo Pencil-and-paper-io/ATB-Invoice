@@ -29,10 +29,13 @@ export function MoreActionsMenu({
   actions,
   onAction,
   align = "right",
+  placement = "bottom",
 }: {
   actions: MenuAction[];
   onAction?: (key: string) => void;
   align?: "left" | "right";
+  /** Where the menu opens relative to the button. Use "top" for fixed bottom bars. */
+  placement?: "top" | "bottom";
 }) {
   const [open, setOpen] = useState(false);
   const [openSubmenuKey, setOpenSubmenuKey] = useState<string | null>(null);
@@ -173,7 +176,14 @@ export function MoreActionsMenu({
       >
         <span className="flex items-center px-5">More Actions</span>
         <span className="flex w-11 items-center justify-center bg-black/5">
-          <svg width="11" height="6" viewBox="0 0 11 6" fill="none" aria-hidden>
+          <svg
+            width="11"
+            height="6"
+            viewBox="0 0 11 6"
+            fill="none"
+            aria-hidden
+            className={placement === "top" ? "rotate-180" : undefined}
+          >
             <path d="M1 1l4.5 4L10 1" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         </span>
@@ -183,9 +193,9 @@ export function MoreActionsMenu({
         <div
           id={menuId}
           role="menu"
-          className={`absolute top-full z-50 mt-1 min-w-[220px] overflow-visible rounded-lg border border-black/10 bg-white py-1 shadow-lg ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          className={`absolute z-50 min-w-[220px] overflow-visible rounded-lg border border-black/10 bg-white py-1 shadow-lg ${
+            placement === "top" ? "bottom-full mb-1" : "top-full mt-1"
+          } ${align === "right" ? "right-0" : "left-0"}`}
         >
           {actions.map((action, index) => (
             <div key={action.key}>

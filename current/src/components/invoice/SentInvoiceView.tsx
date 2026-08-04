@@ -179,10 +179,14 @@ export function SentInvoiceView({
     ],
   );
 
-  function renderActions() {
+  function renderActions(menuPlacement: "top" | "bottom" = "bottom") {
     return (
       <>
-        <MoreActionsMenu actions={moreActions} onAction={handleAction} />
+        <MoreActionsMenu
+          actions={moreActions}
+          onAction={handleAction}
+          placement={menuPlacement}
+        />
         <DownloadMenuButton
           onDownloadPdf={() => handleAction("download")}
           onDownloadCsv={() => handleAction("export_csv")}
@@ -290,7 +294,7 @@ export function SentInvoiceView({
       {!panelOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:px-8 lg:hidden">
           <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-end gap-2.5">
-            {renderActions()}
+            {renderActions("top")}
           </div>
         </div>
       ) : null}
