@@ -11,7 +11,13 @@ export type FullscreenDetailCard = {
   summaryLayout?: "line" | "block";
   /** When false, hide Save and label the dismiss action Close. */
   canSave?: boolean;
+  /** When true, Save stays visible but disabled (e.g. validation). */
+  saveDisabled?: boolean;
   saveLabel?: string;
+  /** Called when the card sheet opens (e.g. copy saved → draft). */
+  onOpen?: () => void;
+  /** Called when Back / Cancel closes without saving. */
+  onCancel?: () => void;
   onBeforeSave?: () => void;
 };
 
@@ -74,6 +80,7 @@ export function FullscreenDetailCards({
 
   const active = cards.find((card) => card.id === activeId) ?? null;
   const showSave = active != null && active.canSave !== false;
+  const saveDisabled = Boolean(active?.saveDisabled);
 
   useEffect(() => {
     onActiveChange?.(activeId != null);
@@ -96,12 +103,18 @@ export function FullscreenDetailCards({
     };
   }, [activeId]);
 
+  function openCard(card: FullscreenDetailCard) {
+    card.onOpen?.();
+    setActiveId(card.id);
+  }
+
   function goBack() {
+    active?.onCancel?.();
     setActiveId(null);
   }
 
   function saveCard() {
-    if (!active) return;
+    if (!active || saveDisabled) return;
     active.onBeforeSave?.();
     setActiveId(null);
   }
@@ -117,7 +130,7 @@ export function FullscreenDetailCards({
           <button
             key={card.id}
             type="button"
-            onClick={() => setActiveId(card.id)}
+            onClick={() => openCard(card)}
             className="flex w-full items-start gap-3 rounded-[10px] border border-black/10 bg-white px-5 py-4 text-left transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue sm:px-[30px] sm:py-5"
           >
             <span className="min-w-0 flex-1">
@@ -185,6 +198,7 @@ export function FullscreenDetailCards({
                 <button
                   type="button"
                   onClick={saveCard}
+                  disabled={saveDisabled}
                   className={`${UI_CLASS.btnPrimary} h-11 px-5`}
                 >
                   {active.saveLabel ?? "Save"}

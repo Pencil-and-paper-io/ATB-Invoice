@@ -58,6 +58,11 @@ import {
 import { TopNav } from "./TopNav";
 import { TaxSuggestionsEditor } from "./TaxSuggestionsEditor";
 import { useDismissOnOutsideClick } from "./useDismissOnOutsideClick";
+import { useIsDesktopLg } from "./useIsDesktopLg";
+import {
+  FullscreenDetailCards,
+  type FullscreenDetailCard,
+} from "./FullscreenDetailCards";
 import { CreatePlusIcon, EditCloseButton, InfoTooltip, MissingInfoFlag, Modal, PencilIcon, TertiaryButton } from "./ui";
 
 const TAX_OPTIONS = ["Taxable", "Tax-exempt"] as const;
@@ -761,6 +766,7 @@ function CustomerFormInner() {
   >(null);
   const [archived, setArchived] = useState(false);
   const [tagOptions, setTagOptions] = useState<string[]>([]);
+  const isDesktop = useIsDesktopLg();
   const createMenuRef = useRef<HTMLDivElement>(null);
   useDismissOnOutsideClick(
     createMenuRef,
@@ -810,8 +816,8 @@ function CustomerFormInner() {
     setEditing(null);
   }
 
-  function saveSection() {
-    const section = editing;
+  function saveSection(forSection?: SectionKey | null) {
+    const section = forSection !== undefined ? forSection : editing;
     const emailChanged =
       section === "business" &&
       draft.email.trim() !== saved.email.trim();
@@ -953,32 +959,422 @@ function CustomerFormInner() {
   const orgPaymentsMissing =
     forceEmpty || availablePaymentOptions.length === 0;
 
+  const businessEditorFields = (
+    <>
+      <div>
+        <FieldLabel htmlFor="business-name" tip={LEGAL_NAME_TIP}>
+          {FIELD.businessLegalName} <span className="type-danger">*</span>
+        </FieldLabel>
+        <input
+          id="business-name"
+          className={inputClass}
+          value={draft.businessName}
+          onChange={(event) =>
+            patchDraft({ businessName: event.target.value })
+          }
+        />
+      </div>
+      <div>
+        <FieldLabel htmlFor="email">{FIELD.businessEmail}</FieldLabel>
+        <input
+          id="email"
+          type="email"
+          className={inputClass}
+          value={draft.email}
+          onChange={(event) => patchDraft({ email: event.target.value })}
+        />
+        {draft.email.trim() && !isValidEmail(draft.email) ? (
+          <p className="type-danger mt-1.5">Enter a valid email address.</p>
+        ) : null}
+      </div>
+      <div>
+        <FieldLabel htmlFor="phone">{FIELD.phoneNumber}</FieldLabel>
+        <input
+          id="phone"
+          type="tel"
+          className={inputClass}
+          value={draft.phone}
+          onChange={(event) => patchDraft({ phone: event.target.value })}
+        />
+      </div>
+    </>
+  );
+
+  const addressEditorFields = (
+    <>
+      <p className="type-body-muted -mt-2">
+        Billing locality is used for CRA alignment and tax calculations.
+        Province / Territory is required.
+      </p>
+      <AddressFields
+        idPrefix="billing"
+        requireProvince
+        values={{
+          addressLine1: draft.addressLine1,
+          addressLine2: draft.addressLine2,
+          city: draft.city,
+          province: draft.province,
+          postalCode: draft.postalCode,
+        }}
+        onChange={(patch) => patchDraft(patch)}
+      />
+      {!draft.province.trim() ? (
+        <p className="type-body-muted -mt-2">
+          Add a province or territory later to enable Canadian tax suggestions.
+        </p>
+      ) : null}
+      <div>
+        <CheckboxRow
+          checked={draft.hasShippingAddress}
+          onChange={setShippingEnabled}
+          label={FIELD.addShipping}
+        />
+      </div>
+      {draft.hasShippingAddress ? (
+        <div className={`flex flex-col gap-4 ${sectionDividerClass}`}>
+          <h4 className="type-subtitle-1">{FIELD.shippingAddress}</h4>
+          <AddressFields
+            idPrefix="shipping"
+            values={{
+              addressLine1: draft.shippingAddressLine1,
+              addressLine2: draft.shippingAddressLine2,
+              city: draft.shippingCity,
+              province: draft.shippingProvince,
+              postalCode: draft.shippingPostalCode,
+            }}
+            onChange={(patch) =>
+              patchDraft({
+                shippingAddressLine1:
+                  patch.addressLine1 ?? draft.shippingAddressLine1,
+                shippingAddressLine2:
+                  patch.addressLine2 ?? draft.shippingAddressLine2,
+                shippingCity: patch.city ?? draft.shippingCity,
+                shippingProvince: patch.province ?? draft.shippingProvince,
+                shippingPostalCode:
+                  patch.postalCode ?? draft.shippingPostalCode,
+              })
+            }
+          />
+        </div>
+      ) : null}
+    </>
+  );
+
+  const contactEditorFields = (
+    <>
+      <div>
+        <FieldLabel htmlFor="contact-name">{FIELD.contactName}</FieldLabel>
+        <input
+          id="contact-name"
+          className={inputClass}
+          value={draft.contactName}
+          onChange={(event) =>
+            patchDraft({ contactName: event.target.value })
+          }
+        />
+      </div>
+      <div>
+        <FieldLabel htmlFor="contact-email">{FIELD.contactEmail}</FieldLabel>
+        <input
+          id="contact-email"
+          type="email"
+          className={inputClass}
+          value={draft.contactEmail}
+          onChange={(event) =>
+            patchDraft({ contactEmail: event.target.value })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <CheckboxRow
+          checked={draft.useContactEmailForComms}
+          onChange={(checked) =>
+            patchDraft({ useContactEmailForComms: checked })
+          }
+          label={FIELD.sendCommsHere}
+        />
+        {draft.useContactEmailForComms && !isValidEmail(draft.contactEmail) ? (
+          <p className="type-danger pl-7">
+            Enter a valid contact email to use this option.
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+
+  const tagsEditorFields = (
+    <>
+      <p className="type-body-muted -mt-2">
+        Group accounts for filtering (for example, VIP or Contractor).
+      </p>
+      <div className="flex flex-col gap-2.5">
+        {tagOptions.map((tag) => (
+          <CheckboxRow
+            key={tag}
+            checked={draft.tags.includes(tag)}
+            onChange={() => toggleTag(tag)}
+            label={tag}
+          />
+        ))}
+      </div>
+    </>
+  );
+
+  const notesEditorFields = (
+    <>
+      <p className="type-body-muted">
+        Private notes for you and your team. Customers will not see these.
+      </p>
+      <div className="relative">
+        <textarea
+          className={`${inputClass} min-h-[140px] resize-y`}
+          maxLength={1000}
+          value={draft.internalNotes}
+          onChange={(event) =>
+            patchDraft({
+              internalNotes: event.target.value.slice(0, 1000),
+            })
+          }
+          aria-label={FIELD.internalNotes}
+        />
+        <p className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-black/40">
+          {draft.internalNotes.length}/1000
+        </p>
+      </div>
+    </>
+  );
+
+  const settingsEditorFields = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div>
+        <FieldLabel
+          htmlFor="quote-expiry"
+          tip="How long a quote stays open for this customer before it expires. Starts from your organization default."
+        >
+          {FIELD.quoteExpiry}
+        </FieldLabel>
+        <div className="relative">
+          <input
+            id="quote-expiry"
+            inputMode="numeric"
+            className={`${inputClass} pr-14`}
+            value={draft.quoteExpiryDays}
+            onChange={(event) =>
+              patchDraft({
+                quoteExpiryDays: event.target.value.replace(/[^\d]/g, ""),
+              })
+            }
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
+            days
+          </span>
+        </div>
+      </div>
+      <div>
+        <FieldLabel tip="How soon this customer is usually expected to pay after you send an invoice (for example, within 30 days).">
+          {FIELD.paymentTerms}
+        </FieldLabel>
+        <SelectField
+          ariaLabel={FIELD.paymentTerms}
+          value={draft.paymentTerms}
+          options={PAYMENT_TERMS_OPTIONS}
+          onChange={(value) => patchDraft({ paymentTerms: value })}
+        />
+      </div>
+    </div>
+  );
+
+  const taxEditorFields = (
+    <>
+      <FieldLabel>{FIELD.taxSetting}</FieldLabel>
+      <p className="type-body-muted mb-3">
+        This starts from your organization default. Change it if this customer
+        needs different rules.
+      </p>
+      <div
+        className="flex flex-col gap-3"
+        role="radiogroup"
+        aria-label={FIELD.taxSetting}
+      >
+        {TAX_SETTING_OPTIONS.map((option) => (
+          <div key={option.value}>
+            <label className="flex items-start gap-2.5 text-sm text-black">
+              <input
+                type="radio"
+                name="customer-tax-status"
+                className="mt-0.5 h-4 w-4 accent-prime-blue"
+                checked={draft.taxStatus === option.value}
+                onChange={() => {
+                  if (option.value === "Tax-exempt") {
+                    const nonTaxable = suggestNonTaxableForCustomer(
+                      draft.province,
+                    );
+                    patchDraft({
+                      taxStatus: option.value,
+                      taxSuggestions: nonTaxable.suggestions,
+                    });
+                    return;
+                  }
+
+                  const taxable = suggestTaxableForCustomer(draft.province);
+                  patchDraft({
+                    taxStatus: "Taxable",
+                    taxSuggestions: taxable.suggestions,
+                  });
+                }}
+              />
+              <span className="font-semibold">{option.label}</span>
+            </label>
+            <p className="mt-1.5 pl-6 text-sm leading-5 text-black/70">
+              {option.customerDetails}
+            </p>
+            {option.value === "Taxable" && draft.taxStatus === "Taxable" ? (
+              <div className="mt-1.5 pl-6">
+                {(() => {
+                  const taxable = suggestTaxableForCustomer(draft.province);
+                  return (
+                    <TaxSuggestionsEditor
+                      value={draft.taxSuggestions}
+                      options={CUSTOMER_TAXABLE_OPTIONS}
+                      recommendedLabel={taxable.label}
+                      recommendedNote={taxable.note}
+                      onChange={(taxSuggestions) =>
+                        patchDraft({ taxSuggestions })
+                      }
+                    />
+                  );
+                })()}
+              </div>
+            ) : null}
+            {option.value === "Tax-exempt" &&
+            draft.taxStatus === "Tax-exempt" ? (
+              <div className="mt-1.5 pl-6">
+                {(() => {
+                  const nonTaxable = suggestNonTaxableForCustomer(
+                    draft.province,
+                  );
+                  const showRecommended = Boolean(nonTaxable.note);
+                  return (
+                    <TaxSuggestionsEditor
+                      value={draft.taxSuggestions}
+                      options={CUSTOMER_NON_TAXABLE_OPTIONS}
+                      placeholder="Select a tax category..."
+                      ariaLabel="Tax Category"
+                      recommendedLabel={
+                        showRecommended ? nonTaxable.label : undefined
+                      }
+                      recommendedNote={
+                        showRecommended ? nonTaxable.note : undefined
+                      }
+                      onChange={(taxSuggestions) =>
+                        patchDraft({ taxSuggestions })
+                      }
+                    />
+                  );
+                })()}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  const paymentPreferencesEditorFields = (
+    <>
+      <p className="type-body-muted">
+        Pick how this customer can usually pay you. These choices start from
+        your business payment options.
+      </p>
+      <div className="flex flex-col gap-2.5">
+        {availablePaymentOptions.length === 0 ? (
+          <p className="type-body-muted">
+            No payment methods are set up for your business yet.
+          </p>
+        ) : (
+          availablePaymentOptions.map((option) => {
+            const method = CORE_PAYMENT_METHODS.find(
+              (entry) => entry.label === option,
+            );
+            return (
+              <CheckboxRow
+                key={option}
+                checked={draft.paymentPreferences.includes(option)}
+                onChange={() => togglePaymentPreference(option)}
+                label={option}
+              >
+                {method?.details.length ? (
+                  <ul className="list-disc space-y-1 pl-5 text-sm font-normal text-black">
+                    {method.details.map((detail) => (
+                      <li key={`${detail.label}-${detail.text}`}>
+                        <span className={detail.italic ? "italic" : undefined}>
+                          {detail.label}: {detail.text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </CheckboxRow>
+            );
+          })
+        )}
+      </div>
+      <div>
+        <TertiaryButton
+          onClick={() => router.push("/organization#payment-options")}
+        >
+          Add payment option
+        </TertiaryButton>
+      </div>
+    </>
+  );
+
+  const automationsEditorFields = (
+    <>
+      <p className="type-body-muted">
+        Overrides organization defaults for this customer&apos;s new quotes and
+        invoices. You can still change reminders on each document.
+      </p>
+      <div className="flex flex-col gap-3">
+        <CheckboxRow
+          checked={draft.autoSend}
+          onChange={(checked) => patchDraft({ autoSend: checked })}
+          label={`${FIELD.autoSend}: Send invoices automatically on their issuance date.`}
+        />
+        <CheckboxRow
+          checked={draft.reminders}
+          onChange={(checked) => patchDraft({ reminders: checked })}
+          label={`${FIELD.reminders}: Send a reminder before a quote expires or an invoice is due.`}
+        >
+          <div className="relative max-w-[220px]">
+            <input
+              inputMode="numeric"
+              className={`${inputClass} pr-24`}
+              value={draft.reminderDays}
+              onChange={(event) =>
+                patchDraft({
+                  reminderDays: event.target.value.replace(/[^\d]/g, ""),
+                })
+              }
+              aria-label="Reminder days"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
+              days before
+            </span>
+          </div>
+        </CheckboxRow>
+      </div>
+    </>
+  );
+
   const internalNotesEditor =
     editing === "notes" ? (
       <SectionEditor
         title="Internal Notes"
         onClose={closeEdit}
-        onSave={saveSection}
+        onSave={() => saveSection("notes")}
       >
-        <p className="type-body-muted">
-          Private notes for you and your team. Customers will not see these.
-        </p>
-        <div className="relative">
-          <textarea
-            className={`${inputClass} min-h-[140px] resize-y`}
-            maxLength={1000}
-            value={draft.internalNotes}
-            onChange={(event) =>
-              patchDraft({
-                internalNotes: event.target.value.slice(0, 1000),
-              })
-            }
-            aria-label={FIELD.internalNotes}
-          />
-          <p className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-black/40">
-            {draft.internalNotes.length}/1000
-          </p>
-        </div>
+        {notesEditorFields}
       </SectionEditor>
     ) : null;
 
@@ -1007,8 +1403,221 @@ function CustomerFormInner() {
           )
       : internalNotesView);
 
+  function mobileCard(
+    section: SectionKey,
+    title: string,
+    summary: ReactNode,
+    content: ReactNode,
+    options: {
+      saveDisabled?: boolean;
+      summaryLayout?: "line" | "block";
+    } = {},
+  ): FullscreenDetailCard {
+    return {
+      id: section,
+      title,
+      summary,
+      summaryLayout: options.summaryLayout,
+      content: archived ? (
+        <p className="type-paragraph-2 whitespace-pre-wrap text-black/70">
+          {typeof summary === "string" ? summary : title}
+        </p>
+      ) : (
+        content
+      ),
+      canSave: !archived,
+      saveDisabled: options.saveDisabled,
+      onOpen: archived ? undefined : () => startEdit(section),
+      onCancel: closeEdit,
+      onBeforeSave: () => saveSection(section),
+    };
+  }
+
+  const taxStatusLabel =
+    TAX_SETTING_OPTIONS.find((option) => option.value === saved.taxStatus)
+      ?.label ?? saved.taxStatus.trim();
+
+  const customerDetailCards: FullscreenDetailCard[] = [
+    mobileCard(
+      "business",
+      "Business Details",
+      [
+        saved.businessName.trim() || "N/A",
+        saved.email.trim() || `${FIELD.businessEmail} N/A`,
+        saved.phone.trim() || `${FIELD.phoneNumber} N/A`,
+      ].join(" · "),
+      businessEditorFields,
+      { saveDisabled: businessSaveDisabled },
+    ),
+    mobileCard(
+      "contact",
+      "Contact Info",
+      saved.contactName.trim() ||
+        saved.contactEmail.trim() ||
+        "Add contact info",
+      contactEditorFields,
+      { saveDisabled: contactSaveDisabled },
+    ),
+    mobileCard(
+      "address",
+      "Address",
+      billingLines?.join(", ") || "Add address",
+      addressEditorFields,
+    ),
+    mobileCard(
+      "notes",
+      "Internal Notes",
+      saved.internalNotes.trim() || "Add internal notes",
+      notesEditorFields,
+    ),
+    mobileCard(
+      "tags",
+      "Tags",
+      saved.tags.length ? saved.tags.join(", ") : "Add tags",
+      tagsEditorFields,
+    ),
+  ];
+
+  const defaultSettingsCards: FullscreenDetailCard[] = [
+    mobileCard(
+      "settings",
+      "Invoice and Quote Details",
+      [
+        saved.quoteExpiryDays.trim()
+          ? `Quote expiry ${saved.quoteExpiryDays} days`
+          : null,
+        saved.paymentTerms.trim() || null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Set invoice and quote details",
+      settingsEditorFields,
+    ),
+    mobileCard(
+      "tax",
+      "Tax Info",
+      [taxStatusLabel, saved.taxSuggestions.suggestedLabel.trim()]
+        .filter(Boolean)
+        .join(" · ") || "Set tax info",
+      taxEditorFields,
+    ),
+    mobileCard(
+      "paymentPreferences",
+      "Payment Preferences",
+      saved.paymentPreferences.length
+        ? saved.paymentPreferences.join(", ")
+        : "Set payment preferences",
+      paymentPreferencesEditorFields,
+    ),
+    mobileCard(
+      "automations",
+      "Default Automations",
+      [
+        `Auto-send ${saved.autoSend ? "On" : "Off"}`,
+        saved.reminders
+          ? saved.reminderDays.trim()
+            ? `Reminders ${saved.reminderDays} days before`
+            : "Reminders On"
+          : "Reminders Off",
+      ].join(" · "),
+      automationsEditorFields,
+    ),
+  ];
+
   const legalName = saved.businessName.trim();
   const customerDisplayName = legalName || "this customer";
+
+  const lifecycleActions =
+    showLifecycleActions && !archived ? (
+      <div className="mt-8 border-t border-black/10 pt-6">
+        {canDeleteCustomer ? (
+          <>
+            <p className="type-body-muted max-w-xl">
+              This customer has no invoices or quotes. Deleting removes them
+              permanently and cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={() => setLifecycleConfirm("delete")}
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
+            >
+              Delete customer
+            </button>
+          </>
+        ) : canArchiveCustomer ? (
+          <>
+            <p className="type-body-muted max-w-xl">
+              {documentLifecycle === "has_sent"
+                ? "This customer has sent invoices or quotes, so they can’t be deleted. Archiving hides them from active lists while keeping financial records for audit and CRA traceability."
+                : "This customer only has draft invoices or quotes. Archiving hides them from active lists while preserving draft history."}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLifecycleConfirm("archive")}
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
+            >
+              Archive customer
+            </button>
+          </>
+        ) : null}
+      </div>
+    ) : null;
+
+  const accountSummarySection = (
+    <section className={sectionShellClass}>
+      <div className={`px-7 pb-6 pt-7 ${staticCardClass}`}>
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+              Invoices
+            </p>
+            <p className="mt-1 text-lg font-semibold text-black">
+              {accountSummary.invoiceCount}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+              Total invoiced
+            </p>
+            <p className="mt-1 text-lg font-semibold text-black">
+              {formatMoney(accountSummary.totalInvoiced)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+              Lifetime paid
+            </p>
+            <p className="mt-1 text-lg font-semibold text-[#1B7A4E]">
+              {formatMoney(accountSummary.paid)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+              Outstanding
+            </p>
+            <p className="mt-1 text-lg font-semibold text-status-danger">
+              {formatMoney(accountSummary.outstanding)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
+              Overdue
+            </p>
+            <p className="mt-1 text-lg font-semibold text-status-danger">
+              {formatMoney(accountSummary.overdue)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <CustomerDocumentsPanel
+          invoices={invoices}
+          quotes={quotes}
+          setupIncomplete={setupIncomplete}
+        />
+      </div>
+    </section>
+  );
 
   return (
     <div className="min-h-screen bg-page-grey text-black">
@@ -1201,63 +1810,40 @@ function CustomerFormInner() {
           </div>
         </div>
 
+        {/* Mobile: fullscreen section pages (same pattern as draft invoice/quote) */}
+        {isDesktop === false && tab === "Customer Settings" ? (
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-2.5">
+              <SectionHeader title="Customer Details" />
+              <FullscreenDetailCards
+                listLabel="Customer Details"
+                cards={customerDetailCards}
+              />
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <SectionHeader
+                title="Default Settings"
+                tip="These start with your business defaults. Change them here only if this customer needs different rules."
+              />
+              <FullscreenDetailCards
+                listLabel="Default Settings"
+                cards={defaultSettingsCards}
+              />
+            </div>
+            {lifecycleActions}
+          </div>
+        ) : null}
+
+        {isDesktop === false && tab === "Account Summary"
+          ? accountSummarySection
+          : null}
+
+        {/* Desktop: two-column layout */}
+        {isDesktop ? (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
           <div className="min-w-0 lg:order-1">
             {tab === "Account Summary" ? (
-          <section className={sectionShellClass}>
-            <div className={`px-7 pb-6 pt-7 ${staticCardClass}`}>
-              <div className="grid grid-cols-2 gap-6 sm:grid-cols-5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Invoices
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-black">
-                    {accountSummary.invoiceCount}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Total invoiced
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-black">
-                    {formatMoney(accountSummary.totalInvoiced)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Lifetime paid
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-[#1B7A4E]">
-                    {formatMoney(accountSummary.paid)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Outstanding
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-status-danger">
-                    {formatMoney(accountSummary.outstanding)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                    Overdue
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-status-danger">
-                    {formatMoney(accountSummary.overdue)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <CustomerDocumentsPanel
-                invoices={invoices}
-                quotes={quotes}
-                setupIncomplete={setupIncomplete}
-              />
-            </div>
-          </section>
+          accountSummarySection
         ) : (
           <>
           <section className={sectionShellClass}>
@@ -1270,50 +1856,9 @@ function CustomerFormInner() {
               <SectionEditor
                 title="Invoice and Quote Details"
                 onClose={closeEdit}
-                onSave={saveSection}
+                onSave={() => saveSection("settings")}
               >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <FieldLabel
-                      htmlFor="quote-expiry"
-                      tip="How long a quote stays open for this customer before it expires. Starts from your organization default."
-                    >
-                      {FIELD.quoteExpiry}
-                    </FieldLabel>
-                    <div className="relative">
-                      <input
-                        id="quote-expiry"
-                        inputMode="numeric"
-                        className={`${inputClass} pr-14`}
-                        value={draft.quoteExpiryDays}
-                        onChange={(event) =>
-                          patchDraft({
-                            quoteExpiryDays: event.target.value.replace(
-                              /[^\d]/g,
-                              "",
-                            ),
-                          })
-                        }
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
-                        days
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel tip="How soon this customer is usually expected to pay after you send an invoice (for example, within 30 days).">
-                      {FIELD.paymentTerms}
-                    </FieldLabel>
-                    <SelectField
-                      ariaLabel={FIELD.paymentTerms}
-                      value={draft.paymentTerms}
-                      options={PAYMENT_TERMS_OPTIONS}
-                      onChange={(value) =>
-                        patchDraft({ paymentTerms: value })
-                      }
-                    />
-                  </div>
-                </div>
+                {settingsEditorFields}
               </SectionEditor>
             ) : (
               <ViewCard
@@ -1343,107 +1888,9 @@ function CustomerFormInner() {
               <SectionEditor
                 title="Tax Info"
                 onClose={closeEdit}
-                onSave={saveSection}
+                onSave={() => saveSection("tax")}
               >
-                <FieldLabel>{FIELD.taxSetting}</FieldLabel>
-                <p className="type-body-muted mb-3">
-                  This starts from your organization default. Change it if this
-                  customer needs different rules.
-                </p>
-                <div
-                  className="flex flex-col gap-3"
-                  role="radiogroup"
-                  aria-label={FIELD.taxSetting}
-                >
-                  {TAX_SETTING_OPTIONS.map((option) => (
-                    <div key={option.value}>
-                      <label className="flex items-start gap-2.5 text-sm text-black">
-                        <input
-                          type="radio"
-                          name="customer-tax-status"
-                          className="mt-0.5 h-4 w-4 accent-prime-blue"
-                          checked={draft.taxStatus === option.value}
-                          onChange={() => {
-                            if (option.value === "Tax-exempt") {
-                              const nonTaxable = suggestNonTaxableForCustomer(
-                                draft.province,
-                              );
-                              patchDraft({
-                                taxStatus: option.value,
-                                taxSuggestions: nonTaxable.suggestions,
-                              });
-                              return;
-                            }
-
-                            const taxable = suggestTaxableForCustomer(
-                              draft.province,
-                            );
-                            patchDraft({
-                              taxStatus: "Taxable",
-                              taxSuggestions: taxable.suggestions,
-                            });
-                          }}
-                        />
-                        <span className="font-semibold">{option.label}</span>
-                      </label>
-                      <p className="mt-1.5 pl-6 text-sm leading-5 text-black/70">
-                        {option.customerDetails}
-                      </p>
-                      {option.value === "Taxable" &&
-                      draft.taxStatus === "Taxable" ? (
-                        <div className="mt-1.5 pl-6">
-                          {(() => {
-                            const taxable = suggestTaxableForCustomer(
-                              draft.province,
-                            );
-                            return (
-                              <TaxSuggestionsEditor
-                                value={draft.taxSuggestions}
-                                options={CUSTOMER_TAXABLE_OPTIONS}
-                                recommendedLabel={taxable.label}
-                                recommendedNote={taxable.note}
-                                onChange={(taxSuggestions) =>
-                                  patchDraft({ taxSuggestions })
-                                }
-                              />
-                            );
-                          })()}
-                        </div>
-                      ) : null}
-                      {option.value === "Tax-exempt" &&
-                      draft.taxStatus === "Tax-exempt" ? (
-                        <div className="mt-1.5 pl-6">
-                          {(() => {
-                            const nonTaxable =
-                              suggestNonTaxableForCustomer(draft.province);
-                            const showRecommended = Boolean(nonTaxable.note);
-                            return (
-                              <TaxSuggestionsEditor
-                                value={draft.taxSuggestions}
-                                options={CUSTOMER_NON_TAXABLE_OPTIONS}
-                                placeholder="Select a tax category..."
-                                ariaLabel="Tax Category"
-                                recommendedLabel={
-                                  showRecommended
-                                    ? nonTaxable.label
-                                    : undefined
-                                }
-                                recommendedNote={
-                                  showRecommended
-                                    ? nonTaxable.note
-                                    : undefined
-                                }
-                                onChange={(taxSuggestions) =>
-                                  patchDraft({ taxSuggestions })
-                                }
-                              />
-                            );
-                          })()}
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
+                {taxEditorFields}
               </SectionEditor>
             ) : (
               <ViewCard
@@ -1488,58 +1935,9 @@ function CustomerFormInner() {
               <SectionEditor
                 title="Payment Preferences"
                 onClose={closeEdit}
-                onSave={saveSection}
+                onSave={() => saveSection("paymentPreferences")}
               >
-                <p className="type-body-muted">
-                  Pick how this customer can usually pay you. These choices
-                  start from your business payment options.
-                </p>
-                <div className="flex flex-col gap-2.5">
-                  {availablePaymentOptions.length === 0 ? (
-                    <p className="type-body-muted">
-                      No payment methods are set up for your business yet.
-                    </p>
-                  ) : (
-                    availablePaymentOptions.map((option) => {
-                      const method = CORE_PAYMENT_METHODS.find(
-                        (entry) => entry.label === option,
-                      );
-                      return (
-                        <CheckboxRow
-                          key={option}
-                          checked={draft.paymentPreferences.includes(option)}
-                          onChange={() => togglePaymentPreference(option)}
-                          label={option}
-                        >
-                          {method?.details.length ? (
-                            <ul className="list-disc space-y-1 pl-5 text-sm font-normal text-black">
-                              {method.details.map((detail) => (
-                                <li key={`${detail.label}-${detail.text}`}>
-                                  <span
-                                    className={
-                                      detail.italic ? "italic" : undefined
-                                    }
-                                  >
-                                    {detail.label}: {detail.text}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </CheckboxRow>
-                      );
-                    })
-                  )}
-                </div>
-                <div>
-                  <TertiaryButton
-                    onClick={() =>
-                      router.push("/organization#payment-options")
-                    }
-                  >
-                    Add payment option
-                  </TertiaryButton>
-                </div>
+                {paymentPreferencesEditorFields}
               </SectionEditor>
             ) : (
               <ViewCard
@@ -1591,45 +1989,9 @@ function CustomerFormInner() {
               <SectionEditor
                 title="Default Automations"
                 onClose={closeEdit}
-                onSave={saveSection}
+                onSave={() => saveSection("automations")}
               >
-                <p className="type-body-muted">
-                  Overrides organization defaults for this customer&apos;s new
-                  quotes and invoices. You can still change reminders on each
-                  document.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <CheckboxRow
-                    checked={draft.autoSend}
-                    onChange={(checked) => patchDraft({ autoSend: checked })}
-                    label={`${FIELD.autoSend}: Send invoices automatically on their issuance date.`}
-                  />
-                  <CheckboxRow
-                    checked={draft.reminders}
-                    onChange={(checked) => patchDraft({ reminders: checked })}
-                    label={`${FIELD.reminders}: Send a reminder before a quote expires or an invoice is due.`}
-                  >
-                    <div className="relative max-w-[220px]">
-                      <input
-                        inputMode="numeric"
-                        className={`${inputClass} pr-24`}
-                        value={draft.reminderDays}
-                        onChange={(event) =>
-                          patchDraft({
-                            reminderDays: event.target.value.replace(
-                              /[^\d]/g,
-                              "",
-                            ),
-                          })
-                        }
-                        aria-label="Reminder days"
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 type-body-muted">
-                        days before
-                      </span>
-                    </div>
-                  </CheckboxRow>
-                </div>
+                {automationsEditorFields}
               </SectionEditor>
             ) : (
               <ViewCard
@@ -1656,40 +2018,7 @@ function CustomerFormInner() {
             )}
           </section>
 
-          {showLifecycleActions && !archived ? (
-            <div className="mt-8 border-t border-black/10 pt-6">
-              {canDeleteCustomer ? (
-                <>
-                  <p className="type-body-muted max-w-xl">
-                    This customer has no invoices or quotes. Deleting removes
-                    them permanently and cannot be undone.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setLifecycleConfirm("delete")}
-                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
-                  >
-                    Delete customer
-                  </button>
-                </>
-              ) : canArchiveCustomer ? (
-                <>
-                  <p className="type-body-muted max-w-xl">
-                    {documentLifecycle === "has_sent"
-                      ? "This customer has sent invoices or quotes, so they can’t be deleted. Archiving hides them from active lists while keeping financial records for audit and CRA traceability."
-                      : "This customer only has draft invoices or quotes. Archiving hides them from active lists while preserving draft history."}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setLifecycleConfirm("archive")}
-                    className="mt-4 inline-flex h-11 items-center justify-center rounded-[5px] border border-status-danger px-5 text-sm font-semibold text-status-danger transition hover:bg-status-danger/5"
-                  >
-                    Archive customer
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+          {lifecycleActions}
           </>
         )}
           </div>
@@ -1698,10 +2027,9 @@ function CustomerFormInner() {
             className={`min-w-0 lg:sticky lg:top-6 lg:order-2 ${
               tab === "Account Summary"
                 ? "hidden lg:block"
-                : "max-lg:order-first"
+                : ""
             }`}
           >
-            {/* Customer Details — filled/editing cards above remaining Add links */}
             <section className={sectionShellClass}>
               <SectionHeader title="Customer Details" />
               {(
@@ -1714,59 +2042,10 @@ function CustomerFormInner() {
                         <SectionEditor
                           title="Business Details"
                           onClose={closeEdit}
-                          onSave={saveSection}
+                          onSave={() => saveSection("business")}
                           saveDisabled={businessSaveDisabled}
                         >
-                          <div>
-                            <FieldLabel
-                              htmlFor="business-name"
-                              tip={LEGAL_NAME_TIP}
-                            >
-                              {FIELD.businessLegalName}{" "}
-                              <span className="type-danger">*</span>
-                            </FieldLabel>
-                            <input
-                              id="business-name"
-                              className={inputClass}
-                              value={draft.businessName}
-                              onChange={(event) =>
-                                patchDraft({ businessName: event.target.value })
-                              }
-                            />
-                          </div>
-                          <div>
-                            <FieldLabel htmlFor="email">
-                              {FIELD.businessEmail}
-                            </FieldLabel>
-                            <input
-                              id="email"
-                              type="email"
-                              className={inputClass}
-                              value={draft.email}
-                              onChange={(event) =>
-                                patchDraft({ email: event.target.value })
-                              }
-                            />
-                            {draft.email.trim() && !isValidEmail(draft.email) ? (
-                              <p className="type-danger mt-1.5">
-                                Enter a valid email address.
-                              </p>
-                            ) : null}
-                          </div>
-                          <div>
-                            <FieldLabel htmlFor="phone">
-                              {FIELD.phoneNumber}
-                            </FieldLabel>
-                            <input
-                              id="phone"
-                              type="tel"
-                              className={inputClass}
-                              value={draft.phone}
-                              onChange={(event) =>
-                                patchDraft({ phone: event.target.value })
-                              }
-                            />
-                          </div>
+                          {businessEditorFields}
                         </SectionEditor>
                       ) : businessEmpty ? (
                         archived ? null : (
@@ -1816,74 +2095,10 @@ function CustomerFormInner() {
                         <SectionEditor
                           title="Address"
                           onClose={closeEdit}
-                          onSave={saveSection}
+                          onSave={() => saveSection("address")}
                           saveDisabled={addressSaveDisabled}
                         >
-                          <p className="type-body-muted -mt-2">
-                            Billing locality is used for CRA alignment and tax
-                            calculations. Province / Territory is required.
-                          </p>
-                          <AddressFields
-                            idPrefix="billing"
-                            requireProvince
-                            values={{
-                              addressLine1: draft.addressLine1,
-                              addressLine2: draft.addressLine2,
-                              city: draft.city,
-                              province: draft.province,
-                              postalCode: draft.postalCode,
-                            }}
-                            onChange={(patch) => patchDraft(patch)}
-                          />
-                          {!draft.province.trim() ? (
-                            <p className="type-body-muted -mt-2">
-                              Add a province or territory later to enable
-                              Canadian tax suggestions.
-                            </p>
-                          ) : null}
-                          <div>
-                            <CheckboxRow
-                              checked={draft.hasShippingAddress}
-                              onChange={setShippingEnabled}
-                              label={FIELD.addShipping}
-                            />
-                          </div>
-                          {draft.hasShippingAddress ? (
-                            <div
-                              className={`flex flex-col gap-4 ${sectionDividerClass}`}
-                            >
-                              <h4 className="type-subtitle-1">
-                                {FIELD.shippingAddress}
-                              </h4>
-                              <AddressFields
-                                idPrefix="shipping"
-                                values={{
-                                  addressLine1: draft.shippingAddressLine1,
-                                  addressLine2: draft.shippingAddressLine2,
-                                  city: draft.shippingCity,
-                                  province: draft.shippingProvince,
-                                  postalCode: draft.shippingPostalCode,
-                                }}
-                                onChange={(patch) =>
-                                  patchDraft({
-                                    shippingAddressLine1:
-                                      patch.addressLine1 ??
-                                      draft.shippingAddressLine1,
-                                    shippingAddressLine2:
-                                      patch.addressLine2 ??
-                                      draft.shippingAddressLine2,
-                                    shippingCity:
-                                      patch.city ?? draft.shippingCity,
-                                    shippingProvince:
-                                      patch.province ?? draft.shippingProvince,
-                                    shippingPostalCode:
-                                      patch.postalCode ??
-                                      draft.shippingPostalCode,
-                                  })
-                                }
-                              />
-                            </div>
-                          ) : null}
+                          {addressEditorFields}
                         </SectionEditor>
                       ) : addressEmpty ? (
                         archived ? null : (
@@ -1924,51 +2139,10 @@ function CustomerFormInner() {
                         <SectionEditor
                           title="Contact Info"
                           onClose={closeEdit}
-                          onSave={saveSection}
+                          onSave={() => saveSection("contact")}
                           saveDisabled={contactSaveDisabled}
                         >
-                          <div>
-                            <FieldLabel htmlFor="contact-name">
-                              {FIELD.contactName}
-                            </FieldLabel>
-                            <input
-                              id="contact-name"
-                              className={inputClass}
-                              value={draft.contactName}
-                              onChange={(event) =>
-                                patchDraft({ contactName: event.target.value })
-                              }
-                            />
-                          </div>
-                          <div>
-                            <FieldLabel htmlFor="contact-email">
-                              {FIELD.contactEmail}
-                            </FieldLabel>
-                            <input
-                              id="contact-email"
-                              type="email"
-                              className={inputClass}
-                              value={draft.contactEmail}
-                              onChange={(event) =>
-                                patchDraft({ contactEmail: event.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <CheckboxRow
-                              checked={draft.useContactEmailForComms}
-                              onChange={(checked) =>
-                                patchDraft({ useContactEmailForComms: checked })
-                              }
-                              label={FIELD.sendCommsHere}
-                            />
-                            {draft.useContactEmailForComms &&
-                            !isValidEmail(draft.contactEmail) ? (
-                              <p className="type-danger pl-7">
-                                Enter a valid contact email to use this option.
-                              </p>
-                            ) : null}
-                          </div>
+                          {contactEditorFields}
                         </SectionEditor>
                       ) : contactEmpty ? (
                         archived ? null : (
@@ -2015,22 +2189,9 @@ function CustomerFormInner() {
                         <SectionEditor
                           title="Tags"
                           onClose={closeEdit}
-                          onSave={saveSection}
+                          onSave={() => saveSection("tags")}
                         >
-                          <p className="type-body-muted -mt-2">
-                            Group accounts for filtering (for example, VIP or
-                            Contractor).
-                          </p>
-                          <div className="flex flex-col gap-2.5">
-                            {tagOptions.map((tag) => (
-                              <CheckboxRow
-                                key={tag}
-                                checked={draft.tags.includes(tag)}
-                                onChange={() => toggleTag(tag)}
-                                label={tag}
-                              />
-                            ))}
-                          </div>
+                          {tagsEditorFields}
                         </SectionEditor>
                       ) : tagsEmpty ? (
                         archived ? null : (
@@ -2081,6 +2242,7 @@ function CustomerFormInner() {
             </section>
           </aside>
         </div>
+        ) : null}
 
       </main>
 
