@@ -23,11 +23,20 @@ function isOverdueStatus(status: string) {
   return /^overdue/i.test(status.trim());
 }
 
-function daysPastDue(row: CustomerInvoiceRow, now: Date) {
+function daysPastDue(row: { dueDate: string }, now: Date) {
   const due = parseDemoDate(row.dueDate);
   if (!due) return 0;
   const ms = now.getTime() - due.getTime();
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
+/** Grey badge label for overdue cards, e.g. "145 days". */
+export function overdueDaysLateLabel(
+  dueDate: string,
+  now: Date = DIRECTORY_REFERENCE_NOW,
+): string {
+  const late = daysPastDue({ dueDate }, now);
+  return late > 0 ? `${late} day${late === 1 ? "" : "s"}` : "Past due";
 }
 
 function daysBetween(start: Date, end: Date) {
@@ -42,8 +51,11 @@ export type OverduePreviewItem = {
   id: string;
   number: string;
   customer: string;
-  amount: string;
   status: string;
+  dateIssued: string;
+  dueDate: string;
+  amount: number;
+  balanceOutstanding: number;
   lateness: string;
   href: string;
 };
@@ -52,6 +64,7 @@ export type DashboardOverdueSummary = {
   amount: string;
   outstandingAmount: string;
   count: number;
+  outstandingCount: number;
   viewAllHref: string;
   items: OverduePreviewItem[];
 };
@@ -61,6 +74,12 @@ export type DashboardMetricCard = {
   label: string;
   value: string;
   hint: string;
+  /** Plain-language takeaway under the metric (good / watch / concern). */
+  insight?: {
+    title: string;
+    text: string;
+    tone: "good" | "watch" | "concern" | "neutral";
+  };
   tooltip?: string;
   tone: "neutral" | "warning" | "success";
   href?: string;
@@ -84,6 +103,81 @@ export type DashboardModel = {
   metrics: DashboardMetricCard[];
   recentInvoices: RecentInvoiceItem[];
 };
+
+function collectionRateInsight(
+  rate: number,
+): DashboardMetricCard["insight"] {
+  if (rate >= 80) {
+    return {
+      tone: "good",
+      title: "Strong collections:",
+      text: "Most of what you’ve billed is already collected.",
+    };
+  }
+  if (rate >= 60) {
+    return {
+      tone: "watch",
+      title: "Room to improve:",
+      text: "A fair share is collected, but follow-up could bring more in sooner.",
+    };
+  }
+  return {
+    tone: "concern",
+    title: "Weak collections:",
+    text: "A large share of invoiced amounts is still unpaid.",
+  };
+}
+
+function overdueRateInsight(rate: number): DashboardMetricCard["insight"] {
+  if (rate <= 15) {
+    return {
+      tone: "good",
+      title: "Healthy receivables:",
+      text: "Only a small part of what’s owed is overdue.",
+    };
+  }
+  if (rate <= 30) {
+    return {
+      tone: "watch",
+      title: "Elevated overdue:",
+      text: "Overdue balances are starting to weigh on cash flow.",
+    };
+  }
+  return {
+    tone: "concern",
+    title: "High overdue risk:",
+    text: "Overdue balances are a large share of what you’re owed.",
+  };
+}
+
+function avgDaysInsight(days: number | null): DashboardMetricCard["insight"] {
+  if (days == null) {
+    return {
+      tone: "neutral",
+      title: "Not enough data:",
+      text: "Pay a few invoices to see how quickly customers typically pay.",
+    };
+  }
+  if (days <= 30) {
+    return {
+      tone: "good",
+      title: "On-time payments:",
+      text: "Customers are paying around typical Net 30 terms.",
+    };
+  }
+  if (days <= 45) {
+    return {
+      tone: "watch",
+      title: "Slightly slow:",
+      text: "Payments are stretching past standard Net 30 terms.",
+    };
+  }
+  return {
+    tone: "concern",
+    title: "Slow to pay:",
+    text: "Customers are taking a long time to pay — tighten reminders or terms.",
+  };
+}
 
 export function buildDashboardModel(
   now: Date = DIRECTORY_REFERENCE_NOW,
@@ -152,17 +246,16 @@ export function buildDashboardModel(
   const overdueItems: OverduePreviewItem[] = [...overdueRows]
     .sort((a, b) => daysPastDue(b, now) - daysPastDue(a, now))
     .map((row) => {
-      const late = daysPastDue(row, now);
       return {
         id: row.id,
         number: row.number,
         customer: customerName(row.customerId),
-        amount: formatMoney(row.balanceOutstanding),
         status: row.status,
-        lateness:
-          late > 0
-            ? `${late} day${late === 1 ? "" : "s"} late`
-            : "Past due",
+        dateIssued: row.dateIssued,
+        dueDate: row.dueDate,
+        amount: row.amount,
+        balanceOutstanding: row.balanceOutstanding,
+        lateness: overdueDaysLateLabel(row.dueDate, now),
         href: hrefForCustomerInvoice(row.status),
       };
     });
@@ -192,6 +285,7 @@ export function buildDashboardModel(
       amount: formatMoney(overdueAmount),
       outstandingAmount: formatMoney(outstandingAmount),
       count: overdueRows.length,
+      outstandingCount: outstandingRows.length,
       viewAllHref: "/invoices?status=Outstanding",
       items: overdueItems,
     },
@@ -215,40 +309,40 @@ export function buildDashboardModel(
         href: "/invoices?status=Outstanding",
       },
       {
-        id: "overdue-rate",
-        label: "Overdue Rate",
-        value: `${overdueRate}%`,
-        hint: "Of outstanding balance",
-        tooltip:
-          "Overdue outstanding balance divided by total outstanding balance. Counts only open invoices with a remaining balance (excludes paid, void, uncollectible, and drafts).",
-        tone: "warning",
-      },
-      {
-        id: "collection-rate",
-        label: "Collection Rate",
-        value: `${collectionRate}%`,
-        hint: "Collected vs invoiced",
-        tooltip:
-          "Amount collected (paid portions of invoices) divided by total invoiced, excluding drafts. Higher means more of what you billed has been collected.",
-        tone: "neutral",
-      },
-      {
         id: "gst-hst",
         label: "GST/HST Collected",
         value: formatMoney(gstCollected),
-        hint: "On amounts collected",
+        hint: "",
         tooltip:
           "Estimated GST/HST included in payments you’ve collected. In this prototype it’s 5% of collected amounts; production would sum tax lines from paid and partially paid invoices.",
         tone: "neutral",
       },
       {
+        id: "collection-rate",
+        label: "Collection Rate",
+        value: `${collectionRate}%`,
+        hint: "",
+        insight: collectionRateInsight(collectionRate),
+        tooltip:
+          "Amount collected (paid portions of invoices) divided by total invoiced, excluding drafts. Higher means more of what you billed has been collected.",
+        tone: "neutral",
+      },
+      {
+        id: "overdue-rate",
+        label: "Overdue Rate",
+        value: `${overdueRate}%`,
+        hint: "",
+        insight: overdueRateInsight(overdueRate),
+        tooltip:
+          "Overdue outstanding balance divided by total outstanding balance. Counts only open invoices with a remaining balance (excludes paid, void, uncollectible, and drafts).",
+        tone: "warning",
+      },
+      {
         id: "avg-days",
         label: "Average Days To Payment",
         value: avgDaysToPayment == null ? "—" : `${avgDaysToPayment}`,
-        hint:
-          avgDaysToPayment == null
-            ? "No paid invoices yet"
-            : "Days from issue to pay",
+        hint: "",
+        insight: avgDaysInsight(avgDaysToPayment),
         tooltip:
           "Average number of days from invoice issue date to payment date for fully paid invoices. Demo uses each paid invoice’s due date as the payment date when a separate payment date isn’t stored.",
         tone: "neutral",

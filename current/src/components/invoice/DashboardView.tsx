@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildDashboardModel,
+  overdueDaysLateLabel,
   type DashboardMetricCard,
   type OverduePreviewItem,
   type RecentInvoiceItem,
@@ -123,30 +124,62 @@ function OverdueInvoiceCarousel({
             key={item.id}
             className={`${DIRECTORY_CARD_CLASS} w-[calc((100%-0.75rem)/1.5)] shrink-0 snap-start`}
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={item.href}
-                className="type-subtitle-2 text-midnight-ink hover:underline"
-              >
-                #{item.number}
-              </Link>
-              <StatusBadge status={item.status} />
-            </div>
-            <p className="truncate type-subtitle-1 text-midnight-ink">
-              {item.customer}
-            </p>
-            <p className="font-mono tabular-nums type-subtitle-1 text-midnight-ink">
-              {item.amount}
-              <span className="ml-2 font-sans type-paragraph-2 text-black/50">
-                {item.lateness}
-              </span>
-            </p>
+            <Link href={item.href} className="block min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="type-subtitle-2 text-midnight-ink">
+                    #{item.number}
+                  </p>
+                  <p className="mt-1 truncate type-subtitle-1 text-midnight-ink">
+                    {item.customer}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <span className="inline-flex w-fit items-center rounded bg-[#F3F3F3] px-2 py-0.5 type-subtitle-2 text-[#666666]">
+                    {item.lateness}
+                  </span>
+                  <StatusBadge status={item.status} />
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                <div>
+                  <dt className="type-caption">Issued</dt>
+                  <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                    <DateCell value={item.dateIssued} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="type-caption">Due</dt>
+                  <dd className="mt-0.5 type-paragraph-2 text-black/75">
+                    <DateCell value={item.dueDate} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="type-caption">Total</dt>
+                  <dd className="mt-0.5">
+                    <MoneyCell
+                      amount={item.amount}
+                      variant="total"
+                      align="left"
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="type-caption">Outstanding</dt>
+                  <dd className="mt-0.5">
+                    <MoneyCell
+                      amount={item.balanceOutstanding}
+                      variant="outstanding"
+                      align="left"
+                    />
+                  </dd>
+                </div>
+              </dl>
+            </Link>
             {sent ? (
-              <p className="mt-4 type-subtitle-1 text-[#1B7A3A]">
-                Reminder sent
-              </p>
+              <p className="type-subtitle-1 text-[#1B7A3A]">Reminder sent</p>
             ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   className="ui-btn-secondary h-9 px-3 type-subtitle-1"
@@ -204,7 +237,17 @@ function MetricCell({ card }: { card: DashboardMetricCard }) {
       <p className={`mt-2 type-amount ${METRIC_VALUE_COLOR[card.tone]}`}>
         {card.value}
       </p>
-      <p className="mt-1 type-paragraph-2 text-black/50">{card.hint}</p>
+      {card.hint ? (
+        <p className="mt-1 type-paragraph-2 text-black/50">{card.hint}</p>
+      ) : null}
+      {card.insight ? (
+        <div className="mt-3 rounded-[10px] border border-midnight-ink/20 bg-cloud-grey px-5 py-4">
+          <p className="type-paragraph-2 leading-5 text-black">
+            <span className="font-semibold">{card.insight.title}</span>{" "}
+            {card.insight.text}
+          </p>
+        </div>
+      ) : null}
     </>
   );
 
@@ -259,9 +302,16 @@ function RecentInvoiceCards({ rows }: { rows: RecentInvoiceItem[] }) {
                   {row.customer}
                 </p>
               </div>
-              <StatusBadge status={row.status} />
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {/^overdue/i.test(row.status) ? (
+                  <span className="inline-flex w-fit items-center rounded bg-[#F3F3F3] px-2 py-0.5 type-subtitle-2 text-[#666666]">
+                    {overdueDaysLateLabel(row.dueDate)}
+                  </span>
+                ) : null}
+                <StatusBadge status={row.status} />
+              </div>
             </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
               <div>
                 <dt className="type-caption">Issued</dt>
                 <dd className="mt-0.5 type-paragraph-2 text-black/75">
@@ -346,12 +396,17 @@ export function DashboardView() {
               <p className="mt-2 type-amount text-[#C62828]">
                 {model.overdue.amount}
               </p>
-              <p className="mt-2 type-paragraph-2 text-black/50">
-                out of {model.overdue.outstandingAmount} outstanding
+              <p className="mt-2 type-paragraph-1 text-midnight-ink/80">
+                out of{" "}
+                <span className="font-semibold text-midnight-ink">
+                  {model.overdue.outstandingAmount}
+                </span>{" "}
+                outstanding
               </p>
-              <p className="mt-1 type-caption">
-                {model.overdue.count} invoice
-                {model.overdue.count === 1 ? "" : "s"}
+              <p className="mt-1 type-paragraph-2 text-midnight-ink/70">
+                {model.overdue.count} out of {model.overdue.outstandingCount}{" "}
+                invoice
+                {model.overdue.outstandingCount === 1 ? "" : "s"}
               </p>
             </div>
 

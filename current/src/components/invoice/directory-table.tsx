@@ -617,10 +617,10 @@ export const DIRECTORY_HEADER_ROW =
 
 /** Shared shell for directory / dashboard document cards. */
 export const DIRECTORY_CARD_CLASS =
-  "flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue hover:ring-1 hover:ring-prime-blue";
+  "flex h-full flex-col gap-3 rounded-[10px] border border-black/10 bg-white p-5 transition hover:border-prime-blue";
 
 export const DIRECTORY_CARD_SELECTED_CLASS =
-  "flex h-full flex-col gap-3 rounded-[10px] border border-prime-blue bg-white p-5 ring-1 ring-prime-blue transition";
+  "flex h-full flex-col gap-3 rounded-[10px] border border-prime-blue bg-white p-5 transition";
 
 
 /** Sticky under TopNav (60px). Use on invoice/quote directory tables. */

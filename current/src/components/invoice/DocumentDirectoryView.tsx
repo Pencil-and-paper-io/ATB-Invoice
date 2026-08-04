@@ -41,6 +41,7 @@ import {
   getQuoteBulkActions,
   type QuoteStatus,
 } from "@/lib/quote-actions";
+import { overdueDaysLateLabel } from "@/lib/dashboard-stats";
 import { DirectoryFilterPanel } from "./DirectoryFilterPanel";
 import {
   DirectoryFilterTags,
@@ -964,7 +965,14 @@ function InvoiceCardGrid({
                         />
                       </p>
                     </div>
-                    <StatusBadge status={invoice.status} query={query} />
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      {/^overdue/i.test(invoice.status) ? (
+                        <span className="inline-flex w-fit items-center rounded bg-[#F3F3F3] px-2 py-0.5 type-subtitle-2 text-[#666666]">
+                          {overdueDaysLateLabel(invoice.dueDate)}
+                        </span>
+                      ) : null}
+                      <StatusBadge status={invoice.status} query={query} />
+                    </div>
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
                     <div>
