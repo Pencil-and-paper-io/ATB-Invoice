@@ -12,24 +12,26 @@ export type SendAccordionSection = {
   children: React.ReactNode;
 };
 
-function CheckmarkIcon() {
+function RadioMark({
+  checked,
+  disabled = false,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+}) {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
+    <span
+      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+        checked
+          ? "border-prime-blue"
+          : disabled
+            ? "border-black/20"
+            : "border-black/35"
+      }`}
       aria-hidden
-      className="shrink-0 text-prime-blue"
     >
-      <path
-        d="m2.5 8.5 3.5 3.5 7.5-8"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      {checked ? <span className="h-2 w-2 rounded-full bg-prime-blue" /> : null}
+    </span>
   );
 }
 
@@ -64,7 +66,11 @@ export function SendMethodAccordion({
   onSelect: (method: SendAccordionMethod) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2.5" aria-label="Send methods">
+    <div
+      className="flex flex-col gap-2.5"
+      role="radiogroup"
+      aria-label="Send methods"
+    >
       {sections.map((section) => {
         const expanded = selected === section.method;
         return (
@@ -80,14 +86,19 @@ export function SendMethodAccordion({
           >
             <button
               type="button"
+              role="radio"
+              aria-checked={expanded}
               aria-expanded={expanded}
               disabled={!section.available}
               onClick={() => onSelect(section.method)}
-              className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition ${
+              className={`flex w-full items-start gap-3 px-4 py-3.5 text-left transition ${
                 section.available ? "hover:bg-black/[0.02]" : "cursor-not-allowed"
               }`}
             >
-              {expanded ? <CheckmarkIcon /> : null}
+              <RadioMark
+                checked={expanded}
+                disabled={!section.available}
+              />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-black">
                   {section.title}

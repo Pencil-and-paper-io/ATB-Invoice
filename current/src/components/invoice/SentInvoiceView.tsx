@@ -16,6 +16,12 @@ import {
   mergeInvoiceActivity,
   type ActivityItem,
 } from "@/lib/document-activity";
+import {
+  enableInvoicePassword,
+  generateInvoicePassword,
+  invoiceShareUrl,
+  loadInvoicePasswordState,
+} from "@/lib/invoice-password";
 import { loadSelfNotes } from "@/lib/invoice-self-notes";
 import { CustomerInvoiceCard } from "./CustomerInvoiceCard";
 import { DocumentActivityTimeline } from "./DocumentActivityTimeline";
@@ -24,10 +30,15 @@ import {
   FullscreenDetailCards,
   type FullscreenDetailCard,
 } from "./FullscreenDetailCards";
+import {
+  InvoicePasswordSentPanel,
+  PasswordLockButton,
+} from "./InvoicePasswordSentPanel";
 import { MoreActionsMenu } from "./MoreActionsMenu";
 import { NoteToSelfSection } from "./NoteToSelfSection";
 import { RecordPaymentModal } from "./RecordPaymentModal";
 import { TopNav } from "./TopNav";
+import { Modal } from "./ui";
 import { useInvoiceActionHandler } from "./useInvoiceActionHandler";
 import { useIsDesktopLg } from "./useIsDesktopLg";
 
@@ -99,6 +110,9 @@ export function SentInvoiceView({
   });
   const [showPayment, setShowPayment] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [passwordProtected, setPasswordProtected] = useState(false);
+  const [sharePassword, setSharePassword] = useState("");
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>(() =>
     mergeInvoiceActivity(meta.activity),
   );
@@ -123,6 +137,35 @@ export function SentInvoiceView({
     const pending = consumePendingInvoiceToast();
     if (pending) setPaymentToast(pending);
   }, [variant]);
+
+  useEffect(() => {
+    const fromQuery =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("passwordProtected") ===
+        "1";
+    let state = loadInvoicePasswordState();
+    if (fromQuery && (!state.enabled || !state.password.trim())) {
+      const generated = generateInvoicePassword();
+      enableInvoicePassword(generated);
+      state = loadInvoicePasswordState();
+    }
+    setPasswordProtected(fromQuery || state.enabled);
+    setSharePassword(state.password);
+  }, [variant]);
+
+  function openPasswordModal() {
+    const state = loadInvoicePasswordState();
+    if (state.enabled && state.password.trim()) {
+      setSharePassword(state.password);
+      setShowPasswordModal(true);
+      return;
+    }
+    const generated = generateInvoicePassword();
+    enableInvoicePassword(generated);
+    setSharePassword(generated);
+    setPasswordProtected(true);
+    setShowPasswordModal(true);
+  }
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -232,6 +275,9 @@ export function SentInvoiceView({
               label={meta.badge.label}
               className={`lg:hidden ${meta.badge.className}`}
             />
+            {passwordProtected ? (
+              <PasswordLockButton onClick={openPasswordModal} />
+            ) : null}
           </div>
           <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
             {renderActions()}
@@ -261,6 +307,9 @@ export function SentInvoiceView({
                     label={meta.badge.label}
                     className={meta.badge.className}
                   />
+                  {passwordProtected ? (
+                    <PasswordLockButton onClick={openPasswordModal} />
+                  ) : null}
                 </div>
               </section>
 
@@ -304,6 +353,31 @@ export function SentInvoiceView({
           balanceDue={balanceDue}
           onClose={() => setShowPayment(false)}
         />
+      ) : null}
+      {showPasswordModal && sharePassword ? (
+        <Modal
+          title="Invoice Sent with Password"
+          titleId="invoice-sent-password-title"
+          onClose={() => setShowPasswordModal(false)}
+          maxWidthClass="max-w-2xl"
+          zClass="z-[80]"
+          hideCancel
+          confirmLabel="Close"
+          onConfirm={() => setShowPasswordModal(false)}
+        >
+          <div className="flex flex-col gap-4">
+            <div
+              className="rounded-lg border border-prime-blue/25 bg-prime-blue/5 px-4 py-3.5 text-sm leading-5 text-black/80"
+              role="status"
+            >
+              This invoice was sent with password protection.
+            </div>
+            <InvoicePasswordSentPanel
+              password={sharePassword}
+              shareUrl={invoiceShareUrl(true)}
+            />
+          </div>
+        </Modal>
       ) : null}
       {paymentToastBanner}
       {feedbackBanner}

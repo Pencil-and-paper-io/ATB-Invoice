@@ -215,6 +215,37 @@ const SECTIONS: QuickSection[] = [
     ],
   },
   {
+    id: "password-protect",
+    title: "Password protect (review)",
+    subtitle: "Demo UI for protected invoice sharing",
+    links: [
+      {
+        id: "pw-preview-send",
+        label: "1. Preview → Send",
+        href: "/preview",
+        description: "Enable “Require a password to open”",
+      },
+      {
+        id: "pw-unlock-setup",
+        label: "2. Customer unlock gate",
+        href: "/pay/invoice/3001?setup=1",
+        description: "Seeds a demo password + lock screen",
+      },
+      {
+        id: "pw-unlocked",
+        label: "3. Unlocked customer view",
+        href: "/pay/invoice/3001?unlocked=1",
+        description: "Skip gate; show invoice card",
+      },
+      {
+        id: "pw-sent-badge",
+        label: "4. Sent · Password badge",
+        href: "/sent?passwordProtected=1",
+        description: "Lock icon → password modal",
+      },
+    ],
+  },
+  {
     id: "setup",
     title: "Setup & profiles",
     subtitle: "Onboarding and demo customers",
